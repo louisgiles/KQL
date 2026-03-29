@@ -1,7 +1,7 @@
 // Sign-In Investigation Narrative Generator
-// Companion to sign-in-triage-plus-risk-engine. Runs the same enrichment pipeline
-// outputring a pre-written summary per user.
-// Covers: sign-in verdict, IP reputation, location, device posture,
+// Companion to query 12. Runs the same enrichment pipeline but outputs
+// a pre-written incident note summary per user, ready to paste into your
+// ticket. Covers: sign-in verdict, IP reputation, location, device posture,
 // MFA method, CA policy, and MFA audit trail.
 //
 // Usage: Populate UserIdentityCheck. Output is a single-row text summary.
@@ -207,7 +207,7 @@ SigninLogs
 | extend InvestigationNarrative = strcat(
     "=== SIGN-IN INVESTIGATION SUMMARY ===\n",
     "User: ", UserPrincipalName, "\n",
-    "Review Period: ", tostring(TimeToCheck), " | Generated: ", format_datetime(now(), "yyyy-MM-dd HH:mm UTC"), "\n",
+    "Review Period: ", tostring(TimeToCheck), " | Generated: ", tostring(now()), "\n",
     _identityLine, "\n",
     "\n--- Sign-In Status ---\n",
     _signinLine, "\n",
