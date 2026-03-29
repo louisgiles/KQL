@@ -1,7 +1,7 @@
-## My Personal KQL Library. Work is my own.
+## My Personal KQL Library.
 - This is a library of KQL queries built for SOC investigation within sentinel.
 - These are practical triage ready queries designed for real incident response.
-- This library is built from hands-on experience working as a SOC Analyst.
+- This library is built from hands-on experience acquired throughout my career as a SOC Analyst.
 
 ## Design principles:
 - These queries are written against the following philosophies:
@@ -28,6 +28,7 @@ Each file is a standalone query to be used within your sentinel logs blade. Some
 Comments at the top of each file for the pre-requisites and table dependencies.
 
 ### Note:
-This is a personal reference library, not an open-source project. Contributions are not accepted but feel free to fork and adapt for your own environment.
+This is a personal reference library, not an open-source project. All work is my own.
+Contributions are not accepted but feel free to fork and adapt for your own environment.
 Reach out to me on LinkedIn if you make any adjustments or additions, I love to hear what other people are engaged in.
 https://www.linkedin.com/in/louis-giles/
