@@ -30,5 +30,5 @@ Comments at the top of each file for the pre-requisites and table dependencies.
 ### Note:
 This is a personal reference library, not an open-source project. All work is my own.
 Contributions are not accepted but feel free to fork and adapt for your own environment.
-Reach out to me on LinkedIn if you make any adjustments or additions, I love to hear what other people are engaged in.
+Reach out to me on LinkedIn if you make any adjustments or additions, I'd love to hear what other people are engaged in.
 https://www.linkedin.com/in/louis-giles/
