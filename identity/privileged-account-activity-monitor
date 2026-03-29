@@ -1,0 +1,152 @@
+// Privileged Account Activity Monitor
+// Tracks all activity from accounts with privileged role assignments —
+// sign-ins, role activations via PIM, administrative actions,
+// and deviations from their established patterns.
+// Tables: AuditLogs, SigninLogs, IdentityDirectoryEvents
+let LookbackWindow = 24h;
+let PrivilegedRoles = dynamic([
+    "Global Administrator", "Privileged Role Administrator",
+    "Privileged Authentication Administrator", "Security Administrator",
+    "Exchange Administrator", "SharePoint Administrator",
+    "User Administrator", "Application Administrator",
+    "Cloud Application Administrator", "Intune Administrator",
+    "Azure AD Joined Device Local Administrator", "Conditional Access Administrator",
+    "Helpdesk Administrator", "Password Administrator",
+    "Authentication Administrator", "Directory Synchronization Accounts",
+    "Partner Tier1 Support", "Partner Tier2 Support"
+]);
+// ============================================================
+// STEP 1: Identify Current Privileged Users from AuditLogs
+// ============================================================
+let PrivilegedUsers = AuditLogs
+    | where TimeGenerated >= ago(90d)
+    | where OperationName has_any ("Add member to role", "Add eligible member to role")
+    | extend
+        RoleName = tostring(TargetResources[0].displayName),
+        TargetUser = tostring(TargetResources[0].userPrincipalName)
+    | where RoleName in (PrivilegedRoles)
+    | distinct TargetUser
+    | where isnotempty(TargetUser);
+// ============================================================
+// SECTION 1: Privileged Account Sign-In Activity
+// ============================================================
+let PrivSignins = union withsource=SourceTable SigninLogs
+    | where TimeGenerated >= ago(LookbackWindow)
+    | where UserPrincipalName in (PrivilegedUsers)
+    | summarize
+        TotalSignins = count(),
+        SuccessCount = countif(ResultType == 0),
+        FailureCount = countif(ResultType != 0),
+        DistinctIPs = dcount(IPAddress),
+        IPs = make_set(IPAddress, 20),
+        Locations = make_set(Location, 10),
+        ClientApps = make_set(ClientAppUsed, 10),
+        UserAgents = make_set(UserAgent, 10),
+        LatestSignin = max(TimeGenerated)
+        by UserPrincipalName
+    | extend ActivityType = "Sign-In Summary";
+// ============================================================
+// SECTION 2: PIM Role Activations
+// ============================================================
+let PIMActivations = AuditLogs
+    | where TimeGenerated >= ago(LookbackWindow)
+    | where OperationName has_any (
+        "Add member to role in PIM completed",
+        "Add eligible member to role in PIM requested",
+        "Add member to role completed (PIM activation)"
+    )
+    | extend
+        ActivatedRole = tostring(TargetResources[0].displayName),
+        ActivatedBy = tostring(InitiatedBy.user.userPrincipalName),
+        Justification = tostring(AdditionalDetails[0].value)
+    | where ActivatedRole in (PrivilegedRoles)
+    | project
+        TimeGenerated,
+        ActivityType = "PIM Activation",
+        ActivatedBy,
+        ActivatedRole,
+        Justification,
+        CorrelationId;
+// ============================================================
+// SECTION 3: Administrative Actions Performed
+// ============================================================
+let AdminActions = AuditLogs
+    | where TimeGenerated >= ago(LookbackWindow)
+    | where InitiatedBy.user.userPrincipalName in (PrivilegedUsers)
+    | extend
+        Actor = tostring(InitiatedBy.user.userPrincipalName),
+        TargetResource = tostring(TargetResources[0].displayName),
+        TargetType = tostring(TargetResources[0].type)
+    | summarize
+        TotalActions = count(),
+        DistinctOperations = dcount(OperationName),
+        Operations = make_set(OperationName, 25),
+        TargetResources = make_set(TargetResource, 25),
+        LatestAction = max(TimeGenerated)
+        by Actor
+    | extend ActivityType = "Administrative Actions Summary";
+// ============================================================
+// SECTION 4: High-Risk Administrative Operations
+// ============================================================
+let HighRiskOps = AuditLogs
+    | where TimeGenerated >= ago(LookbackWindow)
+    | where InitiatedBy.user.userPrincipalName in (PrivilegedUsers)
+    | where OperationName has_any (
+        "Add member to role", "Remove member from role",
+        "Add application", "Update application",
+        "Add service principal", "Add app role assignment",
+        "Add delegated permission grant", "Consent to application",
+        "Add owner to application", "Add owner to service principal",
+        "Update conditional access policy", "Delete conditional access policy",
+        "Hard Delete user", "Disable account",
+        "Reset password", "Reset user password",
+        "Update user", "Add federated domain",
+        "Set domain authentication", "Set federation settings on domain"
+    )
+    | extend
+        Actor = tostring(InitiatedBy.user.userPrincipalName),
+        TargetResource = tostring(TargetResources[0].displayName),
+        TargetType = tostring(TargetResources[0].type)
+    | project
+        TimeGenerated,
+        ActivityType = "High-Risk Operation",
+        Actor,
+        OperationName,
+        TargetResource,
+        TargetType,
+        CorrelationId;
+// ============================================================
+// SECTION 5: Anomalous Sign-In Patterns for Privileged Accounts
+// ============================================================
+let AnomalousPrivSignins = union withsource=SourceTable SigninLogs
+    | where TimeGenerated >= ago(LookbackWindow)
+    | where UserPrincipalName in (PrivilegedUsers)
+    | where RiskLevelDuringSignIn in ("medium", "high")
+        or RiskEventTypes != "[]"
+        or ResultType != 0
+    | project
+        TimeGenerated,
+        ActivityType = "Anomalous Sign-In",
+        UserPrincipalName,
+        IPAddress,
+        Location,
+        RiskLevelDuringSignIn,
+        RiskEventTypes,
+        ResultType,
+        ResultDescription = ResultDescription,
+        ClientAppUsed,
+        UserAgent;
+// ============================================================
+// COMBINED TIMELINE OUTPUT
+// ============================================================
+HighRiskOps
+| project TimeGenerated, ActivityType, Actor, Details=pack_all()
+| union (
+    PIMActivations
+    | project TimeGenerated, ActivityType, Actor=ActivatedBy, Details=pack_all()
+)
+| union (
+    AnomalousPrivSignins
+    | project TimeGenerated, ActivityType, Actor=UserPrincipalName, Details=pack_all()
+)
+| order by TimeGenerated desc
