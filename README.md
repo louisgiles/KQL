@@ -4,7 +4,7 @@
 - This library is built from hands-on experience acquired throughout my career as a SOC Analyst.
 
 ## Design principles:
-- These queries are written against the following philosophies:
+These queries are written against the following philosophies:
 1. Clarity. Live environments are loud. It's easy to miss the tree for the forest. These queries aim to cut through the noise.
 2. Minimalism. These queries are not a substitute for understanding, nor a crutch. Effective analysis is manual. Effective understanding is not automatic.
 3. Speed. Queries are tightly scoped. Full-table scans are expensive, not just in time.
