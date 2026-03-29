@@ -1,0 +1,201 @@
+// Sign-In Triage & Risk Scoring Investigation Query
+// Deep-dive investigation tool for a specific user, IP address, or device.
+// Enriches every sign-in event with frequency baselines (how many days each
+// IP/device/location/app/user-agent has been seen), identity context from
+// IdentityInfo (job title, risk level, assigned roles, manager), new-starter
+// detection from AuditLogs, and a weighted risk scoring engine that flags
+// anomalies across nine dimensions.
+//
+// Usage: Populate UserIdentityCheck, IPtoCheck, or DeviceDetailtoCheck to scope.
+// Run this AFTER a detection query (queries 6-11) surfaces something worth investigating.
+//
+// Tables: SigninLogs, IdentityInfo, AuditLogs
+
+let TimeToCheck = 30d;
+let UserIdentityCheck = "";
+let IPtoCheck = "";
+let DeviceDetailtoCheck = "";
+//
+let Job = IdentityInfo
+    | where AccountUPN contains UserIdentityCheck
+    | where TimeGenerated >= ago(90d)
+    | extend AccountUPN = tolower(AccountUPN)
+    | summarize arg_max(TimeGenerated, *) by AccountObjectId
+    | extend JobDetails = bag_pack(
+        "0.Job", JobTitle,
+        "1.RiskLevel", RiskLevel,
+        "2.AssignedRoles", AssignedRoles,
+        "3.Manager", Manager)
+    | project JobDetails, AccountUPN;
+let NewStarterCheck = AuditLogs
+    | where TargetResources contains UserIdentityCheck
+    | where TimeGenerated > ago(90d)
+    | where OperationName == "Add user"
+    | where TargetResources contains "AccountEnabled"
+    | extend PropertiesString = tostring(TargetResources)
+    | extend JobString = extract('"JobTitle.*?"]', 0, PropertiesString)
+    | extend JobTitle = extract('"newValue":"\\[\\\\"(.*?)\\\\"\\]', 1, JobString)
+    | extend UserString = extract('"DisplayName.*?"]', 0, PropertiesString)
+    | extend Identity = extract('"newValue":"\\[\\\\"(.*?)\\\\"\\]', 1, UserString)
+    | project-rename StartDate = ActivityDateTime
+    | project StartDate, JobTitle, Identity;
+// --- Org-wide scans: materialize to avoid repeated full-table passes ---
+let allIPcounts = materialize(
+    SigninLogs
+    | where TimeGenerated >= ago(TimeToCheck)
+    | summarize DaysIpSeenInOrg = dcount(datetime_part("day", TimeGenerated)) by IPAddress
+);
+let DistinctIDfromIP = materialize(
+    SigninLogs
+    | where TimeGenerated >= ago(TimeToCheck)
+    | where ResultType == "0"
+    | summarize UsersWithThisIP = make_set(Identity) by IPAddress
+);
+// --- User-scoped baselines: single scan, multiple aggregations ---
+let UserBaselines = materialize(
+    SigninLogs
+    | where UserPrincipalName contains UserIdentityCheck
+    | where TimeGenerated >= ago(TimeToCheck)
+    | extend DeviceString = tostring(DeviceDetail)
+    | extend DeviceShort = extract(@"deviceId.*?browser.*?(\w+)", 0, DeviceString)
+    | extend LocationString = tostring(LocationDetails)
+    | extend LocationShort = extract(@"([^,]*,[^,]*,[^,]*),", 1, LocationString)
+    | summarize
+        DaysIpSeenUser = dcount(datetime_part("day", TimeGenerated))
+        by IPAddress, DeviceShort, UserAgent, LocationShort, AppDisplayName
+);
+let uniqueCounts = UserBaselines | summarize DaysIpSeenUser = max(DaysIpSeenUser) by IPAddress;
+let DeviceCount = UserBaselines | summarize DeviceDayCount = max(DaysIpSeenUser) by DeviceShort;
+let UserAgentCount = UserBaselines | summarize UserAgentDayCount = max(DaysIpSeenUser) by UserAgent;
+let LocationCount = UserBaselines | summarize DaysLocationSeenUser = max(DaysIpSeenUser) by LocationShort;
+let AppDisplayNameCount = UserBaselines | summarize AppDayCount = max(DaysIpSeenUser) by AppDisplayName;
+//
+SigninLogs
+| where TimeGenerated >= ago(TimeToCheck)
+| extend DeviceString = tostring(DeviceDetail)
+| extend LocationString = tostring(LocationDetails)
+| extend DeviceShort = extract(@"deviceId.*?browser.*?(\w+)", 0, DeviceString)
+| extend LocationShort = extract(@"([^,]*,[^,]*,[^,]*),", 1, LocationString)
+| extend
+    DeviceParsed = parse_json(DeviceDetail),
+    LocationParsed = parse_json(LocationDetails)
+| extend
+    IsManaged = tostring(DeviceParsed.isManaged),
+    IsCompliant = tostring(DeviceParsed.isCompliant),
+    TrustType = tostring(DeviceParsed.trustType),
+    DeviceOS = tostring(DeviceParsed.operatingSystem),
+    DeviceBrowser = tostring(DeviceParsed.browser),
+    DeviceDisplayName = tostring(DeviceParsed.displayName)
+//
+| join kind=fullouter NewStarterCheck on Identity
+| join kind=inner (allIPcounts) on IPAddress
+| join kind=inner (uniqueCounts) on IPAddress
+| join kind=leftouter (DistinctIDfromIP) on IPAddress
+| join kind=inner (DeviceCount) on DeviceShort
+| join kind=inner (UserAgentCount) on UserAgent
+| join kind=inner (LocationCount) on LocationShort
+| join kind=inner (AppDisplayNameCount) on AppDisplayName
+| join kind=leftouter Job on $left.UserPrincipalName == $right.AccountUPN
+| where UserPrincipalName contains UserIdentityCheck
+| where DeviceDetail contains DeviceDetailtoCheck
+| where IPAddress contains IPtoCheck
+| extend UsersWIPCount = array_length(UsersWithThisIP)
+| project-rename LogCreatedTime = TimeGenerated, EventTime = CreatedDateTime
+//
+// ============================================================================
+// RISK SCORING ENGINE
+// ============================================================================
+| extend
+    // --- Individual risk factors ---
+    _ipOrgRisk = iff(DaysIpSeenInOrg <= 1, 30, 0),
+    _ipUserRisk = iff(DaysIpSeenInOrg > 1 and DaysIpSeenUser <= 1, 10, 0),
+    _deviceMgmtRisk = iff(IsManaged != "true", 25, 0),
+    _deviceFamiliarityRisk = iff(DeviceDayCount <= 1, 15, 0),
+    _uaRisk = iff(UserAgentDayCount <= 1, 10, 0),
+    _locationRisk = iff(DaysLocationSeenUser <= 1, 10, 0),
+    _appRisk = iff(AppDayCount <= 1, 5, 0),
+    _aadRisk = iff(RiskLevelDuringSignIn in ("medium", "high") or RiskDetail != "none", 20, 0),
+    _newStarterRisk = iff(isnotempty(StartDate) and StartDate > ago(14d), 5, 0)
+| extend
+    RiskScore = _ipOrgRisk + _ipUserRisk + _deviceMgmtRisk + _deviceFamiliarityRisk
+        + _uaRisk + _locationRisk + _appRisk + _aadRisk + _newStarterRisk
+| extend
+    // --- Build a human-readable list of what's contributing ---
+    RiskFlags = strcat_array(array_concat(
+        iff(_ipOrgRisk > 0,             pack_array("IP_NEW_TO_ORG"), dynamic([])),
+        iff(_ipUserRisk > 0,            pack_array("IP_NEW_TO_USER"), dynamic([])),
+        iff(_deviceMgmtRisk > 0,        pack_array("UNMANAGED_DEVICE"), dynamic([])),
+        iff(_deviceFamiliarityRisk > 0,  pack_array("DEVICE_NEW_TO_USER"), dynamic([])),
+        iff(_uaRisk > 0,               pack_array("UA_NEW_TO_USER"), dynamic([])),
+        iff(_locationRisk > 0,          pack_array("LOCATION_NEW_TO_USER"), dynamic([])),
+        iff(_appRisk > 0,              pack_array("APP_NEW_TO_USER"), dynamic([])),
+        iff(_aadRisk > 0,              pack_array("AAD_RISK_FLAGGED"), dynamic([])),
+        iff(_newStarterRisk > 0,        pack_array("NEW_STARTER"), dynamic([]))
+    ), " | ")
+| extend
+    TriageVerdict = case(
+        RiskScore >= 55, "🔴 HIGH-RISK",
+        RiskScore >= 35, "🟠 MEDIUM-RISK",
+        RiskScore >= 15, "🟡 LOW-RISK",
+        "🟢 LIKELY BENIGN"
+    )
+//
+// ============================================================================
+// OUTPUT
+// ============================================================================
+| project-reorder
+    TriageVerdict,
+    RiskScore,
+    RiskFlags,
+    EventTime,
+    LogCreatedTime,
+    IsManaged,
+    IsCompliant,
+    TrustType,
+    RiskDetail,
+    RiskEventTypes,
+    UsersWIPCount,
+    UsersWithThisIP,
+    StartDate,
+    JobTitle,
+    Identity,
+    JobDetails,
+    IPAddress,
+    DaysIpSeenInOrg,
+    DaysIpSeenUser,
+    ResultType,
+    ResultDescription,
+    AppDayCount,
+    AppDisplayName,
+    DaysLocationSeenUser,
+    LocationShort,
+    AuthenticationDetails,
+    DeviceDayCount,
+    DeviceDisplayName,
+    DeviceOS,
+    DeviceBrowser,
+    DeviceDetail,
+    UserAgentDayCount,
+    UserAgent,
+    MfaDetail,
+    ConditionalAccessPolicies,
+    ConditionalAccessStatus,
+    CorrelationId
+| project-away
+    TenantId, SourceSystem, Resource*, Operation*, Category, ResultSignature,
+    DurationMs, Level, Location, AppId, AuthenticationContextClassReferences,
+    AuthenticationProcessingDetails, AuthenticationRe*, ClientAppUsed,
+    IsInteractive, Id, LocationDetails, NetworkLocationDetails,
+    OriginalRequestId, ProcessingTimeInMilliseconds, RiskEventTypes_V2,
+    RiskLevelAggregated, RiskLevelDuringSignIn, RiskState, Status, Token*,
+    UserDisplayName, AADTenantId, UserType, HomeTenantId, UniqueTokenIdentifier,
+    SessionLifetimePolicies, AutonomousSystemNumber, AuthenticationProtocol,
+    Type, DeviceString, LocationString, DeviceShort, Identity1, IPAddress1,
+    IPAddress2, IPAddress3, DeviceShort1,
+    UserAgent1, LocationShort1, AppDisplayName1, AlternateSignInName,
+    SignInIdentifier, CrossTenantAccessType, ClientCredentialType,
+    IsThroughGlobalSecureAccess, OriginalTransferMethod, IsTenantRestricted,
+    UserId, IncomingTokenType, DeviceParsed, LocationParsed,
+    _ipOrgRisk, _ipUserRisk, _deviceMgmtRisk, _deviceFamiliarityRisk,
+    _uaRisk, _locationRisk, _appRisk, _aadRisk, _newStarterRisk
+| sort by EventTime desc
