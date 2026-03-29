@@ -2,9 +2,10 @@
 // Identifies successful authentications where MFA was not challenged —
 // legacy protocols, Conditional Access gaps, trusted location exceptions,
 // or compliant device exemptions.
-// Tables: SigninLogs, AADSignInLogs
+// Tables: SigninLogs
+
 let LookbackWindow = 7d;
-let SuccessfulNoMFA = union withsource=SourceTable SigninLogs, AADSignInLogs
+let SuccessfulNoMFA = SigninLogs
     | where TimeGenerated >= ago(LookbackWindow)
     | where ResultType == 0  // Successful sign-ins only
     | extend
