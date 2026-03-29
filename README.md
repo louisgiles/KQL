@@ -16,12 +16,15 @@ These queries are written against the following philosophies:
 
 ### Identity:
 
-- signin-abnormality
--  failed-auth-pattern
+- sign-in-abnormality
+- failed-auth-pattern
 - mfa-bypass
 - anomalous-token-replay
 - privileged-account-activity
 - service-principal-auth-tracker
+- sign-in-investigation-narrative-gen
+- sign-in-triage-plus-risk-scoring-engine
+
 
 ### Usage:
 Each file is a standalone query to be used within your sentinel logs blade. Some queries reference specific tables.
