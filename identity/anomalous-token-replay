@@ -2,9 +2,10 @@
 // Identifies sessions where the authentication token is used from a different
 // IP address, device, or user agent than where it was originally issued.
 // Catches AiTM (Adversary-in-the-Middle) post-phishing token theft.
-// Tables: SigninLogs, AADSignInLogs
+// Tables: SigninLogs
+
 let LookbackWindow = 24h;
-let AllSignins = union withsource=SourceTable SigninLogs, AADSignInLogs
+let AllSignins = SigninLogs
     | where TimeGenerated >= ago(LookbackWindow)
     | where ResultType == 0
     | extend
