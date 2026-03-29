@@ -1,0 +1,228 @@
+// Sign-In Investigation Narrative Generator
+// Companion to sign-in-triage-plus-risk-engine. Runs the same enrichment pipeline
+// outputring a pre-written summary per user.
+// Covers: sign-in verdict, IP reputation, location, device posture,
+// MFA method, CA policy, and MFA audit trail.
+//
+// Usage: Populate UserIdentityCheck. Output is a single-row text summary.
+//
+// Tables: SigninLogs, IdentityInfo, AuditLogs
+
+let TimeToCheck = 30d;
+let MFAAuditWindow = 24h;
+let UserIdentityCheck = "";  // <-- Required: set the UPN to investigate
+//
+// --- Identity context ---
+let Job = IdentityInfo
+    | where AccountUPN contains UserIdentityCheck
+    | where TimeGenerated >= ago(90d)
+    | extend AccountUPN = tolower(AccountUPN)
+    | summarize arg_max(TimeGenerated, *) by AccountObjectId
+    | project AccountUPN, JobTitle, RiskLevel, AssignedRoles, Manager;
+//
+// --- Org-wide scans: materialize to avoid repeated full-table passes ---
+let allIPcounts = materialize(
+    SigninLogs
+    | where TimeGenerated >= ago(TimeToCheck)
+    | summarize DaysIpSeenInOrg = dcount(datetime_part("day", TimeGenerated)) by IPAddress
+);
+let DistinctIDfromIP = materialize(
+    SigninLogs
+    | where TimeGenerated >= ago(TimeToCheck)
+    | where ResultType == "0"
+    | summarize UsersWithThisIP = make_set(Identity) by IPAddress
+);
+// --- User-scoped IP baseline: single scan ---
+let uniqueCounts = SigninLogs
+    | where UserPrincipalName contains UserIdentityCheck
+    | where TimeGenerated >= ago(TimeToCheck)
+    | summarize DaysIpSeenUser = dcount(datetime_part("day", TimeGenerated)) by IPAddress;
+//
+// --- MFA audit trail (additions, modifications, removals in last 24h) ---
+let MFAAudit = AuditLogs
+    | where TimeGenerated >= ago(MFAAuditWindow)
+    | where TargetResources contains UserIdentityCheck
+    | where OperationName has_any (
+        "User registered security info",
+        "User deleted security info",
+        "User changed default security info",
+        "Admin registered security info",
+        "Admin deleted security info",
+        "User registered all required security info",
+        "Reset password", "Reset user password",
+        "User started security info registration"
+    )
+    | summarize
+        MFAChangeCount = count(),
+        MFAChangeOps = make_set(OperationName, 10),
+        MFAChangeLatest = max(TimeGenerated)
+        by TargetUser = tostring(TargetResources[0].userPrincipalName);
+//
+// --- Main sign-in data for the user ---
+SigninLogs
+| where TimeGenerated >= ago(TimeToCheck)
+| where UserPrincipalName contains UserIdentityCheck
+| extend
+    DeviceParsed = parse_json(DeviceDetail),
+    LocationParsed = parse_json(LocationDetails)
+| extend
+    IsManaged = tostring(DeviceParsed.isManaged),
+    IsCompliant = tostring(DeviceParsed.isCompliant),
+    TrustType = tostring(DeviceParsed.trustType),
+    DeviceDisplayName = tostring(DeviceParsed.displayName),
+    DeviceOS = tostring(DeviceParsed.operatingSystem)
+| extend
+    AuthDetailsParsed = parse_json(tostring(AuthenticationDetails)),
+    MFADetailParsed = parse_json(tostring(MfaDetail))
+| extend
+    AuthMethod = tostring(AuthDetailsParsed[0].authenticationMethod),
+    AuthDetail = tostring(AuthDetailsParsed[0].authenticationStepResultDetail),
+    MFAAuthMethod = tostring(MFADetailParsed.authMethod),
+    MFAAuthDetail = tostring(MFADetailParsed.authDetail)
+| join kind=inner (allIPcounts) on IPAddress
+| join kind=inner (uniqueCounts) on IPAddress
+| join kind=leftouter (DistinctIDfromIP) on IPAddress
+| join kind=leftouter Job on $left.UserPrincipalName == $right.AccountUPN
+| join kind=leftouter MFAAudit on $left.UserPrincipalName == $right.TargetUser
+| extend UsersWIPCount = array_length(UsersWithThisIP)
+//
+// ============================================================================
+// NARRATIVE GENERATION
+// ============================================================================
+| summarize
+    TotalSignins = count(),
+    SuccessCount = countif(ResultType == 0),
+    FailureCount = countif(ResultType != 0),
+    DistinctIPs = dcount(IPAddress),
+    DistinctLocations = dcount(Location),
+    Locations = make_set(Location, 10),
+    // IP reputation: take the most recent sign-in's values
+    arg_max(TimeGenerated, IPAddress, DaysIpSeenInOrg, DaysIpSeenUser,
+            UsersWIPCount, UsersWithThisIP, Location,
+            IsManaged, IsCompliant, TrustType, DeviceDisplayName, DeviceOS,
+            AuthMethod, AuthDetail, MFAAuthMethod, MFAAuthDetail,
+            ConditionalAccessStatus, ConditionalAccessPolicies,
+            RiskLevelDuringSignIn, RiskDetail, RiskEventTypes,
+            JobTitle, RiskLevel, AssignedRoles, Manager,
+            MFAChangeCount, MFAChangeOps, MFAChangeLatest,
+            ResultType, ResultDescription)
+    by UserPrincipalName
+//
+// --- Build the narrative string ---
+| extend
+    // Sign-in status line
+    _signinLine = case(
+        FailureCount == 0,
+            strcat(UserPrincipalName, " sign-in logs are clean. ",
+                   tostring(TotalSignins), " successful sign-ins over the review period, 0 failures."),
+        FailureCount > 0 and SuccessCount > 0,
+            strcat(UserPrincipalName, " sign-in logs show ",
+                   tostring(SuccessCount), " successes and ",
+                   tostring(FailureCount), " failures over the review period. Review failure reasons."),
+        strcat(UserPrincipalName, " has ", tostring(FailureCount),
+               " failures and 0 successes — account may be locked or compromised.")
+    ),
+    // IP reputation line
+    _ipLine = case(
+        DaysIpSeenInOrg >= 10 and DaysIpSeenUser >= 5,
+            strcat("All recent sign-ins originate from previously seen high-freq organisational IP addresses.",
+                   "\n  - UsersWIPCount: ", tostring(UsersWIPCount),
+                   "\n  - DaysIPSeenInOrg: ", tostring(DaysIpSeenInOrg),
+                   "\n  - DaysIPSeenUser: ", tostring(DaysIpSeenUser)),
+        DaysIpSeenInOrg >= 3,
+            strcat("Most recent IP (", IPAddress, ") has been seen in the org for ",
+                   tostring(DaysIpSeenInOrg), " days but only ",
+                   tostring(DaysIpSeenUser), " days for this user. Moderate familiarity.",
+                   "\n  - UsersWIPCount: ", tostring(UsersWIPCount),
+                   "\n  - DaysIPSeenInOrg: ", tostring(DaysIpSeenInOrg),
+                   "\n  - DaysIPSeenUser: ", tostring(DaysIpSeenUser)),
+        strcat("ALERT: Most recent IP (", IPAddress, ") is NEW to the organisation (",
+               tostring(DaysIpSeenInOrg), " day(s) seen). Requires investigation.",
+               "\n  - UsersWIPCount: ", tostring(UsersWIPCount),
+               "\n  - DaysIPSeenInOrg: ", tostring(DaysIpSeenInOrg),
+               "\n  - DaysIPSeenUser: ", tostring(DaysIpSeenUser))
+    ),
+    // Location line
+    _locationLine = strcat("Sign-in location: ", Location,
+                           ". Distinct locations in review period: ", tostring(DistinctLocations),
+                           " (", tostring(Locations), ")."),
+    // Device posture line
+    _deviceLine = case(
+        TrustType == "Azure AD joined" or TrustType == "Hybrid Azure AD joined",
+            strcat("[", toupper(TrustType), "] Device: ", DeviceDisplayName,
+                   " | OS: ", DeviceOS,
+                   " | Managed: ", IsManaged,
+                   " | Compliant: ", IsCompliant),
+        TrustType == "Azure AD registered",
+            strcat("[AAD REGISTERED] Device: ", DeviceDisplayName,
+                   " | OS: ", DeviceOS,
+                   " | Managed: ", IsManaged,
+                   " | Compliant: ", IsCompliant),
+        isnotempty(DeviceDisplayName),
+            strcat("[UNJOINED DEVICE] Device: ", DeviceDisplayName,
+                   " | OS: ", DeviceOS,
+                   " | Managed: ", IsManaged,
+                   " | Compliant: ", IsCompliant,
+                   " -- NOTE: Device not domain/AAD joined."),
+        "No device details recorded for most recent sign-in. Possible non-interactive or browser-only session."
+    ),
+    // MFA / Auth method line
+    _mfaLine = case(
+        isnotempty(MFAAuthMethod),
+            strcat("MFA satisfied via: ", MFAAuthMethod,
+                   iff(isnotempty(MFAAuthDetail), strcat(" (", MFAAuthDetail, ")"), ""),
+                   ". Primary auth: ", AuthMethod, "."),
+        AuthMethod has_any ("PhoneAppNotification", "PhoneAppOTP", "FIDO2", "WindowsHelloForBusiness"),
+            strcat("MFA method used: ", AuthMethod,
+                   iff(isnotempty(AuthDetail), strcat(" (", AuthDetail, ")"), ""), "."),
+        strcat("WARNING: No MFA challenge detected. Auth method: ", AuthMethod,
+               iff(isnotempty(AuthDetail), strcat(" (", AuthDetail, ")"), ""),
+               ". CA status: ", ConditionalAccessStatus, ".")
+    ),
+    // MFA audit trail line
+    _mfaAuditLine = case(
+        isnotnull(MFAChangeCount) and MFAChangeCount > 0,
+            strcat("ALERT: ", tostring(MFAChangeCount),
+                   " MFA modification(s) in audit logs within last 24h: ",
+                   tostring(MFAChangeOps),
+                   ". Latest change: ", tostring(MFAChangeLatest), ". Investigate immediately."),
+        "No MFA additions, removals, or tampering visible in audit logs within the last 24h for this user."
+    ),
+    // AAD risk line
+    _riskLine = case(
+        RiskLevelDuringSignIn in ("medium", "high"),
+            strcat("AAD Identity Protection risk: ", RiskLevelDuringSignIn,
+                   ". Detail: ", RiskDetail, ". Events: ", tostring(RiskEventTypes), "."),
+        RiskDetail != "none" and isnotempty(RiskDetail),
+            strcat("AAD risk detail present: ", RiskDetail, ". Review recommended."),
+        "No elevated AAD Identity Protection risk signals on most recent sign-in."
+    ),
+    // Identity context line
+    _identityLine = strcat("Role: ", iff(isnotempty(JobTitle), JobTitle, "N/A"),
+                           " | Manager: ", iff(isnotempty(Manager), Manager, "N/A"),
+                           " | Assigned Roles: ", iff(isnotempty(tostring(AssignedRoles)), tostring(AssignedRoles), "None"),
+                           " | Identity Risk Level: ", iff(isnotempty(RiskLevel), RiskLevel, "N/A"))
+//
+// --- Assemble final narrative ---
+| extend InvestigationNarrative = strcat(
+    "=== SIGN-IN INVESTIGATION SUMMARY ===\n",
+    "User: ", UserPrincipalName, "\n",
+    "Review Period: ", tostring(TimeToCheck), " | Generated: ", format_datetime(now(), "yyyy-MM-dd HH:mm UTC"), "\n",
+    _identityLine, "\n",
+    "\n--- Sign-In Status ---\n",
+    _signinLine, "\n",
+    "\n--- Source IP Reputation ---\n",
+    _ipLine, "\n",
+    "\n--- Location ---\n",
+    _locationLine, "\n",
+    "\n--- Device Posture ---\n",
+    _deviceLine, "\n",
+    "\n--- Authentication & MFA ---\n",
+    _mfaLine, "\n",
+    "\n--- MFA Audit Trail (24h) ---\n",
+    _mfaAuditLine, "\n",
+    "\n--- AAD Risk Signals ---\n",
+    _riskLine, "\n",
+    "=== END ==="
+)
+| project UserPrincipalName, InvestigationNarrative
