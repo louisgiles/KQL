@@ -7,6 +7,7 @@
 // anomalies across nine dimensions.
 //
 // Usage: Populate UserIdentityCheck, IPtoCheck, or DeviceDetailtoCheck to scope.
+// Run this AFTER a detection query (queries 6-11) surfaces something worth investigating.
 //
 // Tables: SigninLogs, IdentityInfo, AuditLogs
 
