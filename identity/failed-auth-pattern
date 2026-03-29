@@ -1,0 +1,142 @@
+// Failed Authentication Pattern Detection
+// Detects password spray, brute force, and credential stuffing patterns.
+// Tables: SigninLogs, AADSignInLogs, IdentityLogonEvents
+let LookbackWindow = 24h;
+let FailedSignins = union withsource=SourceTable SigninLogs, AADSignInLogs
+    | where TimeGenerated >= ago(LookbackWindow)
+    | where ResultType != 0
+    | extend
+        FailureReason = ResultDescription,
+        SourceIP = IPAddress,
+        TargetAccount = UserPrincipalName,
+        ClientApp = ClientAppUsed;
+// ============================================================
+// PATTERN 1: Password Spray Detection
+// Low failures per account, high distinct accounts per source IP
+// ============================================================
+let PasswordSprayThreshold_DistinctAccounts = 10;
+let PasswordSpray = FailedSignins
+    | summarize
+        DistinctAccounts = dcount(TargetAccount),
+        TargetAccounts = make_set(TargetAccount, 50),
+        FailuresPerAccount = count() / dcount(TargetAccount),
+        TotalFailures = count(),
+        DistinctClientApps = dcount(ClientApp),
+        TimeStart = min(TimeGenerated),
+        TimeEnd = max(TimeGenerated)
+        by SourceIP, Location
+    | where DistinctAccounts >= PasswordSprayThreshold_DistinctAccounts
+    | where FailuresPerAccount <= 3  // Low attempts per account is the spray signature
+    | extend AttackPattern = "Password Spray",
+             Severity = case(
+                 DistinctAccounts >= 50, "High",
+                 DistinctAccounts >= 25, "Medium",
+                 "Low"
+             )
+    | project
+        AttackPattern,
+        Severity,
+        SourceIP,
+        Location,
+        DistinctAccounts,
+        FailuresPerAccount,
+        TotalFailures,
+        DistinctClientApps,
+        TimeStart,
+        TimeEnd,
+        TargetAccounts;
+// ============================================================
+// PATTERN 2: Brute Force Detection
+// High failures against a single account from one or more sources
+// ============================================================
+let BruteForceThreshold_Failures = 15;
+let BruteForce = FailedSignins
+    | summarize
+        TotalFailures = count(),
+        DistinctSourceIPs = dcount(SourceIP),
+        SourceIPs = make_set(SourceIP, 20),
+        DistinctLocations = dcount(Location),
+        Locations = make_set(Location, 10),
+        DistinctClientApps = dcount(ClientApp),
+        TimeStart = min(TimeGenerated),
+        TimeEnd = max(TimeGenerated)
+        by TargetAccount
+    | where TotalFailures >= BruteForceThreshold_Failures
+    | extend AttackPattern = "Brute Force",
+             Severity = case(
+                 TotalFailures >= 100, "High",
+                 TotalFailures >= 50, "Medium",
+                 "Low"
+             ),
+             DurationMinutes = datetime_diff('minute', TimeEnd, TimeStart)
+    | project
+        AttackPattern,
+        Severity,
+        TargetAccount,
+        TotalFailures,
+        DistinctSourceIPs,
+        SourceIPs,
+        DistinctLocations,
+        Locations,
+        DurationMinutes,
+        TimeStart,
+        TimeEnd;
+// ============================================================
+// PATTERN 3: Credential Stuffing Detection
+// Distinct credential pairs, automated timing patterns
+// ============================================================
+let CredentialStuffingThreshold = 20;
+let CredentialStuffing = FailedSignins
+    | summarize
+        DistinctAccounts = dcount(TargetAccount),
+        TotalFailures = count(),
+        DistinctUserAgents = dcount(UserAgent),
+        UserAgents = make_set(UserAgent, 10),
+        DistinctClientApps = dcount(ClientApp),
+        TimeStart = min(TimeGenerated),
+        TimeEnd = max(TimeGenerated),
+        // Detect automated timing: calculate inter-attempt intervals
+        AttemptTimes = make_list(TimeGenerated, 1000)
+        by SourceIP
+    | where DistinctAccounts >= CredentialStuffingThreshold
+    | extend
+        DurationMinutes = datetime_diff('minute', TimeEnd, TimeStart),
+        AttemptsPerMinute = iff(
+            datetime_diff('minute', TimeEnd, TimeStart) > 0,
+            round(1.0 * TotalFailures / datetime_diff('minute', TimeEnd, TimeStart), 2),
+            toreal(TotalFailures)
+        )
+    // High rate + many distinct accounts suggests automated stuffing
+    | where AttemptsPerMinute > 1.0 or DistinctUserAgents <= 2
+    | extend AttackPattern = "Credential Stuffing",
+             Severity = case(
+                 DistinctAccounts >= 100, "High",
+                 DistinctAccounts >= 50, "Medium",
+                 "Low"
+             )
+    | project
+        AttackPattern,
+        Severity,
+        SourceIP,
+        DistinctAccounts,
+        TotalFailures,
+        AttemptsPerMinute,
+        DistinctUserAgents,
+        UserAgents,
+        DurationMinutes,
+        TimeStart,
+        TimeEnd;
+// ============================================================
+// COMBINED OUTPUT: Union all patterns
+// ============================================================
+PasswordSpray
+| project AttackPattern, Severity, SourceIP, DistinctAccounts, TotalFailures, TimeStart, TimeEnd, Details=pack_all()
+| union (
+    BruteForce
+    | project AttackPattern, Severity, SourceIP="N/A - Account Targeted", DistinctAccounts=1, TotalFailures, TimeStart, TimeEnd, Details=pack_all()
+)
+| union (
+    CredentialStuffing
+    | project AttackPattern, Severity, SourceIP, DistinctAccounts, TotalFailures, TimeStart, TimeEnd, Details=pack_all()
+)
+| order by Severity asc, TotalFailures desc
