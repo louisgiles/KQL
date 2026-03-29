@@ -1,8 +1,9 @@
 // Failed Authentication Pattern Detection
 // Detects password spray, brute force, and credential stuffing patterns.
-// Tables: SigninLogs, AADSignInLogs, IdentityLogonEvents
+// Tables: SigninLogs, IdentityLogonEvents
+
 let LookbackWindow = 24h;
-let FailedSignins = union withsource=SourceTable SigninLogs, AADSignInLogs
+let FailedSignins = SigninLogs
     | where TimeGenerated >= ago(LookbackWindow)
     | where ResultType != 0
     | extend
