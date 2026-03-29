@@ -1,0 +1,96 @@
+// MFA Gap & Bypass Finder
+// Identifies successful authentications where MFA was not challenged —
+// legacy protocols, Conditional Access gaps, trusted location exceptions,
+// or compliant device exemptions.
+// Tables: SigninLogs, AADSignInLogs
+let LookbackWindow = 7d;
+let SuccessfulNoMFA = union withsource=SourceTable SigninLogs, AADSignInLogs
+    | where TimeGenerated >= ago(LookbackWindow)
+    | where ResultType == 0  // Successful sign-ins only
+    | extend
+        MFASatisfied = tostring(AuthenticationRequirement) == "multiFactorAuthentication"
+            or tostring(parse_json(tostring(AuthenticationDetails))[0].authenticationMethod) has_any
+                ("PhoneAppNotification", "PhoneAppOTP", "FIDO2", "WindowsHelloForBusiness", "OneWaySMS"),
+        IsLegacyProtocol = ClientAppUsed in (
+            "Exchange ActiveSync", "Authenticated SMTP", "IMAP4", "POP3",
+            "MAPI Over HTTP", "Autodiscover", "Exchange Online PowerShell",
+            "Exchange Web Services", "Other clients"
+        ),
+        ConditionalAccessStatus = tostring(ConditionalAccessStatus),
+        ConditionalAccessPolicies = ConditionalAccessPolicies
+    | where not(MFASatisfied);
+// ============================================================
+// CATEGORY 1: Legacy Protocol Authentications (No MFA Possible)
+// ============================================================
+let LegacyProtocolBypass = SuccessfulNoMFA
+    | where IsLegacyProtocol
+    | summarize
+        SigninCount = count(),
+        DistinctUsers = dcount(UserPrincipalName),
+        Users = make_set(UserPrincipalName, 20),
+        DistinctIPs = dcount(IPAddress),
+        Locations = make_set(Location, 10),
+        LatestSignin = max(TimeGenerated)
+        by ClientAppUsed
+    | extend BypassCategory = "Legacy Protocol"
+    | project BypassCategory, ClientAppUsed, SigninCount, DistinctUsers, Users, DistinctIPs, Locations, LatestSignin;
+// ============================================================
+// CATEGORY 2: Conditional Access Not Applied
+// ============================================================
+let CAPolicyGaps = SuccessfulNoMFA
+    | where not(IsLegacyProtocol)
+    | where ConditionalAccessStatus in ("notApplied", "")
+    | summarize
+        SigninCount = count(),
+        DistinctIPs = dcount(IPAddress),
+        Locations = make_set(Location, 10),
+        ClientApps = make_set(ClientAppUsed, 10),
+        DeviceNames = make_set(DeviceDetail.displayName, 10),
+        LatestSignin = max(TimeGenerated)
+        by UserPrincipalName
+    | extend BypassCategory = "CA Policy Not Applied"
+    | project BypassCategory, UserPrincipalName, SigninCount, DistinctIPs, Locations, ClientApps, DeviceNames, LatestSignin
+    | order by SigninCount desc;
+// ============================================================
+// CATEGORY 3: Trusted Location / Compliant Device Exemptions
+// ============================================================
+let TrustedExemptions = SuccessfulNoMFA
+    | where not(IsLegacyProtocol)
+    | where ConditionalAccessStatus == "success"
+    | mv-expand ConditionalAccessPolicies
+    | extend
+        PolicyName = tostring(ConditionalAccessPolicies.displayName),
+        PolicyResult = tostring(ConditionalAccessPolicies.result),
+        GrantControls = tostring(ConditionalAccessPolicies.enforcedGrantControls)
+    | where PolicyResult == "success"
+    | where GrantControls !has "mfa"  // MFA was not in the grant controls
+    | summarize
+        SigninCount = count(),
+        DistinctUsers = dcount(UserPrincipalName),
+        Users = make_set(UserPrincipalName, 20),
+        GrantControlsSeen = make_set(GrantControls, 10),
+        Locations = make_set(Location, 10),
+        LatestSignin = max(TimeGenerated)
+        by PolicyName
+    | extend BypassCategory = "Trusted/Compliant Exemption"
+    | project BypassCategory, PolicyName, SigninCount, DistinctUsers, Users, GrantControlsSeen, Locations, LatestSignin;
+// ============================================================
+// CATEGORY 4: Per-User Summary — All MFA-Free Authentications
+// ============================================================
+SuccessfulNoMFA
+| summarize
+    TotalNoMFASignins = count(),
+    LegacyProtocolCount = countif(IsLegacyProtocol),
+    ModernProtocolNoMFA = countif(not(IsLegacyProtocol)),
+    DistinctIPs = dcount(IPAddress),
+    Locations = make_set(Location, 10),
+    ClientApps = make_set(ClientAppUsed, 10),
+    LatestSignin = max(TimeGenerated)
+    by UserPrincipalName
+| extend RiskLevel = case(
+    ModernProtocolNoMFA > 0 and LegacyProtocolCount > 0, "High",
+    ModernProtocolNoMFA > 0, "Medium",
+    LegacyProtocolCount > 0, "Low",
+    "Info"
+)
+| order by RiskLevel asc, TotalNoMFASignins desc
