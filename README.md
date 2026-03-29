@@ -16,12 +16,12 @@
 
 ### Identity:
 
-signin-abnormality
-failed-auth-pattern
-mfa-bypass
-anomalous-token-replay
-privileged-account-activity
-service-principal-auth-tracker
+- signin-abnormality
+-  failed-auth-pattern
+- mfa-bypass
+- anomalous-token-replay
+- privileged-account-activity
+- service-principal-auth-tracker
 
 ### Usage:
 Each file is a standalone query to be used within your sentinel logs blade. Some queries reference specific tables.
