@@ -1,0 +1,78 @@
+// =============================================================================
+// Triage Query 1: DeviceProcessEvents — "What executed?"
+// Purpose: Understand the process execution chain around an alert timestamp.
+// Usage:   Paste your alert entities into the let statements below, then run.
+// =============================================================================
+
+// --- Input parameters --------------------------------------------------------
+let DeviceToCheck = "YOURDEVICE";           // Device name from the alert
+let EntityToCheck = "YOURENTITY";           // Process name, command fragment, or filename from the alert
+let EventTimestamp = datetime(2025-01-01T00:00:00Z); // Alert timestamp in ISO 8601
+let TimeOffset = 15m;                       // Lookback/lookahead window (hardcoded ±15 min)
+// -----------------------------------------------------------------------------
+DeviceProcessEvents
+| where Timestamp between ((EventTimestamp - TimeOffset) .. (EventTimestamp + TimeOffset))
+| where DeviceName contains DeviceToCheck
+// --- Entity filter: match across key process-related fields ---
+| where FileName contains EntityToCheck
+     or FolderPath contains EntityToCheck
+     or ProcessCommandLine contains EntityToCheck
+     or InitiatingProcessFileName contains EntityToCheck
+     or InitiatingProcessCommandLine contains EntityToCheck
+     or InitiatingProcessParentFileName contains EntityToCheck
+// --- Lean column projection (no bag_pack) ---
+| project
+    Timestamp,
+    DeviceName,
+    ActionType,
+    FileName,
+    FolderPath,
+    ProcessCommandLine,
+    AccountName,
+    AccountUpn,
+    InitiatingProcessFileName,
+    InitiatingProcessFolderPath,
+    InitiatingProcessCommandLine,
+    InitiatingProcessParentFileName,
+    InitiatingProcessAccountName,
+    SHA256,
+    InitiatingProcessSHA256,
+    ProcessTokenElevation,
+    // --- BenignFlag: marks common benign patterns so they sort to the bottom ---
+    // Add or remove patterns here as you learn what's noisy in your environment.
+    BenignFlag = case(
+        // Defender / MDE sensor processes
+        FileName in~ ("MsMpEng.exe", "MpCmdRun.exe", "NisSrv.exe", "MsSense.exe", "SenseCE.exe",
+                       "MpSigStub.exe", "MsMpEngCP.exe"),                                           true,
+        InitiatingProcessFileName in~ ("MsMpEng.exe", "MpCmdRun.exe", "NisSrv.exe", "MsSense.exe",
+                                        "SenseCE.exe"),                                              true,
+        // Windows Update / BITS / USO / WaaS
+        FileName in~ ("USOCoreWorker.exe", "USOClient.exe", "WaaSMedicSvc.exe", "wuauclt.exe",
+                       "musnotification.exe", "musnotificationux.exe"),                              true,
+        InitiatingProcessFileName in~ ("USOCoreWorker.exe", "USOClient.exe", "WaaSMedicSvc.exe"),   true,
+        // svchost with standard service flags (not a blanket flag)
+        FileName =~ "svchost.exe" and ProcessCommandLine matches regex
+            @"-k\s+(netsvcs|LocalServiceNetworkRestricted|LocalServiceNoNetwork|DcomLaunch|"
+            @"NetworkService|LocalService|UnistackSvcGroup|LocalSystemNetworkRestricted)",           true,
+        // Scheduled task engine running Microsoft-signed tasks
+        FileName in~ ("taskeng.exe", "taskhostw.exe"),                                               true,
+        // Certificate / CRL / OCSP checks
+        FileName in~ ("certutil.exe", "crypt32.dll") and ProcessCommandLine has_any
+            ("ocsp", "crl", "verify", "-URLCache"),                                                  true,
+        // Windows telemetry
+        FileName in~ ("CompatTelRunner.exe", "DiagTrackRunner.exe", "wsqmcons.exe"),                 true,
+        InitiatingProcessFileName in~ ("CompatTelRunner.exe", "DiagTrackRunner.exe"),                true,
+        // Search indexer
+        FileName in~ ("SearchIndexer.exe", "SearchProtocolHost.exe", "SearchFilterHost.exe"),        true,
+        // WMI standard operations
+        FileName =~ "WmiPrvSE.exe",                                                                  true,
+        // BITS
+        FileName =~ "bitsadmin.exe" and ProcessCommandLine has_any ("transfer", "list", "info"),     true,
+        // Office background update / telemetry
+        FileName in~ ("OfficeClickToRun.exe", "officec2rclient.exe", "msoia.exe",
+                       "OfficeC2RClient.exe"),                                                       true,
+        // Default: not benign
+        false
+    )
+// --- Sort: unflagged (interesting) rows first, then by time ---
+| sort by BenignFlag asc, Timestamp asc
