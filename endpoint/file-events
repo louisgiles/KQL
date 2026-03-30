@@ -1,0 +1,79 @@
+// =============================================================================
+// Triage Query 3: DeviceFileEvents — "What appeared or changed?"
+// Purpose: Understand file creation, modification, and origin around an alert.
+// Usage:   Paste your alert entities into the let statements below, then run.
+// =============================================================================
+
+// --- Input parameters --------------------------------------------------------
+let DeviceToCheck = "YOURDEVICE";           // Device name from the alert
+let EntityToCheck = "YOURENTITY";           // Filename, path, or hash from the alert
+let EventTimestamp = datetime(2025-01-01T00:00:00Z); // Alert timestamp in ISO 8601
+let TimeOffset = 15m;                       // Lookback/lookahead window (hardcoded ±15 min)
+// -----------------------------------------------------------------------------
+
+DeviceFileEvents
+| where Timestamp between ((EventTimestamp - TimeOffset) .. (EventTimestamp + TimeOffset))
+| where DeviceName contains DeviceToCheck
+// --- Entity filter: match across file-related fields ---
+| where FileName contains EntityToCheck
+     or FolderPath contains EntityToCheck
+     or SHA256 contains EntityToCheck
+     or FileOriginUrl contains EntityToCheck
+     or PreviousFileName contains EntityToCheck
+// --- Lean column projection (no bag_pack) ---
+| project
+    Timestamp,
+    DeviceName,
+    ActionType,
+    FileName,
+    FolderPath,
+    PreviousFileName,
+    PreviousFolderPath,
+    FileOriginUrl,
+    FileOriginReferrerUrl,
+    FileOriginIP,
+    SHA256,
+    FileSize,
+    InitiatingProcessFileName,
+    InitiatingProcessFolderPath,
+    InitiatingProcessCommandLine,
+    InitiatingProcessAccountName,
+    InitiatingProcessSHA256,
+    // --- BenignFlag: marks common benign file operations ---
+    // Add or remove patterns here as you learn what's noisy in your environment.
+    BenignFlag = case(
+        // Defender definition updates
+        FolderPath has_any (@"\Windows\ServiceProfiles\LocalService\AppData\Local\Temp",
+                            @"\ProgramData\Microsoft\Windows Defender\Definition Updates",
+                            @"\ProgramData\Microsoft\Windows Defender\Scans"),                       true,
+        InitiatingProcessFileName in~ ("MsMpEng.exe", "MpCmdRun.exe", "NisSrv.exe",
+                                        "MsSense.exe", "SenseCE.exe"),                               true,
+        // Windows Update staging / download paths
+        FolderPath has_any (@"\Windows\SoftwareDistribution\",
+                            @"\Windows\WinSxS\Temp\",
+                            @"\Windows\CbsTemp\"),                                                   true,
+        InitiatingProcessFileName in~ ("USOCoreWorker.exe", "USOClient.exe",
+                                        "WaaSMedicSvc.exe", "TiWorker.exe",
+                                        "TrustedInstaller.exe"),                                     true,
+        // Temp files from known system processes in expected locations
+        FolderPath has @"\Windows\Temp\" and InitiatingProcessFileName in~
+            ("svchost.exe", "msiexec.exe", "TiWorker.exe", "DismHost.exe"),                          true,
+        // Prefetch file creation
+        FolderPath has @"\Windows\Prefetch\" and FileName endswith ".pf",                            true,
+        // Event log writes
+        FolderPath has @"\Windows\System32\winevt\Logs\",                                            true,
+        InitiatingProcessFileName =~ "svchost.exe" and FolderPath has @"\winevt\Logs\",             true,
+        // Windows telemetry
+        InitiatingProcessFileName in~ ("CompatTelRunner.exe", "DiagTrackRunner.exe"),                true,
+        // Search indexer temp files
+        InitiatingProcessFileName in~ ("SearchIndexer.exe", "SearchProtocolHost.exe"),               true,
+        // Office background telemetry / update files
+        InitiatingProcessFileName in~ ("OfficeClickToRun.exe", "officec2rclient.exe",
+                                        "OfficeC2RClient.exe"),                                      true,
+        FolderPath has_any (@"\Microsoft\Office\", @"\ClickToRun\") and
+            InitiatingProcessFileName =~ "OfficeClickToRun.exe",                                     true,
+        // Default: not benign
+        false
+    )
+// --- Sort: unflagged (interesting) rows first, then by time ---
+| sort by BenignFlag asc, Timestamp asc
