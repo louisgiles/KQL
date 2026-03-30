@@ -1,0 +1,66 @@
+// =============================================================================
+// Triage Query 2: DeviceNetworkEvents — "Where did it connect?"
+// Purpose: Understand outbound/inbound network connections around an alert.
+// Usage:   Paste your alert entities into the let statements below, then run.
+// =============================================================================
+
+// --- Input parameters --------------------------------------------------------
+let DeviceToCheck = "YOURDEVICE";           // Device name from the alert
+let EntityToCheck = "YOURENTITY";           // URL, domain, or IP from the alert
+let EventTimestamp = datetime(2025-01-01T00:00:00Z); // Alert timestamp in ISO 8601
+let TimeOffset = 15m;                       // Lookback/lookahead window (hardcoded ±15 min)
+// -----------------------------------------------------------------------------
+
+DeviceNetworkEvents
+| where Timestamp between ((EventTimestamp - TimeOffset) .. (EventTimestamp + TimeOffset))
+| where DeviceName contains DeviceToCheck
+// --- Entity filter: match across network-related fields and AdditionalFields ---
+| where RemoteUrl contains EntityToCheck
+     or RemoteIP contains EntityToCheck
+     or AdditionalFields contains EntityToCheck
+// --- Lean column projection (no bag_pack) ---
+| project
+    Timestamp,
+    DeviceName,
+    ActionType,
+    RemoteUrl,
+    RemoteIP,
+    RemotePort,
+    LocalIP,
+    LocalPort,
+    Protocol,
+    InitiatingProcessFileName,
+    InitiatingProcessFolderPath,
+    InitiatingProcessCommandLine,
+    InitiatingProcessAccountName,
+    InitiatingProcessSHA256,
+    AdditionalFields,   // kept as-is — contains server_name, host, query
+    // --- BenignFlag: marks common benign network destinations ---
+    // Add or remove patterns here as you learn what's noisy in your environment.
+    BenignFlag = case(
+        // Microsoft telemetry domains
+        RemoteUrl has_any (".data.microsoft.com", "events.data.microsoft.com",
+                           "settings-win.data.microsoft.com",
+                           "vortex.data.microsoft.com"),                                             true,
+        // Windows Update endpoints
+        RemoteUrl has_any (".update.microsoft.com", ".windowsupdate.com",
+                           ".delivery.mp.microsoft.com", "download.microsoft.com"),                  true,
+        // Certificate validation (OCSP / CRL)
+        RemoteUrl matches regex @"^(ocsp\.|crl\.)" or RemoteUrl has "ctldl.windowsupdate.com",      true,
+        // Microsoft authentication (flagged but visible — auth context can matter)
+        RemoteUrl has_any ("login.microsoftonline.com", "login.live.com"),                           true,
+        // Office telemetry / background calls
+        RemoteUrl has_any (".office.com", ".officeapps.live.com",
+                           "officeclient.microsoft.com"),                                            true,
+        // Defender / MDE sensor traffic
+        RemoteUrl has_any (".wdcp.microsoft.com", ".wdcpalt.microsoft.com",
+                           ".wd.microsoft.com", "unitedstates.x.cp.wd.microsoft.com"),              true,
+        InitiatingProcessFileName in~ ("MsMpEng.exe", "MsSense.exe", "SenseCE.exe"),                true,
+        // NCSI / connectivity checks
+        RemoteUrl has_any ("www.msftconnecttest.com", "dns.msftncsi.com",
+                           "www.msftncsi.com", "connectivitycheck.microsoft.com"),                   true,
+        // Default: not benign
+        false
+    )
+// --- Sort: unflagged (interesting) rows first, then by time ---
+| sort by BenignFlag asc, Timestamp asc
