@@ -1,5 +1,5 @@
 // Sign-In Investigation Narrative Generator
-// Companion to query 12. Runs the same enrichment pipeline but outputs
+// Companion to query risk-triage. Runs the same enrichment pipeline but outputs
 // a pre-written incident note summary per user, ready to paste into your
 // ticket. Covers: sign-in verdict, IP reputation, location, device posture,
 // MFA method, CA policy, and MFA audit trail.
