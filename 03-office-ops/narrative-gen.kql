@@ -1,0 +1,464 @@
+// Office Operations Investigation Narrative Generator
+// Investigates rare or potentially high-risk Office 365 operations for a target actor.
+// Same structural pattern as sign-in-narrative-gen: materialized org-wide lookups,
+// user-scoped enrichment, narrative string assembly, single row per actor.
+//
+// Usage: Set UserIdentityCheck to the actor UPN. Output is a single-row text summary.
+//
+// Tables: OfficeActivity, IdentityInfo, SigninLogs
+
+let TimeToCheck = 30d;
+let SignInCorrelationWindow = 1h;
+let UserIdentityCheck = "";  // <-- Required: set the actor UPN to investigate
+//
+// --- Operation risk classification ---
+let HighRiskOps = dynamic([
+    "New-InboxRule", "Set-InboxRule", "Add-MailboxPermission",
+    "Set-OwaMailboxPolicy", "New-TransportRule", "Set-TransportRule",
+    "Add-RecipientPermission", "Remove-MailboxPermission",
+    "Disable-InboxRule", "Set-Mailbox", "Set-CASMailbox",
+    "Add-MailboxFolderPermission", "Set-MailboxFolderPermission",
+    "New-ManagementRoleAssignment", "Add-RoleGroupMember",
+    "Set-AdminAuditLogConfig"
+]);
+let ForwardingParams = dynamic([
+    "ForwardingAddress", "ForwardingSmtpAddress", "DeliverToMailboxAndForward",
+    "RedirectTo", "ExternalOofOptions"
+]);
+let PrivilegedRoleKeywords = dynamic([
+    "Admin", "Global", "Exchange", "SharePoint", "Privileged",
+    "Compliance", "Security", "Billing"
+]);
+// --- Record types that represent admin/cmdlet operations only ---
+// Excludes ExchangeItem / ExchangeItemAggregated (MailItemsAccessed, Send, etc.)
+let AdminRecordTypes = dynamic([
+    "ExchangeAdmin",
+    "AzureActiveDirectory",
+    "SecurityComplianceCenter",
+    "SharePointSharingOperation",
+    "MicrosoftTeamsAdmin"
+]);
+//
+// ============================================================================
+// IDENTITY LOOKUPS
+// ============================================================================
+//
+// --- Actor identity context (from IdentityInfo) ---
+let ActorJob = IdentityInfo
+    | where AccountUPN contains UserIdentityCheck
+    | where TimeGenerated >= ago(90d)
+    | extend AccountUPN = tolower(AccountUPN)
+    | summarize arg_max(TimeGenerated, *) by AccountObjectId
+    | project ActorUPN = AccountUPN, ActorJobTitle = JobTitle, ActorRiskLevel = RiskLevel,
+              ActorRoles = AssignedRoles, ActorManager = Manager,
+              ActorDepartment = Department, ActorAccountEnabled = IsAccountEnabled;
+//
+// --- Target identity context (cross-referenced after primary target extraction) ---
+let TargetInfo = materialize(
+    IdentityInfo
+    | where TimeGenerated >= ago(90d)
+    | summarize arg_max(TimeGenerated, *) by AccountObjectId
+    | project TargetUPN = tolower(AccountUPN), TargetJobTitle = JobTitle,
+              TargetRoles = AssignedRoles, TargetAccountEnabled = IsAccountEnabled,
+              TargetDepartment = Department
+);
+//
+// --- Org-wide IP reputation (materialized — same pattern as sign-in-narrative-gen) ---
+let allIPcounts = materialize(
+    SigninLogs
+    | where TimeGenerated >= ago(TimeToCheck)
+    | summarize DaysIpSeenInOrg = dcount(datetime_part("day", TimeGenerated)) by IPAddress
+);
+let DistinctIDfromIP = materialize(
+    SigninLogs
+    | where TimeGenerated >= ago(TimeToCheck)
+    | where ResultType == "0"
+    | summarize UsersWithThisIP = make_set(Identity) by IPAddress
+);
+// --- User-scoped IP baseline: single scan ---
+let uniqueCounts = SigninLogs
+    | where UserPrincipalName contains UserIdentityCheck
+    | where TimeGenerated >= ago(TimeToCheck)
+    | summarize DaysIpSeenUser = dcount(datetime_part("day", TimeGenerated)) by IPAddress;
+//
+// --- Actor sign-in summary (within review window, for cross-reference) ---
+let ActorSignins = materialize(
+    SigninLogs
+    | where TimeGenerated >= ago(TimeToCheck)
+    | where UserPrincipalName contains UserIdentityCheck
+    | extend
+        DeviceParsed      = parse_json(DeviceDetail),
+        AuthDetailsParsed = parse_json(tostring(AuthenticationDetails)),
+        MFADetailParsed   = parse_json(tostring(MfaDetail))
+    | extend
+        IsManaged         = tostring(DeviceParsed.isManaged),
+        IsCompliant       = tostring(DeviceParsed.isCompliant),
+        TrustType         = tostring(DeviceParsed.trustType),
+        DeviceDisplayName = tostring(DeviceParsed.displayName),
+        AuthMethod        = tostring(AuthDetailsParsed[0].authenticationMethod),
+        MFAAuthMethod     = tostring(MFADetailParsed.authMethod),
+        MFAAuthDetail     = tostring(MFADetailParsed.authDetail)
+    | join kind=leftouter (allIPcounts)      on IPAddress
+    | join kind=leftouter (uniqueCounts)     on IPAddress
+    | join kind=leftouter (DistinctIDfromIP) on IPAddress
+    | extend UsersWIPCount = array_length(UsersWithThisIP)
+    | summarize
+        SigninCount     = count(),
+        SigninSuccesses = countif(ResultType == 0),
+        SigninFailures  = countif(ResultType != 0),
+        arg_max(TimeGenerated, IPAddress, Location, DaysIpSeenInOrg, DaysIpSeenUser,
+                UsersWIPCount, IsManaged, IsCompliant, TrustType, DeviceDisplayName,
+                AuthMethod, MFAAuthMethod, MFAAuthDetail, ConditionalAccessStatus,
+                RiskLevelDuringSignIn, RiskDetail)
+        by SI_UPN = UserPrincipalName
+);
+//
+// ============================================================================
+// MAIN: RAW OFFICE ACTIVITY — capture row-level fields before parameter expansion
+// ============================================================================
+let RawOps = materialize(
+    OfficeActivity
+    | where TimeGenerated >= ago(TimeToCheck)
+    | where UserId =~ UserIdentityCheck or UserKey =~ UserIdentityCheck
+    | where RecordType in~ (AdminRecordTypes)
+    | extend
+        TargetObject = iff(isnotempty(tostring(OfficeObjectId)), tostring(OfficeObjectId), ""),
+        DelegateUser = iff(tostring(UserKey) != tostring(UserId), tostring(UserKey), "")
+    | project TimeGenerated, Operation, UserId, ExternalAccess, OriginatingServer,
+              ClientIP, TargetObject, DelegateUser, Parameters
+);
+//
+// ============================================================================
+// PARAMETER PARSING: expand parameter array, build human-readable description
+// ============================================================================
+RawOps
+| mv-expand Param = iff(
+    isnotempty(Parameters),
+    parse_json(tostring(Parameters)),
+    parse_json('[{"Name":"(no parameters)","Value":""}]')
+  )
+| extend _pname = tostring(Param.Name), _pval = tostring(Param.Value)
+| where _pname !in ("Confirm", "WhatIf", "Verbose", "Debug", "ErrorAction",
+                    "WarningAction", "OutBuffer", "OutVariable", "PipelineVariable",
+                    "Force", "Encoding")
+| summarize
+    _paramStr      = strcat_array(make_list(strcat(_pname, "=", _pval)), "; "),
+    _hasForwarding = countif(_pname in~ (ForwardingParams) and isnotempty(_pval)
+                             and _pval !in ("False", "false", ""))
+    by TimeGenerated, Operation, UserId, ExternalAccess, OriginatingServer,
+       ClientIP, TargetObject, DelegateUser
+//
+// --- Per-operation human-readable translation ---
+| extend _opDesc = case(
+    // Set-Mailbox: forwarding — highest signal
+    Operation =~ "Set-Mailbox" and _hasForwarding > 0,
+        strcat("Set mailbox forwarding/redirect configuration — FORWARDING PARAMETER DETECTED. Params: ", _paramStr),
+    // Set-Mailbox: GAL visibility
+    Operation =~ "Set-Mailbox" and _paramStr contains "HiddenFromAddressListsEnabled=False",
+        "Set target mailbox visible in the Global Address List (HiddenFromAddressListsEnabled set to False).",
+    Operation =~ "Set-Mailbox" and _paramStr contains "HiddenFromAddressListsEnabled=True",
+        "Set target mailbox hidden from the Global Address List.",
+    // Set-Mailbox: litigation hold
+    Operation =~ "Set-Mailbox" and _paramStr contains "LitigationHoldEnabled=True",
+        "Enabled litigation hold on the target mailbox.",
+    Operation =~ "Set-Mailbox" and _paramStr contains "LitigationHoldEnabled=False",
+        "Disabled litigation hold on the target mailbox.",
+    // Set-Mailbox: audit logging disabled
+    Operation =~ "Set-Mailbox" and _paramStr contains "AuditEnabled=False",
+        strcat("ALERT: Disabled mailbox audit logging on target. Params: ", _paramStr),
+    // Set-Mailbox: generic
+    Operation =~ "Set-Mailbox",
+        strcat("Modified mailbox configuration. Params: ", _paramStr),
+    // Inbox rules
+    Operation =~ "New-InboxRule",
+        strcat("Created a new inbox rule. Params: ", _paramStr),
+    Operation =~ "Set-InboxRule",
+        strcat("Modified an existing inbox rule. Params: ", _paramStr),
+    Operation =~ "Disable-InboxRule",
+        strcat("Disabled an inbox rule. Params: ", _paramStr),
+    Operation =~ "Remove-InboxRule",
+        strcat("Removed an inbox rule. Params: ", _paramStr),
+    // Mailbox permissions
+    Operation =~ "Add-MailboxPermission",
+        strcat("Granted mailbox access permission (FullAccess or Send-As) to another principal. Params: ", _paramStr),
+    Operation =~ "Remove-MailboxPermission",
+        strcat("Removed mailbox access permission from a principal. Params: ", _paramStr),
+    Operation =~ "Add-RecipientPermission",
+        strcat("Granted recipient-level permission (e.g. Send-As) on this object. Params: ", _paramStr),
+    Operation =~ "Remove-RecipientPermission",
+        strcat("Removed recipient-level permission from this object. Params: ", _paramStr),
+    // Mailbox folder permissions
+    Operation =~ "Add-MailboxFolderPermission",
+        strcat("Granted folder-level delegate access to another principal. Params: ", _paramStr),
+    Operation =~ "Set-MailboxFolderPermission",
+        strcat("Modified folder-level delegate permission. Params: ", _paramStr),
+    Operation =~ "Remove-MailboxFolderPermission",
+        strcat("Removed folder-level delegate permission. Params: ", _paramStr),
+    // Transport / mail flow rules
+    Operation =~ "New-TransportRule",
+        strcat("Created a new mail flow (transport) rule — can redirect, delete, or modify messages org-wide. Params: ", _paramStr),
+    Operation =~ "Set-TransportRule",
+        strcat("Modified an existing mail flow (transport) rule. Params: ", _paramStr),
+    Operation =~ "Remove-TransportRule",
+        strcat("Removed a mail flow (transport) rule. Params: ", _paramStr),
+    Operation =~ "Disable-TransportRule",
+        strcat("Disabled a mail flow (transport) rule. Params: ", _paramStr),
+    Operation =~ "Enable-TransportRule",
+        strcat("Re-enabled a mail flow (transport) rule. Params: ", _paramStr),
+    // CAS mailbox / OWA policy
+    Operation =~ "Set-CASMailbox",
+        strcat("Modified client access settings (CAS) for mailbox — can affect OWA, EWS, ActiveSync access. Params: ", _paramStr),
+    Operation =~ "Set-OwaMailboxPolicy",
+        strcat("Modified Outlook Web Access policy — can restrict or expand web client capabilities. Params: ", _paramStr),
+    // Role assignments
+    Operation =~ "New-ManagementRoleAssignment",
+        strcat("Assigned a management role to a principal — may grant elevated Exchange permissions. Params: ", _paramStr),
+    Operation =~ "Remove-ManagementRoleAssignment",
+        strcat("Removed a management role assignment from a principal. Params: ", _paramStr),
+    Operation =~ "Add-RoleGroupMember",
+        strcat("Added a member to a role group — grants all permissions associated with that group. Params: ", _paramStr),
+    Operation =~ "Remove-RoleGroupMember",
+        strcat("Removed a member from a role group. Params: ", _paramStr),
+    // Audit config
+    Operation =~ "Set-AdminAuditLogConfig",
+        strcat("ALERT: Modified admin audit log configuration — may affect audit trail completeness. Params: ", _paramStr),
+    // Calendar processing
+    Operation =~ "Set-CalendarProcessing",
+        strcat("Modified calendar processing settings (e.g. auto-accept, booking policies). Params: ", _paramStr),
+    // Microsoft 365 Groups / Teams
+    Operation =~ "Set-UnifiedGroup",
+        strcat("Modified Microsoft 365 Group / Teams settings. Params: ", _paramStr),
+    Operation =~ "Add-UnifiedGroupLinks",
+        strcat("Added members or owners to a Microsoft 365 Group. Params: ", _paramStr),
+    Operation =~ "Remove-UnifiedGroupLinks",
+        strcat("Removed members or owners from a Microsoft 365 Group. Params: ", _paramStr),
+    // Default fallback: surface operation name and raw params
+    strcat("Executed ", Operation, ". Params: ", _paramStr)
+)
+| extend _isHighRisk = iff(Operation in~ (HighRiskOps) or _hasForwarding > 0, true, false)
+//
+// --- Format each operation as a chronological log entry ---
+| extend _opEntry = strcat(
+    "  [", format_datetime(TimeGenerated, "yyyy-MM-dd HH:mm:ss"), " UTC]  ", Operation,
+    iff(isnotempty(TargetObject),      strcat("  |  Target: ", TargetObject),       ""),
+    iff(isnotempty(OriginatingServer), strcat("  |  Server: ", OriginatingServer),  ""),
+    iff(isnotempty(DelegateUser),      strcat("  |  Delegate: ", DelegateUser),     ""),
+    iff(_isHighRisk, "  [HIGH-RISK]", ""),
+    "\n    => ", _opDesc
+)
+//
+// ============================================================================
+// PER-ACTOR AGGREGATION
+// ============================================================================
+| summarize
+    TotalOps          = count(),
+    HighRiskOpCount   = countif(_isHighRisk == true),
+    ForwardingOpCount = countif(_hasForwarding > 0),
+    DistinctOps       = dcount(Operation),
+    OperationList     = make_set(Operation, 50),
+    TargetObjects     = make_set(TargetObject, 20),
+    DelegateUsers     = make_set(DelegateUser, 10),
+    OpLog             = make_list(_opEntry, 200),
+    FirstOpTime       = min(TimeGenerated),
+    LastOpTime        = max(TimeGenerated),
+    ExternalOpCount   = countif(ExternalAccess == true),
+    DistinctClientIPs = dcount(ClientIP),
+    ClientIPs         = make_set(ClientIP, 10),
+    arg_max(TimeGenerated, ExternalAccess, TargetObject, OriginatingServer, Operation)
+    by UserPrincipalName = UserId
+//
+// --- Resolve primary target for identity enrichment ---
+| extend _primaryTarget = tolower(tostring(TargetObjects[0]))
+//
+// ============================================================================
+// ENRICHMENT JOINS
+// ============================================================================
+| join kind=leftouter (ActorJob)    on $left.UserPrincipalName == $right.ActorUPN
+| join kind=leftouter (TargetInfo)  on $left._primaryTarget    == $right.TargetUPN
+| join kind=leftouter (ActorSignins) on $left.UserPrincipalName == $right.SI_UPN
+//
+// ============================================================================
+// NARRATIVE SECTION BUILDERS
+// ============================================================================
+| extend
+    _isExternal     = (ExternalOpCount > 0),
+    _actorRolesStr  = tostring(ActorRoles),
+    _targetRolesStr = tostring(TargetRoles)
+| extend
+    _isHVA_actor  = (_actorRolesStr  has_any (PrivilegedRoleKeywords)),
+    _isHVA_target = (_targetRolesStr has_any (PrivilegedRoleKeywords))
+//
+// --- ENTITY BLOCK ---
+| extend _entityBlock = strcat(
+    "Actor: ", UserPrincipalName,
+    "\n  - Internal/External: ",
+        iff(_isExternal,
+            "EXTERNAL — one or more operations carried out with ExternalAccess=True flag",
+            "Internal (all operations originated within the tenant)"),
+    "\n  - Job Title: ",    iff(isnotempty(ActorJobTitle),   ActorJobTitle,   "N/A"),
+    "\n  - Department: ",   iff(isnotempty(ActorDepartment), ActorDepartment, "N/A"),
+    "\n  - Manager: ",      iff(isnotempty(ActorManager),    ActorManager,    "N/A"),
+    "\n  - Assigned Roles: ",
+        iff(isnotempty(_actorRolesStr) and _actorRolesStr != "[]", _actorRolesStr, "None"),
+    "\n  - Identity Risk Level: ", iff(isnotempty(ActorRiskLevel), ActorRiskLevel, "N/A"),
+    "\n  - Account Enabled: ",
+        iff(isnotempty(tostring(ActorAccountEnabled)), tostring(ActorAccountEnabled), "N/A"),
+    "\n  - Actor is High-Value Asset (privileged role): ",
+        iff(_isHVA_actor, "YES — actor holds a privileged role", "No"),
+    "\n\nPrimary Target (UPN / OfficeObjectId): ", _primaryTarget,
+    "\n  - Job Title: ",    iff(isnotempty(TargetJobTitle),    TargetJobTitle,    "N/A"),
+    "\n  - Department: ",   iff(isnotempty(TargetDepartment),  TargetDepartment,  "N/A"),
+    "\n  - Account Enabled: ",
+        iff(isnotempty(tostring(TargetAccountEnabled)), tostring(TargetAccountEnabled), "N/A"),
+    "\n  - Assigned Roles: ",
+        iff(isnotempty(_targetRolesStr) and _targetRolesStr != "[]", _targetRolesStr, "None"),
+    "\n  - Target is High-Value Asset (privileged role): ",
+        iff(_isHVA_target, "YES — target holds a privileged role", "No"),
+    "\n\nAll targets in scope: ", tostring(TargetObjects),
+    iff(array_length(DelegateUsers) > 0 and tostring(DelegateUsers) != "[]",
+        strcat("\nDelegate(s) involved: ", tostring(DelegateUsers)),
+        "\nDelegate: None identified.")
+)
+//
+// --- ACTIONS TAKEN BLOCK ---
+| extend _actionsBlock = strcat(
+    "Total operations: ", tostring(TotalOps),
+    " | Distinct types: ", tostring(DistinctOps),
+    " | High-risk: ", tostring(HighRiskOpCount),
+    " | Forwarding-related: ", tostring(ForwardingOpCount),
+    "\nOperation window: ", tostring(FirstOpTime), " — ", tostring(LastOpTime),
+    "\nOperation types seen: ", tostring(OperationList),
+    "\nSource IPs: ", tostring(ClientIPs),
+    "\n\nChronological activity log:\n",
+    strcat_array(OpLog, "\n")
+)
+//
+// --- SIGN-IN CROSS-REFERENCE BLOCK ---
+| extend _signinBlock = case(
+    _isExternal,
+        "Actor external to environment — sign-in cross-reference not applicable.",
+    isnotempty(SI_UPN),
+        strcat(
+            "Sign-ins correlated within review period (±", tostring(SignInCorrelationWindow), " window applied per operation):",
+            "\n  - Total sign-ins: ", tostring(SigninCount),
+              " (", tostring(SigninSuccesses), " success / ", tostring(SigninFailures), " failure)",
+            "\n  - Most recent IP: ",   iff(isnotempty(IPAddress),  IPAddress,  "N/A"),
+            "\n  - Location: ",         iff(isnotempty(Location),   Location,   "N/A"),
+            "\n  - IP seen in org (days): ", tostring(DaysIpSeenInOrg),
+              " | IP seen by this user (days): ", tostring(DaysIpSeenUser),
+            "\n  - Other users from same IP: ", tostring(UsersWIPCount),
+            "\n  - Device: ",       iff(isnotempty(DeviceDisplayName), DeviceDisplayName, "N/A"),
+              " | Trust type: ",   iff(isnotempty(TrustType),          TrustType,         "N/A"),
+              " | Managed: ",      iff(isnotempty(IsManaged),          IsManaged,         "N/A"),
+              " | Compliant: ",    iff(isnotempty(IsCompliant),        IsCompliant,       "N/A"),
+            "\n  - MFA method: ",
+                iff(isnotempty(MFAAuthMethod) and MFAAuthMethod != "",
+                    strcat(MFAAuthMethod,
+                           iff(isnotempty(MFAAuthDetail), strcat(" (", MFAAuthDetail, ")"), "")),
+                    iff(isnotempty(AuthMethod),
+                        strcat("No dedicated MFA challenge recorded. Primary auth: ", AuthMethod),
+                        "No MFA data available.")),
+            "\n  - Conditional Access status: ",
+                iff(isnotempty(ConditionalAccessStatus), ConditionalAccessStatus, "N/A"),
+            "\n  - AAD risk at sign-in: ",
+                iff(isnotempty(RiskLevelDuringSignIn), RiskLevelDuringSignIn, "N/A"),
+            "\n  - Risk detail: ",
+                iff(isnotempty(RiskDetail), RiskDetail, "None")
+        ),
+    "No sign-in data found for this actor in the review period — account may be a service account or sign-in logs not retained."
+)
+//
+// ============================================================================
+// ATTACK SURFACE ASSESSMENT
+// ============================================================================
+| extend
+    _hasMFA     = (isnotempty(MFAAuthMethod) and MFAAuthMethod != ""),
+    _newIPAlert = (DaysIpSeenInOrg < 3),
+    _burstAlert = (TotalOps > 10 and datetime_diff("minute", LastOpTime, FirstOpTime) <= 10)
+| extend _attackSurfaceFlags = array_concat(
+    iff(HighRiskOpCount > 0,
+        dynamic(["High-risk operation(s) present in operation list (see HighRiskOps classification)"]),
+        dynamic([])),
+    iff(_isHVA_actor,
+        dynamic(["Actor holds a privileged/admin role — elevated blast radius for any misconfiguration"]),
+        dynamic([])),
+    iff(_isHVA_target,
+        dynamic(["Target is a high-value asset (privileged role assigned) — operations against HVA require additional scrutiny"]),
+        dynamic([])),
+    iff(ForwardingOpCount > 0,
+        dynamic(["Forwarding parameter detected on Set-Mailbox — potential data exfiltration or mail redirect vector"]),
+        dynamic([])),
+    iff(_isExternal,
+        dynamic(["Actor is external to the tenant environment (ExternalAccess=True)"]),
+        dynamic([])),
+    iff(not(_hasMFA) and not(_isExternal),
+        dynamic(["No MFA challenge detected on actor sign-in session — session may lack strong authentication assurance"]),
+        dynamic([])),
+    iff(_newIPAlert and not(_isExternal),
+        dynamic(["Source IP is new to the organisation (< 3 days observed) — unfamiliar origination point"]),
+        dynamic([])),
+    iff(_burstAlert,
+        dynamic(["Burst activity: high operation count in a short time window — consistent with scripted or automated execution"]),
+        dynamic([]))
+)
+| extend _attackSurfaceFlagCount = array_length(_attackSurfaceFlags)
+| extend _attackSurfaceBlock = iff(
+    _attackSurfaceFlagCount == 0,
+    "No attack surface indicators identified. Actor is internal, IP is familiar, MFA was present, and operations are not classified as high-risk.",
+    strcat(
+        tostring(_attackSurfaceFlagCount), " attack surface flag(s) identified:\n  - ",
+        strcat_array(_attackSurfaceFlags, "\n  - ")
+    )
+)
+//
+// ============================================================================
+// VERDICT
+// ============================================================================
+| extend _verdictLine = case(
+    // Immediate: forwarding set, or external actor running high-risk ops
+    ForwardingOpCount > 0 or (_isExternal and HighRiskOpCount > 0),
+        strcat("ALERT: ", tostring(_attackSurfaceFlagCount), " high-risk indicator(s) present — ",
+               strcat_array(_attackSurfaceFlags, "; "),
+               ". Immediate investigation required."),
+    // Immediate: scripted burst + no MFA + new IP
+    _burstAlert and not(_hasMFA) and _newIPAlert,
+        strcat("ALERT: Automated/scripted activity pattern detected without MFA from a new source IP — ",
+               strcat_array(_attackSurfaceFlags, "; "),
+               ". Immediate investigation required."),
+    // Mixed: 2 or more flags
+    _attackSurfaceFlagCount >= 2,
+        strcat("Mixed indicators present — ", strcat_array(_attackSurfaceFlags, "; "),
+               ". Recommend reviewing the operations and sign-in context in detail before closing."),
+    // Single flag: note and recommend
+    _attackSurfaceFlagCount == 1,
+        strcat("One indicator noted: ", tostring(_attackSurfaceFlags[0]),
+               ". Recommend confirming this activity is expected for this actor before closing."),
+    // Benign
+    strcat(
+        "No attack surface present within this configuration of variables. ",
+        tostring(OperationList), " is contextually appropriate activity. ",
+        "Totality of context facilitates no further investigation and converges benign."
+    )
+)
+//
+// ============================================================================
+// FINAL NARRATIVE ASSEMBLY
+// ============================================================================
+| extend InvestigationNarrative = strcat(
+    "=== OFFICE OPERATIONS INVESTIGATION SUMMARY ===\n",
+    "Actor: ", UserPrincipalName, "\n",
+    "Review Period: last ", tostring(TimeToCheck), " | Generated: ", tostring(now()), "\n",
+    "Operation window: ", tostring(FirstOpTime), " to ", tostring(LastOpTime), "\n",
+    "\n--- ENTITIES ---\n",
+    _entityBlock, "\n",
+    "\n--- ACTIONS TAKEN ---\n",
+    _actionsBlock, "\n",
+    "\n--- SIGN-IN CROSS-REFERENCE ---\n",
+    _signinBlock, "\n",
+    "\n--- ATTACK SURFACE ASSESSMENT ---\n",
+    _attackSurfaceBlock, "\n",
+    "\n--- VERDICT ---\n",
+    _verdictLine, "\n",
+    "=== END ==="
+)
+| project UserPrincipalName, InvestigationNarrative
