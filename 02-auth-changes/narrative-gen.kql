@@ -1,0 +1,304 @@
+// Auth Methods Changed Investigation Narrative Generator
+// Companion to authentication method change alerts. AuditLogs is the primary
+// data source; SigninLogs provides supporting context (IP, location, device)
+// scoped to sign-ins within ±SigninContextWindow of each change event.
+//
+// Covers: change summary (what/when/who), sign-in context at change time,
+// IP reputation, device posture, pre-change MFA status, AAD risk signals,
+// and an automated verdict flagging high-risk patterns.
+//
+// Usage: Populate UserIdentityCheck. Output is a single-row text summary
+// ready to paste into a ticket.
+//
+// Tables: AuditLogs (primary), SigninLogs (supporting), IdentityInfo
+
+let TimeToCheck = 30d;
+let AuthAuditWindow = 30d;
+let SigninContextWindow = 1h;
+let UserIdentityCheck = "";  // <-- Required: set the UPN to investigate
+let AuthMethodOps = dynamic([
+    "User registered security info",
+    "User deleted security info",
+    "User changed default security info",
+    "Admin registered security info",
+    "Admin deleted security info",
+    "User registered all required security info",
+    "User started security info registration",
+    "Admin updated security info",
+    "Reset password",
+    "Reset user password"
+]);
+//
+// --- Identity context ---
+let Job = IdentityInfo
+    | where AccountUPN contains UserIdentityCheck
+    | where TimeGenerated >= ago(90d)
+    | extend AccountUPN = tolower(AccountUPN)
+    | summarize arg_max(TimeGenerated, *) by AccountObjectId
+    | project AccountUPN, JobTitle, RiskLevel, AssignedRoles, Manager;
+//
+// --- Org-wide scans: materialize to avoid repeated full-table passes ---
+let allIPcounts = materialize(
+    SigninLogs
+    | where TimeGenerated >= ago(TimeToCheck)
+    | summarize DaysIpSeenInOrg = dcount(datetime_part("day", TimeGenerated)) by IPAddress
+);
+let DistinctIDfromIP = materialize(
+    SigninLogs
+    | where TimeGenerated >= ago(TimeToCheck)
+    | where ResultType == "0"
+    | summarize UsersWithThisIP = make_set(Identity) by IPAddress
+);
+//
+// --- Primary: auth method change events from AuditLogs ---
+let AuthChanges = materialize(
+    AuditLogs
+    | where TimeGenerated >= ago(AuthAuditWindow)
+    | where TargetResources has UserIdentityCheck
+    | where OperationName has_any (AuthMethodOps)
+    | extend
+        TargetResource = parse_json(tostring(TargetResources[0])),
+        InitiatedByParsed = parse_json(tostring(InitiatedBy)),
+        AdditionalDetailsParsed = parse_json(tostring(AdditionalDetails))
+    | extend
+        TargetUser = tolower(tostring(TargetResource.userPrincipalName)),
+        // Method type: prefer display name from target resource, fall back to additional details
+        MethodType = coalesce(
+            tostring(TargetResource.displayName),
+            tostring(AdditionalDetailsParsed[0].value),
+            "Unknown method"
+        ),
+        InitiatorUPN = coalesce(
+            tostring(InitiatedByParsed["user"]["userPrincipalName"]),
+            strcat("[app] ", tostring(InitiatedByParsed["app"]["displayName"])),
+            "unknown"
+        )
+    | extend IsAdminInitiated = (
+        isnotempty(InitiatorUPN)
+        and InitiatorUPN != "unknown"
+        and tolower(InitiatorUPN) != tolower(UserIdentityCheck)
+        and not(InitiatorUPN startswith "[app]")
+    )
+    | where isnotempty(TargetUser)
+);
+//
+// --- Supporting: sign-ins within ±SigninContextWindow of each change event ---
+let SigninsNearChanges = materialize(
+    AuthChanges
+    | project ChangeTime = TimeGenerated, TargetUser
+    | join kind=inner (
+        SigninLogs
+        | where TimeGenerated >= ago(AuthAuditWindow)
+        | where UserPrincipalName contains UserIdentityCheck
+        | extend
+            DeviceParsed = parse_json(DeviceDetail),
+            LocationParsed = parse_json(LocationDetails)
+        | extend
+            IsManaged = tostring(DeviceParsed.isManaged),
+            IsCompliant = tostring(DeviceParsed.isCompliant),
+            TrustType = tostring(DeviceParsed.trustType),
+            DeviceDisplayName = tostring(DeviceParsed.displayName),
+            DeviceOS = tostring(DeviceParsed.operatingSystem)
+        | extend
+            AuthDetailsParsed = parse_json(tostring(AuthenticationDetails)),
+            MFADetailParsed = parse_json(tostring(MfaDetail))
+        | extend
+            AuthMethod = tostring(AuthDetailsParsed[0].authenticationMethod),
+            AuthDetail = tostring(AuthDetailsParsed[0].authenticationStepResultDetail),
+            MFAAuthMethod = tostring(MFADetailParsed.authMethod),
+            MFAAuthDetail = tostring(MFADetailParsed.authDetail)
+    ) on $left.TargetUser == $right.UserPrincipalName
+    | where TimeGenerated between ((ChangeTime - SigninContextWindow) .. (ChangeTime + SigninContextWindow))
+);
+//
+// --- User-scoped IP baseline: from sign-ins near change events only ---
+let uniqueCounts = SigninsNearChanges
+    | summarize DaysIpSeenUser = dcount(datetime_part("day", TimeGenerated)) by IPAddress;
+//
+// --- Aggregate sign-in context to one row per user with IP reputation ---
+let SigninContextSummary = materialize(
+    SigninsNearChanges
+    | join kind=leftouter (allIPcounts) on IPAddress
+    | join kind=leftouter (DistinctIDfromIP) on IPAddress
+    | join kind=leftouter (uniqueCounts) on IPAddress
+    | extend UsersWIPCount = array_length(UsersWithThisIP)
+    | summarize
+        arg_max(TimeGenerated, IPAddress, DaysIpSeenInOrg, DaysIpSeenUser,
+                UsersWIPCount, UsersWithThisIP, Location,
+                IsManaged, IsCompliant, TrustType, DeviceDisplayName, DeviceOS,
+                AuthMethod, AuthDetail, MFAAuthMethod, MFAAuthDetail,
+                ConditionalAccessStatus, RiskLevelDuringSignIn, RiskDetail, RiskEventTypes)
+        by UserPrincipalName
+);
+//
+// --- Pre-existing MFA check: 90d lookback to determine if this is a first-ever registration ---
+let PreExistingMFA = AuditLogs
+    | where TimeGenerated >= ago(90d)
+    | where TargetResources has UserIdentityCheck
+    | where OperationName == "User registered security info"
+    | extend TargetUser = tolower(tostring(parse_json(tostring(TargetResources[0])).userPrincipalName))
+    | summarize
+        FirstRegistrationEver = min(TimeGenerated),
+        TotalRegistrations90d = count()
+        by TargetUser;
+//
+// --- Main: join auth changes with all enrichment sources ---
+AuthChanges
+| join kind=leftouter SigninContextSummary on $left.TargetUser == $right.UserPrincipalName
+| join kind=leftouter Job on $left.TargetUser == $right.AccountUPN
+| join kind=leftouter PreExistingMFA on TargetUser
+//
+// ============================================================================
+// NARRATIVE GENERATION
+// ============================================================================
+| summarize
+    ChangeCount = count(),
+    AdminInitiatedCount = countif(IsAdminInitiated == true),
+    SelfServiceCount = countif(IsAdminInitiated == false),
+    OpsObserved = make_set(OperationName, 20),
+    MethodsChanged = make_set(MethodType, 20),
+    InitiatorsObserved = make_set(InitiatorUPN, 10),
+    EarliestChange = min(TimeGenerated),
+    LatestChange = max(TimeGenerated),
+    // Take sign-in context and identity fields from the row with the latest change time
+    // (sign-in context is the same across all rows due to the pre-aggregated join)
+    arg_max(TimeGenerated, IPAddress, DaysIpSeenInOrg, DaysIpSeenUser,
+            UsersWIPCount, UsersWithThisIP, Location,
+            IsManaged, IsCompliant, TrustType, DeviceDisplayName, DeviceOS,
+            AuthMethod, AuthDetail, MFAAuthMethod, MFAAuthDetail,
+            ConditionalAccessStatus, RiskLevelDuringSignIn, RiskDetail, RiskEventTypes,
+            JobTitle, RiskLevel, AssignedRoles, Manager,
+            FirstRegistrationEver, TotalRegistrations90d)
+    by UserPrincipalName = TargetUser
+//
+// --- Build the narrative string ---
+| extend
+    // Identity context
+    _identityLine = strcat(
+        "- Role: ", iff(isnotempty(JobTitle), JobTitle, "N/A"),
+        " | Manager: ", iff(isnotempty(Manager), Manager, "N/A"),
+        " | Assigned Roles: ", iff(isnotempty(tostring(AssignedRoles)), tostring(AssignedRoles), "None"),
+        " | Identity Risk Level: ", iff(isnotempty(RiskLevel), RiskLevel, "N/A")
+    ),
+    //
+    // Auth method change summary
+    _changeSummaryLine = strcat(
+        "- ", tostring(ChangeCount), " auth method change event(s) detected in the review period.\n",
+        "- Operations observed: ", tostring(OpsObserved), "\n",
+        "- Methods affected: ", tostring(MethodsChanged), "\n",
+        "- Self-service: ", tostring(SelfServiceCount),
+          " | Admin-initiated: ", tostring(AdminInitiatedCount),
+          iff(AdminInitiatedCount > 0, strcat(" (Initiators: ", tostring(InitiatorsObserved), ")"), ""), "\n",
+        "- Earliest change: ", tostring(EarliestChange), " | Latest change: ", tostring(LatestChange)
+    ),
+    //
+    // Sign-in context + IP reputation + device posture — single combined block
+    _signinBlock = case(
+        isempty(IPAddress),
+            "- No sign-in activity found within the context window of the change event(s). Change may have been remotely or admin-initiated.",
+        strcat(
+            "- Sign-in found within ", tostring(SigninContextWindow), " of change event",
+            iff(isnotempty(Location), strcat(" from ", Location), ""), ".\n",
+            "- Source IP: ", IPAddress, " — ",
+            iff(DaysIpSeenInOrg >= 10 and DaysIpSeenUser >= 5,
+                "high-frequency organisational address.",
+                iff(DaysIpSeenInOrg >= 3,
+                    strcat("moderate org familiarity (", tostring(DaysIpSeenInOrg), " day(s) in org, ", tostring(DaysIpSeenUser), " day(s) for this user)."),
+                    strcat("NEW to the organisation (", tostring(DaysIpSeenInOrg), " day(s) seen) — high-risk indicator.")
+                )
+            ), "\n",
+            "- IP shared with ", tostring(UsersWIPCount), " other user(s) in org",
+              " | Days seen in org: ", tostring(DaysIpSeenInOrg),
+              " | Days seen by this user: ", tostring(DaysIpSeenUser), "\n",
+            "- Device: ", iff(isnotempty(DeviceDisplayName), DeviceDisplayName, "N/A"),
+              " | OS: ", iff(isnotempty(DeviceOS), DeviceOS, "N/A"),
+              " | Trust: ", iff(isnotempty(TrustType), TrustType, "N/A"),
+              " | Managed: ", iff(isnotempty(IsManaged), IsManaged, "N/A"),
+              " | Compliant: ", iff(isnotempty(IsCompliant), IsCompliant, "N/A")
+        )
+    ),
+    //
+    // MFA pre-change status
+    _mfaPrestatusLine = case(
+        isnull(FirstRegistrationEver),
+            "- No prior MFA registration found in audit logs (90d lookback). If this change includes a registration, treat as first-ever method — verify legitimacy.",
+        FirstRegistrationEver >= ago(AuthAuditWindow),
+            strcat(
+                "- First-ever MFA registration appears within the current review window (",
+                tostring(FirstRegistrationEver), ").",
+                " This may be the user's first auth method.\n",
+                "- Total registrations in 90d: ", tostring(TotalRegistrations90d), "."
+            ),
+        strcat(
+            "- User had MFA registered prior to this review window (first seen: ",
+            tostring(FirstRegistrationEver), ").",
+            " Current change is a modification, addition, or removal of an existing method.\n",
+            "- Total registrations in 90d: ", tostring(TotalRegistrations90d), "."
+        )
+    ),
+    //
+    // AAD risk signals at time of change
+    _riskLine = case(
+        isempty(RiskLevelDuringSignIn) or RiskLevelDuringSignIn == "none",
+            "- No elevated AAD Identity Protection risk signals on sign-in near the change event.",
+        RiskLevelDuringSignIn in ("medium", "high"),
+            strcat(
+                "- ALERT: AAD Identity Protection risk level at sign-in near change: ", RiskLevelDuringSignIn, ".\n",
+                "- Risk detail: ", RiskDetail, "\n",
+                "- Risk events: ", tostring(RiskEventTypes)
+            ),
+        strcat("- AAD risk detail present: ", RiskDetail, ". Review recommended.")
+    )
+//
+// --- Automated verdict: flag high-risk patterns ---
+| extend _verdictLine = case(
+    // Bulk changes in a short window
+    ChangeCount >= 3 and datetime_diff("minute", LatestChange, EarliestChange) <= 30,
+        strcat(
+            "- HIGH RISK: ", tostring(ChangeCount), " auth method changes in ",
+            tostring(datetime_diff("minute", LatestChange, EarliestChange)),
+            " minute(s) — possible bulk reset or account takeover sequence."
+        ),
+    // Method registered from an IP new to the org
+    tostring(OpsObserved) has "User registered security info" and DaysIpSeenInOrg < 3 and isnotempty(IPAddress),
+        "- HIGH RISK: Auth method registered from an IP address new to the organisation. Investigate immediately.",
+    // Admin-initiated changes with no self-service activity
+    AdminInitiatedCount > 0 and SelfServiceCount == 0,
+        strcat(
+            "- REVIEW: All ", tostring(AdminInitiatedCount),
+            " change(s) are admin-initiated with no corresponding self-service activity.",
+            " Verify authorisation and approval exists. Initiators: ",
+            tostring(InitiatorsObserved), "."
+        ),
+    // High AAD risk at sign-in near change
+    RiskLevelDuringSignIn in ("medium", "high"),
+        strcat(
+            "- HIGH RISK: Auth method change occurred alongside elevated Identity Protection risk (",
+            RiskLevelDuringSignIn, "). Correlate risk events with change timeline."
+        ),
+    // First-ever registration — no prior methods on record
+    tostring(OpsObserved) has "User registered security info" and isnull(FirstRegistrationEver),
+        "- REVIEW: First MFA method registration with no prior audit history. Verify this was user-initiated and not attacker-established persistence.",
+    // No high-risk patterns detected
+    "- No high-risk patterns automatically detected. Manual review of the change timeline and initiator context is recommended."
+)
+//
+// --- Assemble final narrative ---
+| extend InvestigationNarrative = strcat(
+    "=== AUTH METHOD CHANGE INVESTIGATION SUMMARY ===\n",
+    "User: ", UserPrincipalName, "\n",
+    "Review Period: ", tostring(AuthAuditWindow), " | Generated: ", tostring(now()), "\n",
+    _identityLine, "\n",
+    "\n--- Auth Method Change Summary ---\n",
+    _changeSummaryLine, "\n",
+    "\n--- Sign-In Context at Time of Change (±", tostring(SigninContextWindow), ") ---\n",
+    _signinBlock, "\n",
+    "\n--- MFA Pre-Change Status ---\n",
+    _mfaPrestatusLine, "\n",
+    "\n--- AAD Risk Signals ---\n",
+    _riskLine, "\n",
+    "\n--- Automated Verdict ---\n",
+    _verdictLine, "\n",
+    "=== END ==="
+)
+| project UserPrincipalName, InvestigationNarrative
