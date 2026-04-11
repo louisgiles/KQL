@@ -1,3 +1,12 @@
+// name:              Sign-In Investigation Narrative Generator
+// purpose:           Produces a single-row closure-ready narrative summarising a user's sign-in posture, IP reputation, device posture, MFA method and audit trail.
+// starting_entities: UPN
+// required_tables:   SigninLogs
+// optional_tables:   IdentityInfo (job, manager, assigned roles, risk level), AuditLogs (24h MFA audit trail)
+// variables:         TimeToCheck, MFAAuditWindow, UserIdentityCheck
+// done_criteria:     Narrative generated, every section populated, output pasted into the investigation ticket.
+// output_type:       narrative
+//
 // Sign-In Investigation Narrative Generator
 // Companion to query risk-triage. Runs the same enrichment pipeline but outputs
 // a pre-written incident note summary per user, ready to paste into your

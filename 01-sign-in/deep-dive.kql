@@ -1,3 +1,12 @@
+// name:              Sign-In Triage & Risk Scoring Engine
+// purpose:           Deep-dive triage of a specific user, IP, or device with a weighted risk score across nine sign-in signals.
+// starting_entities: UPN, IPAddress, DeviceDetail (any or all)
+// required_tables:   SigninLogs
+// optional_tables:   IdentityInfo (job, manager, assigned roles), AuditLogs (new-starter detection)
+// variables:         TimeToCheck, UserIdentityCheck, IPtoCheck, DeviceDetailtoCheck
+// done_criteria:     Every elevated-score row explained (known travel, device change, etc.) or escalated; most recent sign-in classified against the four closure buckets.
+// output_type:       analysis
+//
 // Sign-In Triage & Risk Scoring Investigation Query
 // Deep-dive investigation tool for a specific user, IP address, or device.
 // Enriches every sign-in event with frequency baselines (how many days each
