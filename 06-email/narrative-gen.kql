@@ -1,0 +1,75 @@
+let targetNetworkMessageId = "84608385-8124-458f-a993-08de974e634e";
+let lookback = 30d;
+let target = EmailEvents
+| where TimeGenerated > ago(lookback)
+| where NetworkMessageId == targetNetworkMessageId
+| top 1 by TimeGenerated desc;
+let senderAddr = toscalar(target | project SenderFromAddress);
+let targetTime = toscalar(target | project TimeGenerated);
+let firstContactFlag = toscalar(
+    EmailEvents
+    | where TimeGenerated < targetTime
+    | where SenderFromAddress =~ senderAddr
+    | summarize c = count()
+    | extend f = iff(c == 0, "yes", "no")
+    | project f
+);
+let emailsLast30 = toscalar(
+    EmailEvents
+    | where TimeGenerated between ((targetTime - 30d) .. targetTime)
+    | where SenderFromAddress =~ senderAddr
+    | count
+);
+let atts = EmailAttachmentInfo
+| where NetworkMessageId == targetNetworkMessageId
+| summarize FileNames = make_set(FileName, 100),
+            SHAs      = make_set(SHA256, 100),
+            AttCount  = dcountif(FileName, isnotempty(FileName));
+let urls = EmailUrlInfo
+| where NetworkMessageId == targetNetworkMessageId
+| summarize UrlSet  = make_set(Url, 200),
+            UrlCount = dcountif(Url, isnotempty(Url));
+target
+| extend _k = 1
+| join kind=leftouter (atts | extend _k = 1) on _k
+| join kind=leftouter (urls | extend _k = 1) on _k
+| extend AttCount = toint(coalesce(AttCount, 0)),
+         UrlCount = toint(coalesce(UrlCount, 0)),
+         FileNames = coalesce(FileNames, dynamic([])),
+         SHAs      = coalesce(SHAs, dynamic([])),
+         UrlSet    = coalesce(UrlSet, dynamic([]))
+| extend authJson = parse_json(AuthenticationDetails)
+| extend DkimState  = tolower(tostring(authJson.DKIM)),
+         DmarcState = tolower(tostring(authJson.DMARC)),
+         SpfState   = tolower(tostring(authJson.SPF)),
+         CompState  = tolower(tostring(authJson.CompAuth))
+| extend PassParts = array_concat(
+    iff(DkimState  has "pass", dynamic(["DKIM"]),      dynamic([])),
+    iff(DmarcState has "pass", dynamic(["DMARC"]),     dynamic([])),
+    iff(SpfState   has "pass", dynamic(["SPF"]),       dynamic([])),
+    iff(CompState  has "pass", dynamic(["Composite"]), dynamic([]))
+  ),
+  FailParts = array_concat(
+    iff(isnotempty(DkimState)  and not(DkimState  has "pass"), dynamic(["DKIM"]),      dynamic([])),
+    iff(isnotempty(DmarcState) and not(DmarcState has "pass"), dynamic(["DMARC"]),     dynamic([])),
+    iff(isnotempty(SpfState)   and not(SpfState   has "pass"), dynamic(["SPF"]),       dynamic([])),
+    iff(isnotempty(CompState)  and not(CompState  has "pass"), dynamic(["Composite"]), dynamic([]))
+  )
+| extend PassLine = iff(array_length(PassParts) > 0, strcat("- ", strcat_array(PassParts, "/"), " auth: Pass\n"), ""),
+         FailLine = iff(array_length(FailParts) > 0, strcat("- ", strcat_array(FailParts, "/"), " auth: Fail\n"), "")
+| extend TriageNote = strcat(
+    "- Recipient: ", RecipientEmailAddress, "\n",
+    "- NWMID: ", NetworkMessageId, "\n",
+    "- Sender: ", SenderFromAddress, "\n",
+    "- Sender Display Name: ", SenderDisplayName, "\n",
+    "- Subject: ", Subject, "\n",
+    PassLine,
+    FailLine,
+    "- ", UrlCount, " URLs. ", AttCount, " attachments\n",
+    "- URL list: ", strcat_array(UrlSet, ", "), "\n",
+    "- Attachment File Names: ", strcat_array(FileNames, ", "), "\n",
+    "- Attachment SHA256: ", strcat_array(SHAs, ", "), "\n",
+    "- Is first contact across the org: ", firstContactFlag, "\n",
+    "- Emails sent against the last 30 days: ", emailsLast30
+  )
+| project TriageNote
