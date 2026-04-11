@@ -1,1 +1,333 @@
+// name:              Auth-Change Deep Dive
+// purpose:           Evidence engine for an authentication-change audit event — who changed what on which account, whether the actor's sign-in posture is clean, whether actor/target are privileged, whether the action is normal for this actor, and a weighted triage verdict.
+// starting_entities: Actor UPN, Target UPN, OperationName (any or all)
+// required_tables:   AuditLogs
+// optional_tables:   IdentityInfo (job, manager, assigned roles, identity risk), SigninLogs (actor sign-in posture check)
+// variables:         TimeToCheck, ActorToCheck, TargetToCheck, OperationFilter, SigninLookback, ActorHistoryWindow
+// done_criteria:     Every row has a TriageVerdict; every HIGH/MEDIUM row has been explained (known helpdesk pattern, PIM activation, change record) or escalated; actor sign-in posture checked for every row that changed a privileged target.
+// output_type:       analysis
+//
+// Auth-Change Deep Dive — Evidence Engine
+// Deep-dive triage tool for an authentication-change event surfaced from
+// AuditLogs (password resets, MFA registrations, security-info deletions,
+// role assignments, CA policy edits). Answers the seven questions a
+// reviewer asks at triage: who is the actor, who is the target, what was
+// changed, is the actor's recent sign-in clean, is the actor expected to
+// make this change, is the target sensitive, and is this frequent for
+// this actor.
+//
+// Usage: Populate ActorToCheck, TargetToCheck, or OperationFilter to scope.
+// Leave any of them empty for a wider sweep. Sign-in posture is a left
+// join on the actor UPN against SigninLogs within SigninLookback — if
+// SigninLogs is sparse the row survives with null posture fields.
+//
+// Tables: AuditLogs, IdentityInfo, SigninLogs
 
+let TimeToCheck = 14d;
+let ActorToCheck = "";
+let TargetToCheck = "";
+let OperationFilter = "";
+let SigninLookback = 24h;
+let ActorHistoryWindow = 90d;
+//
+// --- Auth-change operations in scope for this family ---
+let AuthChangeOps = dynamic([
+    "Reset password", "Reset user password", "Change user password",
+    "User registered security info", "User deleted security info",
+    "User changed default security info",
+    "Admin registered security info", "Admin deleted security info",
+    "User started security info registration",
+    "User registered all required security info",
+    "Disable Strong Authentication", "Enable Strong Authentication",
+    "Update user", "Update StsRefreshTokenValidFrom Timestamp",
+    "Add conditional access policy", "Update conditional access policy",
+    "Delete conditional access policy",
+    "Add member to role", "Remove member from role",
+    "Add eligible member to role"
+]);
+//
+// --- Privileged role list (for actor & target sensitivity checks) ---
+let PrivilegedRoles = dynamic([
+    "Global Administrator", "Privileged Role Administrator",
+    "Privileged Authentication Administrator", "Security Administrator",
+    "Exchange Administrator", "SharePoint Administrator",
+    "User Administrator", "Application Administrator",
+    "Cloud Application Administrator", "Intune Administrator",
+    "Conditional Access Administrator", "Helpdesk Administrator",
+    "Password Administrator", "Authentication Administrator",
+    "Directory Synchronization Accounts"
+]);
+//
+// ============================================================================
+// Privileged user baseline — distilled from AuditLogs role-assignment events
+// ============================================================================
+let PrivilegedUsers = materialize(
+    AuditLogs
+    | where TimeGenerated >= ago(90d)
+    | where OperationName has_any ("Add member to role", "Add eligible member to role")
+    | extend
+        RoleName = tostring(TargetResources[0].displayName),
+        PrivUser = tolower(tostring(TargetResources[0].userPrincipalName))
+    | where RoleName in (PrivilegedRoles)
+    | where isnotempty(PrivUser)
+    | summarize AssignedPrivRoles = make_set(RoleName, 20) by PrivUser
+);
+//
+// ============================================================================
+// Actor historical baseline — how often this actor runs this exact op
+// Baseline window is strictly PRIOR to TimeToCheck so the action under
+// review never contributes to its own frequency baseline.
+// ============================================================================
+let ActorHistory = materialize(
+    AuditLogs
+    | where TimeGenerated between (ago(ActorHistoryWindow) .. ago(TimeToCheck))
+    | where OperationName in (AuthChangeOps)
+    | extend HistActor = tolower(tostring(InitiatedBy.user.userPrincipalName))
+    | where isnotempty(HistActor)
+    | summarize
+        HistoricalOpCount = count(),
+        DistinctTargetsHistorical = dcount(tostring(TargetResources[0].userPrincipalName)),
+        FirstSeenHistorical = min(TimeGenerated),
+        LastSeenHistorical = max(TimeGenerated)
+        by HistActor, OperationName
+);
+//
+// ============================================================================
+// Identity enrichment — actor and target pulled from the same lookup
+// ============================================================================
+let IdentityLookup = materialize(
+    IdentityInfo
+    | where TimeGenerated >= ago(90d)
+    | extend IdUPN = tolower(AccountUPN)
+    | summarize arg_max(TimeGenerated, JobTitle, AssignedRoles, Manager, RiskLevel, Department)
+        by IdUPN
+);
+let ActorIdentity = IdentityLookup
+    | project-rename
+        ActorIdUPN = IdUPN,
+        ActorJobTitle = JobTitle,
+        ActorAssignedRoles = AssignedRoles,
+        ActorManager = Manager,
+        ActorIdentityRisk = RiskLevel,
+        ActorDepartment = Department
+    | project-away TimeGenerated;
+let TargetIdentity = IdentityLookup
+    | project-rename
+        TargetIdUPN = IdUPN,
+        TargetJobTitle = JobTitle,
+        TargetAssignedRoles = AssignedRoles,
+        TargetManager = Manager,
+        TargetIdentityRisk = RiskLevel,
+        TargetDepartment = Department
+    | project-away TimeGenerated;
+//
+// ============================================================================
+// Actor sign-in posture — most recent sign-in + summary stats over SigninLookback
+// Left-joined to the main pipeline so missing SigninLogs does not drop rows.
+// ============================================================================
+let ActorSigninLatest = materialize(
+    SigninLogs
+    | where TimeGenerated >= ago(SigninLookback)
+    | extend SigninActor = tolower(UserPrincipalName)
+    | extend ActorLastSigninTrustType = tostring(parse_json(tostring(DeviceDetail)).trustType)
+    | summarize arg_max(TimeGenerated,
+        IPAddress, Location, ResultType, ResultDescription,
+        RiskLevelDuringSignIn, RiskDetail, RiskEventTypes,
+        ClientAppUsed, AuthenticationRequirement, ActorLastSigninTrustType)
+        by SigninActor
+    | project-rename
+        ActorLastSigninTime = TimeGenerated,
+        ActorLastSigninIP = IPAddress,
+        ActorLastSigninLocation = Location,
+        ActorLastSigninResult = ResultType,
+        ActorLastSigninResultDesc = ResultDescription,
+        ActorLastSigninRiskLevel = RiskLevelDuringSignIn,
+        ActorLastSigninRiskDetail = RiskDetail,
+        ActorLastSigninRiskEvents = RiskEventTypes,
+        ActorLastSigninClientApp = ClientAppUsed,
+        ActorLastSigninAuthReq = AuthenticationRequirement
+);
+let ActorSigninStats = materialize(
+    SigninLogs
+    | where TimeGenerated >= ago(SigninLookback)
+    | extend SigninActor = tolower(UserPrincipalName)
+    | summarize
+        ActorSigninCount = count(),
+        ActorFailureCount = countif(ResultType != 0),
+        ActorDistinctIPs = dcount(IPAddress),
+        ActorDistinctLocations = dcount(Location)
+        by SigninActor
+);
+//
+// ============================================================================
+// MAIN PIPELINE — AuditLogs filtered to auth-change ops, enriched with
+// identity, privileged status, historical frequency, and sign-in posture.
+// ============================================================================
+AuditLogs
+| where TimeGenerated >= ago(TimeToCheck)
+| where OperationName in (AuthChangeOps)
+| extend
+    Actor = tolower(tostring(InitiatedBy.user.userPrincipalName)),
+    ActorAppName = tostring(InitiatedBy.app.displayName),
+    ActorAppId = tostring(InitiatedBy.app.appId),
+    ActorIP = tostring(InitiatedBy.user.ipAddress),
+    Target = tolower(tostring(TargetResources[0].userPrincipalName)),
+    TargetDisplayName = tostring(TargetResources[0].displayName),
+    TargetType = tostring(TargetResources[0].type),
+    ModifiedProperties = TargetResources[0].modifiedProperties
+| where Actor contains ActorToCheck or ActorAppName contains ActorToCheck
+| where Target contains TargetToCheck
+| where OperationName contains OperationFilter
+| project-rename EventTime = TimeGenerated
+//
+// --- Identity enrichment (actor + target) ---
+| join kind=leftouter ActorIdentity on $left.Actor == $right.ActorIdUPN
+| join kind=leftouter TargetIdentity on $left.Target == $right.TargetIdUPN
+//
+// --- Privileged status (actor + target) ---
+| join kind=leftouter (PrivilegedUsers | project-rename ActorPrivUser = PrivUser, ActorPrivRoles = AssignedPrivRoles)
+    on $left.Actor == $right.ActorPrivUser
+| join kind=leftouter (PrivilegedUsers | project-rename TargetPrivUser = PrivUser, TargetPrivRoles = AssignedPrivRoles)
+    on $left.Target == $right.TargetPrivUser
+//
+// --- Historical op frequency for this actor ---
+| join kind=leftouter ActorHistory on $left.Actor == $right.HistActor, OperationName
+//
+// --- Sign-in posture for this actor ---
+| join kind=leftouter ActorSigninLatest on $left.Actor == $right.SigninActor
+| join kind=leftouter ActorSigninStats on $left.Actor == $right.SigninActor
+//
+// --- Coalesce nulls so missing enrichment does not poison the scoring ---
+| extend
+    ActorJobTitle = coalesce(ActorJobTitle, ""),
+    ActorManager = coalesce(ActorManager, ""),
+    ActorDepartment = coalesce(ActorDepartment, ""),
+    ActorIdentityRisk = coalesce(ActorIdentityRisk, "N/A"),
+    TargetJobTitle = coalesce(TargetJobTitle, ""),
+    TargetManager = coalesce(TargetManager, ""),
+    TargetDepartment = coalesce(TargetDepartment, ""),
+    TargetIdentityRisk = coalesce(TargetIdentityRisk, "N/A"),
+    HistoricalOpCount = coalesce(HistoricalOpCount, tolong(0)),
+    DistinctTargetsHistorical = coalesce(DistinctTargetsHistorical, tolong(0)),
+    ActorSigninCount = coalesce(ActorSigninCount, tolong(0)),
+    ActorFailureCount = coalesce(ActorFailureCount, tolong(0)),
+    ActorDistinctIPs = coalesce(ActorDistinctIPs, tolong(0)),
+    ActorDistinctLocations = coalesce(ActorDistinctLocations, tolong(0)),
+    IsActorPrivileged = isnotempty(ActorPrivRoles),
+    IsTargetPrivileged = isnotempty(TargetPrivRoles),
+    IsSelfService = (isnotempty(Actor) and Actor == Target),
+    IsAppActor = (isempty(Actor) and isnotempty(ActorAppName))
+//
+// ============================================================================
+// RISK SCORING ENGINE
+// Each factor answers one of the seven triage questions. Thresholds are
+// intentionally blunt — tune in-env once this has run against the three
+// test cases in notes.md.
+// ============================================================================
+| extend
+    // Q6 — is this action frequent for this actor
+    _actorFirstTimeOp      = iff(HistoricalOpCount == 0 and not(IsAppActor), 25, 0),
+    _actorLowFreqOp        = iff(HistoricalOpCount > 0 and HistoricalOpCount <= 2, 10, 0),
+    // Q5 — target sensitivity
+    _targetPrivRisk        = iff(IsTargetPrivileged, 25, 0),
+    // Q4 — actor expected to make this change
+    _actorNotPrivOnPriv    = iff(not(IsActorPrivileged) and IsTargetPrivileged, 20, 0),
+    // Q3 — actor sign-in posture
+    _actorSigninRisk       = iff(ActorLastSigninRiskLevel in ("medium", "high")
+                                 or (isnotempty(ActorLastSigninRiskDetail) and ActorLastSigninRiskDetail != "none"), 20, 0),
+    _actorSigninFailureRisk = iff(ActorFailureCount > 0, 5, 0),
+    _actorUntrustedDevice  = iff(isnotempty(ActorLastSigninTrustType)
+                                  and ActorLastSigninTrustType !in ("Azure AD joined", "Hybrid Azure AD joined"), 10, 0),
+    // Edge cases
+    _selfServiceOnPriv     = iff(IsSelfService and IsTargetPrivileged, 15, 0),
+    _appActorOnPriv        = iff(IsAppActor and IsTargetPrivileged, 10, 0)
+| extend
+    RiskScore = _actorFirstTimeOp + _actorLowFreqOp + _targetPrivRisk
+        + _actorNotPrivOnPriv + _actorSigninRisk + _actorSigninFailureRisk
+        + _actorUntrustedDevice + _selfServiceOnPriv + _appActorOnPriv
+| extend
+    // --- Human-readable flag list ---
+    RiskFlags = strcat_array(array_concat(
+        iff(_actorFirstTimeOp > 0,       pack_array("ACTOR_FIRST_TIME_OP"), dynamic([])),
+        iff(_actorLowFreqOp > 0,         pack_array("ACTOR_LOW_FREQ_OP"), dynamic([])),
+        iff(_targetPrivRisk > 0,         pack_array("TARGET_PRIVILEGED"), dynamic([])),
+        iff(_actorNotPrivOnPriv > 0,     pack_array("ACTOR_NOT_PRIVILEGED_CHANGING_PRIV"), dynamic([])),
+        iff(_actorSigninRisk > 0,        pack_array("ACTOR_SIGNIN_RISK"), dynamic([])),
+        iff(_actorSigninFailureRisk > 0, pack_array("ACTOR_SIGNIN_FAILURES"), dynamic([])),
+        iff(_actorUntrustedDevice > 0,   pack_array("ACTOR_UNTRUSTED_DEVICE"), dynamic([])),
+        iff(_selfServiceOnPriv > 0,      pack_array("SELF_SERVICE_ON_PRIV_ACCOUNT"), dynamic([])),
+        iff(_appActorOnPriv > 0,         pack_array("APP_ACTOR_ON_PRIV_ACCOUNT"), dynamic([]))
+    ), " | ")
+| extend
+    TriageVerdict = case(
+        RiskScore >= 55, "🔴 HIGH-RISK",
+        RiskScore >= 35, "🟠 MEDIUM-RISK",
+        RiskScore >= 15, "🟡 LOW-RISK",
+        "🟢 LIKELY BENIGN"
+    )
+//
+// ============================================================================
+// OUTPUT
+// ============================================================================
+| project-reorder
+    TriageVerdict,
+    RiskScore,
+    RiskFlags,
+    EventTime,
+    OperationName,
+    Result,
+    ResultReason,
+    Actor,
+    ActorAppName,
+    ActorAppId,
+    ActorIP,
+    ActorJobTitle,
+    ActorDepartment,
+    ActorManager,
+    ActorAssignedRoles,
+    ActorPrivRoles,
+    IsActorPrivileged,
+    ActorIdentityRisk,
+    Target,
+    TargetDisplayName,
+    TargetType,
+    TargetJobTitle,
+    TargetDepartment,
+    TargetManager,
+    TargetAssignedRoles,
+    TargetPrivRoles,
+    IsTargetPrivileged,
+    TargetIdentityRisk,
+    ModifiedProperties,
+    HistoricalOpCount,
+    DistinctTargetsHistorical,
+    FirstSeenHistorical,
+    LastSeenHistorical,
+    ActorLastSigninTime,
+    ActorLastSigninIP,
+    ActorLastSigninLocation,
+    ActorLastSigninResult,
+    ActorLastSigninResultDesc,
+    ActorLastSigninRiskLevel,
+    ActorLastSigninRiskDetail,
+    ActorLastSigninRiskEvents,
+    ActorLastSigninTrustType,
+    ActorLastSigninClientApp,
+    ActorLastSigninAuthReq,
+    ActorSigninCount,
+    ActorFailureCount,
+    ActorDistinctIPs,
+    ActorDistinctLocations,
+    IsSelfService,
+    IsAppActor,
+    CorrelationId
+| project-away
+    TenantId, SourceSystem, Category, Id, AdditionalDetails,
+    InitiatedBy, TargetResources, AADOperationType, LoggedByService,
+    OperationVersion, Type, ActivityDisplayName, ActivityDateTime,
+    ActorIdUPN, TargetIdUPN, ActorPrivUser, TargetPrivUser,
+    HistActor, SigninActor, SigninActor1,
+    _actorFirstTimeOp, _actorLowFreqOp, _targetPrivRisk, _actorNotPrivOnPriv,
+    _actorSigninRisk, _actorSigninFailureRisk, _actorUntrustedDevice,
+    _selfServiceOnPriv, _appActorOnPriv
+| sort by EventTime desc
