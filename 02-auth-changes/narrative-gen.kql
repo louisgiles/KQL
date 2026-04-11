@@ -143,42 +143,42 @@ AuthChanges
 // --- Narrative building blocks ---
 | extend
     _targetLine = strcat(
-        "Target: ", Target,
+        "- Target: ", Target,
         iff(isnotempty(TargetDisplayName), strcat(" (", TargetDisplayName, ")"), ""),
-        "\nRole: ", iff(isnotempty(JobTitle), JobTitle, "N/A"),
+        "\n- Role: ", iff(isnotempty(JobTitle), JobTitle, "N/A"),
         " | Manager: ", iff(isnotempty(Manager), Manager, "N/A"),
-        " | Directory Roles: ", iff(isnotempty(tostring(AssignedRoles)), tostring(AssignedRoles), "None"),
-        " | Identity Risk: ", iff(isnotempty(RiskLevel), RiskLevel, "N/A")
+        "\n- Directory Roles: ", iff(isnotempty(tostring(AssignedRoles)), tostring(AssignedRoles), "None"),
+        "\n- Identity Risk: ", iff(isnotempty(RiskLevel), RiskLevel, "N/A")
     ),
     _changeSummary = strcat(
-        tostring(ChangeCount), " auth-change event(s) between ",
+        "- ", tostring(ChangeCount), " auth-change event(s) between ",
         format_datetime(EarliestChange, "yyyy-MM-dd HH:mm"),
-        " and ", format_datetime(LatestChange, "yyyy-MM-dd HH:mm"), " UTC.\n",
-        "Operations: ", tostring(OpsObserved), "\n",
-        "Self-service: ", tostring(SelfServiceCount),
+        " and ", format_datetime(LatestChange, "yyyy-MM-dd HH:mm"), " UTC.",
+        "\n- Operations: ", tostring(OpsObserved),
+        "\n- Self-service: ", tostring(SelfServiceCount),
         " | Admin-initiated: ", tostring(AdminCount),
         " | App-initiated: ", tostring(AppCount),
         iff(AdminCount > 0 or AppCount > 0,
-            strcat(" (Actors: ", tostring(ActorsObserved), ")"), "")
+            strcat("\n- Actors: ", tostring(ActorsObserved)), "")
     ),
     _signinContext = case(
         isempty(IPAddress),
-            "No actor sign-in found within the context window. Change may have been background/system-initiated.",
+            "- No actor sign-in found within the context window. Change may have been background/system-initiated.",
         strcat(
-            "Actor sign-in near change from ", Location, " (IP: ", IPAddress, ").\n",
-            "IP org familiarity: ",
+            "- Actor sign-in near change from ", Location, " (IP: ", IPAddress, ").",
+            "\n- IP org familiarity: ",
             case(
                 DaysSeenInOrg >= 10, "high — well-established organisational address.",
                 DaysSeenInOrg >= 3, strcat("moderate (", tostring(DaysSeenInOrg), " days in org)."),
                 strcat("low (", tostring(DaysSeenInOrg), " days in org) — review required.")
-            ), "\n",
-            "Device trust: ", iff(isnotempty(TrustType), TrustType, "N/A"),
+            ),
+            "\n- Device trust: ", iff(isnotempty(TrustType), TrustType, "N/A"),
             " | Compliant: ", iff(isnotempty(IsCompliant), IsCompliant, "N/A"),
             " | Managed: ", iff(isnotempty(IsManaged), IsManaged, "N/A"),
-            " | OS: ", iff(isnotempty(DeviceOS), DeviceOS, "N/A"), "\n",
-            "Auth requirement: ", iff(isnotempty(AuthenticationRequirement), AuthenticationRequirement, "N/A"),
-            " | Client: ", iff(isnotempty(ClientAppUsed), ClientAppUsed, "N/A"), "\n",
-            "Sign-in risk: ",
+            " | OS: ", iff(isnotempty(DeviceOS), DeviceOS, "N/A"),
+            "\n- Auth requirement: ", iff(isnotempty(AuthenticationRequirement), AuthenticationRequirement, "N/A"),
+            " | Client: ", iff(isnotempty(ClientAppUsed), ClientAppUsed, "N/A"),
+            "\n- Sign-in risk: ",
             case(
                 RiskLevelDuringSignIn in ("medium", "high"),
                     strcat("ELEVATED (", RiskLevelDuringSignIn, ") — ", coalesce(RiskDetail, "no detail")),
@@ -189,38 +189,32 @@ AuthChanges
         )
     ),
     _determination = case(
-        // Bulk changes in tight window from unfamiliar IP
         ChangeCount >= 3 and datetime_diff("minute", LatestChange, EarliestChange) <= 30 and DaysSeenInOrg < 3,
-            "SUSPICIOUS — multiple auth changes in a short window from an unfamiliar IP. Escalate.",
-        // Elevated sign-in risk at time of change
+            "- SUSPICIOUS — multiple auth changes in a short window from an unfamiliar IP. Escalate.",
         RiskLevelDuringSignIn in ("medium", "high"),
-            strcat("REVIEW REQUIRED — actor session flagged as ", RiskLevelDuringSignIn, " risk at time of change. Correlate with Identity Protection alerts."),
-        // Admin-initiated with no self-service — verify authorisation
+            strcat("- REVIEW REQUIRED — actor session flagged as ", RiskLevelDuringSignIn, " risk at time of change. Correlate with Identity Protection alerts."),
         AdminCount > 0 and SelfServiceCount == 0,
-            strcat("REVIEW REQUIRED — all changes admin-initiated by ", tostring(ActorsObserved), ". Verify change request or approval exists."),
-        // Self-service from trusted posture
+            strcat("- REVIEW REQUIRED — all changes admin-initiated by ", tostring(ActorsObserved), ". Verify change request or approval exists."),
         SelfServiceCount == ChangeCount and DaysSeenInOrg >= 10
             and (isempty(RiskLevelDuringSignIn) or RiskLevelDuringSignIn == "none"),
-            "BENIGN — self-service auth change from a familiar IP with no elevated risk signals. No action required.",
-        // Self-service from moderate posture
+            "- BENIGN — self-service auth change from a familiar IP with no elevated risk signals. No action required.",
         SelfServiceCount == ChangeCount and DaysSeenInOrg >= 3,
-            "LIKELY BENIGN — self-service auth change from a moderately familiar IP. No immediate concern; monitor if pattern repeats.",
-        // Fallback
-        "REVIEW REQUIRED — mixed signals or insufficient context for automated determination. Review the deep dive output."
+            "- LIKELY BENIGN — self-service auth change from a moderately familiar IP. No immediate concern; monitor if pattern repeats.",
+        "- REVIEW REQUIRED — mixed signals or insufficient context for automated determination. Review the deep dive output."
     )
 //
 // --- Assemble ---
 | extend InvestigationNarrative = strcat(
     "=== AUTH-CHANGE INVESTIGATION SUMMARY ===\n",
-    "Generated: ", format_datetime(now(), "yyyy-MM-dd HH:mm"), " UTC\n",
-    "Review period: ", tostring(TimeToCheck), "\n\n",
-    "--- Target ---\n",
-    _targetLine, "\n\n",
-    "--- Change Summary ---\n",
-    _changeSummary, "\n\n",
-    "--- Actor Sign-In Context (±", tostring(SigninContextWindow), " of change) ---\n",
-    _signinContext, "\n\n",
-    "--- Determination ---\n",
+    "- Generated: ", format_datetime(now(), "yyyy-MM-dd HH:mm"), " UTC\n",
+    "- Review period: ", tostring(TimeToCheck), "\n",
+    "\n--- Target ---\n",
+    _targetLine, "\n",
+    "\n--- Change Summary ---\n",
+    _changeSummary, "\n",
+    "\n--- Actor Sign-In Context (±", tostring(SigninContextWindow), " of change) ---\n",
+    _signinContext, "\n",
+    "\n--- Determination ---\n",
     _determination, "\n",
     "=== END ==="
 )
