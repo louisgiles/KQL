@@ -1,4 +1,4 @@
-let targetNetworkMessageId = "84608385-8124-458f-a993-08de974e634e";
+let targetNetworkMessageId = "";
 let lookback = 30d;
 let target = EmailEvents
 | where TimeGenerated > ago(lookback)
