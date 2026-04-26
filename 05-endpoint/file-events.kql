@@ -1,79 +1,207 @@
-// =============================================================================
-// Triage Query 3: DeviceFileEvents — "What appeared or changed?"
-// Purpose: Understand file creation, modification, and origin around an alert.
-// Usage:   Paste your alert entities into the let statements below, then run.
-// =============================================================================
+// name:              File Activity Deep Dive
+// purpose:           Structured triage of file activity on a host — lifecycle, creator chain, metadata, execution status, network reach, registry writes, and sibling files across seven togglable sections.
+// starting_entities: DeviceName, FileName, SHA256, FolderPath (any combination)
+// required_tables:   DeviceFileEvents
+// optional_tables:   DeviceFileCertificateInfo (signing info), DeviceProcessEvents (execution status), DeviceNetworkEvents (network reach), DeviceRegistryEvents (registry writes)
+// variables:         AlertTime, TimeToCheck, HostToCheck, FileNameToCheck, SHA256ToCheck, FolderPathToCheck
+// done_criteria:     File lifecycle mapped; creator process chain identified; execution status determined; network and registry activity from creator and executed processes reviewed; sibling files assessed. Each finding classified against the four closure buckets.
+// output_type:       analysis
+//
+// File Activity Deep Dive
+// Seven-section investigation tool for file-based alerts in Defender
+// Advanced Hunting. Each section produces a separate result tab gated by a
+// boolean toggle. A shared materialized file scope feeds Sections 1-3 and 7.
+// Sections 4-6 branch into process, network, and registry tables using
+// creator and executed process IDs. The investigation window is anchored
+// on AlertTime ± TimeToCheck. Section 4 expands forward to a 24h minimum
+// from AlertTime to catch delayed execution.
+//
+// Usage: Populate AlertTime with the alert trigger timestamp, HostToCheck,
+// and at least one of FileNameToCheck, SHA256ToCheck, or FolderPathToCheck.
+// Toggle sections off to narrow output.
+//
+// Tables: DeviceFileEvents, DeviceFileCertificateInfo, DeviceProcessEvents,
+// DeviceNetworkEvents, DeviceRegistryEvents
 
-// --- Input parameters --------------------------------------------------------
-let DeviceToCheck = "YOURDEVICE";           // Device name from the alert
-let EntityToCheck = "YOURENTITY";           // Filename, path, or hash from the alert
-let EventTimestamp = datetime(2025-01-01T00:00:00Z); // Alert timestamp in ISO 8601
-let TimeOffset = 15m;                       // Lookback/lookahead window (hardcoded ±15 min)
-// -----------------------------------------------------------------------------
-
-DeviceFileEvents
-| where Timestamp between ((EventTimestamp - TimeOffset) .. (EventTimestamp + TimeOffset))
-| where DeviceName contains DeviceToCheck
-// --- Entity filter: match across file-related fields ---
-| where FileName contains EntityToCheck
-     or FolderPath contains EntityToCheck
-     or SHA256 contains EntityToCheck
-     or FileOriginUrl contains EntityToCheck
-     or PreviousFileName contains EntityToCheck
-// --- Lean column projection (no bag_pack) ---
+let AlertTime = datetime(2026-04-25T19:10:53.4702911Z);
+let TimeToCheck = 5m;
+let HostToCheck = "";
+let FileNameToCheck = "";
+let SHA256ToCheck = "";
+let FolderPathToCheck = "";
+//
+let RunFileLifecycle    = true;
+let RunCreatorContext   = true;
+let RunFileMetadata     = true;
+let RunExecutionStatus  = true;
+let RunNetworkReach     = true;
+let RunRegistryWrites   = true;
+let RunSiblingFiles     = true;
+//
+let _windowStart = AlertTime - TimeToCheck;
+let _windowEnd = AlertTime + TimeToCheck;
+let _execWindowEnd = AlertTime + max_of(TimeToCheck, 24h);
+let FileScope = materialize(
+    DeviceFileEvents
+    | where Timestamp between (_windowStart .. _windowEnd)
+    | where HostToCheck == "" or DeviceName contains HostToCheck
+    | where FileNameToCheck == "" or FileName contains FileNameToCheck
+    | where SHA256ToCheck == "" or SHA256 contains SHA256ToCheck
+    | where FolderPathToCheck == "" or FolderPath contains FolderPathToCheck
+);
+let TargetSHA256s = toscalar(FileScope | where isnotempty(SHA256) | summarize make_set(SHA256, 100));
+let TargetSHA1s = toscalar(FileScope | where isnotempty(SHA1) | summarize make_set(SHA1, 100));
+let TargetFolderPaths = toscalar(FileScope | where isnotempty(FolderPath) | summarize make_set(FolderPath, 100));
+let CreatorPids = toscalar(FileScope | where isnotempty(InitiatingProcessId) | summarize make_set(InitiatingProcessId, 100));
+let ExecutedPids = toscalar(
+    DeviceProcessEvents
+    | where Timestamp between (_windowStart .. _execWindowEnd)
+    | where HostToCheck == "" or DeviceName contains HostToCheck
+    | where SHA256 in (TargetSHA256s) or FolderPath in (TargetFolderPaths)
+    | summarize make_set(ProcessId, 100)
+);
+let AllPids = array_concat(CreatorPids, ExecutedPids);
+// === SECTION 1: File Lifecycle ===
+FileScope
+| where RunFileLifecycle
 | project
     Timestamp,
-    DeviceName,
     ActionType,
     FileName,
     FolderPath,
     PreviousFileName,
     PreviousFolderPath,
+    SHA256,
+    FileSize,
     FileOriginUrl,
     FileOriginReferrerUrl,
     FileOriginIP,
-    SHA256,
-    FileSize,
+    InitiatingProcessFileName,
+    InitiatingProcessId,
+    DeviceName
+| sort by Timestamp asc
+;
+// === SECTION 2: Creator Context ===
+FileScope
+| where RunCreatorContext
+| project
+    Timestamp,
+    FileName,
+    FolderPath,
     InitiatingProcessFileName,
     InitiatingProcessFolderPath,
     InitiatingProcessCommandLine,
     InitiatingProcessAccountName,
-    InitiatingProcessSHA256,
-    // --- BenignFlag: marks common benign file operations ---
-    // Add or remove patterns here as you learn what's noisy in your environment.
-    BenignFlag = case(
-        // Defender definition updates
-        FolderPath has_any (@"\Windows\ServiceProfiles\LocalService\AppData\Local\Temp",
-                            @"\ProgramData\Microsoft\Windows Defender\Definition Updates",
-                            @"\ProgramData\Microsoft\Windows Defender\Scans"),                       true,
-        InitiatingProcessFileName in~ ("MsMpEng.exe", "MpCmdRun.exe", "NisSrv.exe",
-                                        "MsSense.exe", "SenseCE.exe"),                               true,
-        // Windows Update staging / download paths
-        FolderPath has_any (@"\Windows\SoftwareDistribution\",
-                            @"\Windows\WinSxS\Temp\",
-                            @"\Windows\CbsTemp\"),                                                   true,
-        InitiatingProcessFileName in~ ("USOCoreWorker.exe", "USOClient.exe",
-                                        "WaaSMedicSvc.exe", "TiWorker.exe",
-                                        "TrustedInstaller.exe"),                                     true,
-        // Temp files from known system processes in expected locations
-        FolderPath has @"\Windows\Temp\" and InitiatingProcessFileName in~
-            ("svchost.exe", "msiexec.exe", "TiWorker.exe", "DismHost.exe"),                          true,
-        // Prefetch file creation
-        FolderPath has @"\Windows\Prefetch\" and FileName endswith ".pf",                            true,
-        // Event log writes
-        FolderPath has @"\Windows\System32\winevt\Logs\",                                            true,
-        InitiatingProcessFileName =~ "svchost.exe" and FolderPath has @"\winevt\Logs\",             true,
-        // Windows telemetry
-        InitiatingProcessFileName in~ ("CompatTelRunner.exe", "DiagTrackRunner.exe"),                true,
-        // Search indexer temp files
-        InitiatingProcessFileName in~ ("SearchIndexer.exe", "SearchProtocolHost.exe"),               true,
-        // Office background telemetry / update files
-        InitiatingProcessFileName in~ ("OfficeClickToRun.exe", "officec2rclient.exe",
-                                        "OfficeC2RClient.exe"),                                      true,
-        FolderPath has_any (@"\Microsoft\Office\", @"\ClickToRun\") and
-            InitiatingProcessFileName =~ "OfficeClickToRun.exe",                                     true,
-        // Default: not benign
-        false
-    )
-// --- Sort: unflagged (interesting) rows first, then by time ---
-| sort by BenignFlag asc, Timestamp asc
+    InitiatingProcessParentFileName,
+    InitiatingProcessId,
+    DeviceName
+| sort by Timestamp asc
+;
+// === SECTION 3: File Metadata ===
+FileScope
+| where RunFileMetadata
+| extend PathCategory = case(
+    FolderPath has_any (@"\Users\Public\", @"\ProgramData\", @"\Windows\Temp\"), "User-Writable / Temp",
+    FolderPath has_any (@"\AppData\Local\Temp", @"\AppData\Roaming\"), "User AppData",
+    FolderPath has @"\Windows\System32" or FolderPath has @"\Windows\SysWOW64", "System",
+    FolderPath has @"\Program Files", "Program Files",
+    FolderPath has @"\Users\" and not(FolderPath has_any (@"\Temp", @"\AppData\")), "User Profile",
+    "Other"
+)
+| join kind=leftouter (
+    DeviceFileCertificateInfo
+    | where SHA1 in (TargetSHA1s)
+    | summarize arg_max(Timestamp, Signer, Issuer, IsSigned, IsTrusted, SignatureType) by SHA1
+) on SHA1
+| project
+    Timestamp,
+    FileName,
+    FolderPath,
+    PathCategory,
+    SHA256,
+    FileSize,
+    IsSigned,
+    IsTrusted,
+    Signer,
+    Issuer,
+    SignatureType,
+    DeviceName
+| sort by Timestamp asc
+;
+// === SECTION 4: Execution Status ===
+DeviceProcessEvents
+| where RunExecutionStatus
+| where Timestamp between (_windowStart .. _execWindowEnd)
+| where HostToCheck == "" or DeviceName contains HostToCheck
+| where SHA256 in (TargetSHA256s) or FolderPath in (TargetFolderPaths)
+| project
+    Timestamp,
+    ActionType,
+    FileName,
+    FolderPath,
+    SHA256,
+    ProcessCommandLine,
+    AccountName,
+    InitiatingProcessFileName,
+    InitiatingProcessCommandLine,
+    ProcessId,
+    DeviceName
+| sort by Timestamp asc
+;
+// === SECTION 5: Network Reach ===
+DeviceNetworkEvents
+| where RunNetworkReach
+| where Timestamp between (_windowStart .. _execWindowEnd)
+| where HostToCheck == "" or DeviceName contains HostToCheck
+| where InitiatingProcessId in (AllPids)
+| extend ProcessRole = iff(InitiatingProcessId in (CreatorPids), "Creator", "Executed")
+| project
+    Timestamp,
+    ProcessRole,
+    InitiatingProcessFileName,
+    InitiatingProcessId,
+    RemoteUrl,
+    RemoteIP,
+    RemotePort,
+    LocalIP,
+    LocalPort,
+    Protocol,
+    DeviceName
+| sort by Timestamp asc
+;
+// === SECTION 6: Registry Writes ===
+DeviceRegistryEvents
+| where RunRegistryWrites
+| where Timestamp between (_windowStart .. _execWindowEnd)
+| where HostToCheck == "" or DeviceName contains HostToCheck
+| where InitiatingProcessId in (AllPids)
+| extend ProcessRole = iff(InitiatingProcessId in (CreatorPids), "Creator", "Executed")
+| project
+    Timestamp,
+    ProcessRole,
+    ActionType,
+    RegistryKey,
+    RegistryValueName,
+    RegistryValueData,
+    InitiatingProcessFileName,
+    InitiatingProcessId,
+    DeviceName
+| sort by Timestamp asc
+;
+// === SECTION 7: Sibling Files ===
+DeviceFileEvents
+| where RunSiblingFiles
+| where Timestamp between (_windowStart .. _windowEnd)
+| where HostToCheck == "" or DeviceName contains HostToCheck
+| where InitiatingProcessId in (CreatorPids)
+| project
+    Timestamp,
+    ActionType,
+    FileName,
+    FolderPath,
+    SHA256,
+    FileSize,
+    InitiatingProcessFileName,
+    InitiatingProcessId,
+    DeviceName
+| sort by Timestamp asc
