@@ -3,7 +3,7 @@
 // starting_entities: DeviceName, FileName, SHA256, FolderPath (any combination)
 // required_tables:   DeviceFileEvents
 // optional_tables:   DeviceFileCertificateInfo (signing info), DeviceProcessEvents (execution status), DeviceNetworkEvents (network reach), DeviceRegistryEvents (registry writes)
-// variables:         AlertTime, TimeToCheck, HostToCheck, FileNameToCheck, SHA256ToCheck, FolderPathToCheck
+// variables:         TimeToCheck, HostToCheck, FileNameToCheck, SHA256ToCheck, FolderPathToCheck
 // done_criteria:     File lifecycle mapped; creator process chain identified; execution status determined; network and registry activity from creator and executed processes reviewed; sibling files assessed. Each finding classified against the four closure buckets.
 // output_type:       analysis
 //
@@ -12,18 +12,15 @@
 // Advanced Hunting. Each section produces a separate result tab gated by a
 // boolean toggle. A shared materialized file scope feeds Sections 1-3 and 7.
 // Sections 4-6 branch into process, network, and registry tables using
-// creator and executed process IDs. The investigation window is anchored
-// on AlertTime ± TimeToCheck. Section 4 expands forward to a 24h minimum
-// from AlertTime to catch delayed execution.
+// creator and executed process IDs. Section 4 uses a 24h minimum lookback
+// to catch delayed execution.
 //
-// Usage: Populate AlertTime with the alert trigger timestamp, HostToCheck,
-// and at least one of FileNameToCheck, SHA256ToCheck, or FolderPathToCheck.
-// Toggle sections off to narrow output.
+// Usage: Populate HostToCheck and at least one of FileNameToCheck,
+// SHA256ToCheck, or FolderPathToCheck. Toggle sections off to narrow output.
 //
 // Tables: DeviceFileEvents, DeviceFileCertificateInfo, DeviceProcessEvents,
 // DeviceNetworkEvents, DeviceRegistryEvents
 
-let AlertTime = datetime(2026-04-25T19:10:53.4702911Z);
 let TimeToCheck = 5m;
 let HostToCheck = "";
 let FileNameToCheck = "";
@@ -38,12 +35,10 @@ let RunNetworkReach     = true;
 let RunRegistryWrites   = true;
 let RunSiblingFiles     = true;
 //
-let _windowStart = AlertTime - TimeToCheck;
-let _windowEnd = AlertTime + TimeToCheck;
-let _execWindowEnd = AlertTime + max_of(TimeToCheck, 24h);
+let _execWindow = max_of(TimeToCheck, 24h);
 let FileScope = materialize(
     DeviceFileEvents
-    | where Timestamp between (_windowStart .. _windowEnd)
+    | where Timestamp between (ago(TimeToCheck) .. now())
     | where HostToCheck == "" or DeviceName contains HostToCheck
     | where FileNameToCheck == "" or FileName contains FileNameToCheck
     | where SHA256ToCheck == "" or SHA256 contains SHA256ToCheck
@@ -55,7 +50,7 @@ let TargetFolderPaths = toscalar(FileScope | where isnotempty(FolderPath) | summ
 let CreatorPids = toscalar(FileScope | where isnotempty(InitiatingProcessId) | summarize make_set(InitiatingProcessId, 100));
 let ExecutedPids = toscalar(
     DeviceProcessEvents
-    | where Timestamp between (_windowStart .. _execWindowEnd)
+    | where Timestamp >= ago(_execWindow)
     | where HostToCheck == "" or DeviceName contains HostToCheck
     | where SHA256 in (TargetSHA256s) or FolderPath in (TargetFolderPaths)
     | summarize make_set(ProcessId, 100)
@@ -131,7 +126,7 @@ FileScope
 // === SECTION 4: Execution Status ===
 DeviceProcessEvents
 | where RunExecutionStatus
-| where Timestamp between (_windowStart .. _execWindowEnd)
+| where Timestamp >= ago(_execWindow)
 | where HostToCheck == "" or DeviceName contains HostToCheck
 | where SHA256 in (TargetSHA256s) or FolderPath in (TargetFolderPaths)
 | project
@@ -151,7 +146,7 @@ DeviceProcessEvents
 // === SECTION 5: Network Reach ===
 DeviceNetworkEvents
 | where RunNetworkReach
-| where Timestamp between (_windowStart .. _execWindowEnd)
+| where Timestamp >= ago(_execWindow)
 | where HostToCheck == "" or DeviceName contains HostToCheck
 | where InitiatingProcessId in (AllPids)
 | extend ProcessRole = iff(InitiatingProcessId in (CreatorPids), "Creator", "Executed")
@@ -172,7 +167,7 @@ DeviceNetworkEvents
 // === SECTION 6: Registry Writes ===
 DeviceRegistryEvents
 | where RunRegistryWrites
-| where Timestamp between (_windowStart .. _execWindowEnd)
+| where Timestamp >= ago(_execWindow)
 | where HostToCheck == "" or DeviceName contains HostToCheck
 | where InitiatingProcessId in (AllPids)
 | extend ProcessRole = iff(InitiatingProcessId in (CreatorPids), "Creator", "Executed")
@@ -191,7 +186,7 @@ DeviceRegistryEvents
 // === SECTION 7: Sibling Files ===
 DeviceFileEvents
 | where RunSiblingFiles
-| where Timestamp between (_windowStart .. _windowEnd)
+| where Timestamp between (ago(TimeToCheck) .. now())
 | where HostToCheck == "" or DeviceName contains HostToCheck
 | where InitiatingProcessId in (CreatorPids)
 | project
