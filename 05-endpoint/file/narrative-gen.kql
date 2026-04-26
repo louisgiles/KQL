@@ -1,0 +1,397 @@
+// name:              File Activity Narrative Generator
+// purpose:           Ticket-ready closure note for a file-activity alert — complements the deep dive by producing a paste-ready analyst note across creator context, ancestry, execution, descendants, network, registry, persistence (services + scheduled tasks + registry), AV/MDE actions, and preceding browser/script-host context.
+// starting_entities: AlertTime, DeviceName, FileName, SHA256, FolderPath (any combination)
+// required_tables:   DeviceFileEvents
+// optional_tables:   DeviceFileCertificateInfo, DeviceProcessEvents, DeviceNetworkEvents, DeviceRegistryEvents, DeviceEvents
+// variables:         AlertTime, TimeToCheck, AncestryLookback, PrecedingContextLookback, HostToCheck, FileNameToCheck, SHA256ToCheck, FolderPathToCheck
+// done_criteria:     Narrative output exists covering: timestamp and file identity, creator context, two-level ancestry, execution status, two-level descendants, network reach, registry writes, persistence (services + scheduled tasks + registry persistence keys), AV/MDE actions, preceding browser/script-host context, and a determination line.
+// output_type:       narrative
+//
+// File Activity Narrative Generator
+// Thin closure-note layer for file-activity alerts. Shares the same window
+// and chain-walk scoping as deep-dive.kql. Does NOT re-score risk — the
+// deep dive does that. Outputs dash-prefixed lines under named subsections
+// matching the analyst's actual note format.
+//
+// Usage: Populate AlertTime, HostToCheck, and at least one of
+// FileNameToCheck, SHA256ToCheck, or FolderPathToCheck.
+//
+// Tables: DeviceFileEvents, DeviceFileCertificateInfo, DeviceProcessEvents,
+// DeviceNetworkEvents, DeviceRegistryEvents, DeviceEvents
+
+let AlertTime = datetime(null);
+let TimeToCheck = 5m;
+let HostToCheck = "";
+let FileNameToCheck = "";
+let SHA256ToCheck = "";
+let FolderPathToCheck = "";
+let AncestryLookback = 24h;
+let PrecedingContextLookback = 30m;
+//
+let _windowStart = AlertTime - TimeToCheck;
+let _windowEnd = AlertTime + TimeToCheck;
+let _execWindowEnd = AlertTime + max_of(TimeToCheck, 24h);
+//
+let RegistryPersistenceKeys = dynamic([
+    @"\CurrentVersion\Run", @"\CurrentVersion\RunOnce",
+    @"\CurrentVersion\RunOnceEx", @"\CurrentVersion\RunServices",
+    @"\CurrentVersion\RunServicesOnce",
+    @"\CurrentVersion\Winlogon\Userinit", @"\CurrentVersion\Winlogon\Shell",
+    @"\CurrentVersion\Image File Execution Options",
+    @"\Services\", @"\Schedule\TaskCache\"
+]);
+//
+let PrecedingContextProcs = dynamic([
+    "msedge.exe", "chrome.exe", "firefox.exe", "brave.exe", "opera.exe", "iexplore.exe",
+    "outlook.exe", "teams.exe",
+    "powershell.exe", "pwsh.exe", "cmd.exe", "wscript.exe", "cscript.exe", "mshta.exe",
+    "curl.exe", "wget.exe", "bitsadmin.exe", "certutil.exe"
+]);
+//
+// ============================================================================
+// FILE SCOPE — events for the targeted file in the window around AlertTime
+// ============================================================================
+let FileScope = materialize(
+    DeviceFileEvents
+    | where Timestamp between (_windowStart .. _windowEnd)
+    | where HostToCheck == "" or DeviceName contains HostToCheck
+    | where FileNameToCheck == "" or FileName contains FileNameToCheck
+    | where SHA256ToCheck == "" or SHA256 contains SHA256ToCheck
+    | where FolderPathToCheck == "" or FolderPath contains FolderPathToCheck
+);
+let TargetSHA256s = toscalar(FileScope | where isnotempty(SHA256) | summarize make_set(SHA256, 100));
+let TargetFolderPaths = toscalar(FileScope | where isnotempty(FolderPath) | summarize make_set(FolderPath, 100));
+let CreatorPids = toscalar(FileScope | where isnotempty(InitiatingProcessId) | summarize make_set(InitiatingProcessId, 100));
+let ExecutedPids = toscalar(
+    DeviceProcessEvents
+    | where Timestamp between (_windowStart .. _execWindowEnd)
+    | where HostToCheck == "" or DeviceName contains HostToCheck
+    | where SHA256 in (TargetSHA256s) or FolderPath in (TargetFolderPaths)
+    | summarize make_set(ProcessId, 100)
+);
+let ParentPids = toscalar(
+    DeviceProcessEvents
+    | where Timestamp >= AlertTime - AncestryLookback and Timestamp <= _windowEnd
+    | where HostToCheck == "" or DeviceName contains HostToCheck
+    | where ProcessId in (CreatorPids)
+    | summarize make_set(InitiatingProcessId, 100)
+);
+let GrandparentPids = toscalar(
+    DeviceProcessEvents
+    | where Timestamp >= AlertTime - AncestryLookback and Timestamp <= _windowEnd
+    | where HostToCheck == "" or DeviceName contains HostToCheck
+    | where ProcessId in (ParentPids)
+    | summarize make_set(InitiatingProcessId, 100)
+);
+let ChildPids = toscalar(
+    DeviceProcessEvents
+    | where Timestamp between (_windowStart .. _execWindowEnd)
+    | where HostToCheck == "" or DeviceName contains HostToCheck
+    | where InitiatingProcessId in (ExecutedPids)
+    | summarize make_set(ProcessId, 100)
+);
+let GrandchildPids = toscalar(
+    DeviceProcessEvents
+    | where Timestamp between (_windowStart .. _execWindowEnd)
+    | where HostToCheck == "" or DeviceName contains HostToCheck
+    | where InitiatingProcessId in (ChildPids)
+    | summarize make_set(ProcessId, 100)
+);
+let CreatorAndForwardPids = array_concat(CreatorPids, ExecutedPids, ChildPids, GrandchildPids);
+//
+// ============================================================================
+// CREATOR CONTEXT — top creator process record (most recent)
+// ============================================================================
+let CreatorContext = materialize(
+    FileScope
+    | where isnotempty(InitiatingProcessId)
+    | summarize arg_max(Timestamp,
+        FileName, FolderPath, SHA256, FileSize,
+        InitiatingProcessFileName, InitiatingProcessFolderPath,
+        InitiatingProcessCommandLine, InitiatingProcessAccountName,
+        InitiatingProcessParentFileName, DeviceName)
+    | extend _join = 1
+);
+//
+// ============================================================================
+// CREATOR ANCESTRY — parent and grandparent rollups (single wide row)
+// ============================================================================
+let ParentRollup = materialize(
+    DeviceProcessEvents
+    | where Timestamp >= AlertTime - AncestryLookback and Timestamp <= _windowEnd
+    | where HostToCheck == "" or DeviceName contains HostToCheck
+    | where ProcessId in (ParentPids)
+    | summarize arg_max(Timestamp, FileName, ProcessCommandLine)
+    | project ParentName = FileName, ParentCmd = ProcessCommandLine, _join = 1
+);
+let GrandparentRollup = materialize(
+    DeviceProcessEvents
+    | where Timestamp >= AlertTime - AncestryLookback and Timestamp <= _windowEnd
+    | where HostToCheck == "" or DeviceName contains HostToCheck
+    | where ProcessId in (GrandparentPids)
+    | summarize arg_max(Timestamp, FileName, ProcessCommandLine)
+    | project GrandparentName = FileName, GrandparentCmd = ProcessCommandLine, _join = 1
+);
+//
+// ============================================================================
+// EXECUTION STATUS — was the file executed
+// ============================================================================
+let ExecutionRollup = materialize(
+    DeviceProcessEvents
+    | where Timestamp between (_windowStart .. _execWindowEnd)
+    | where HostToCheck == "" or DeviceName contains HostToCheck
+    | where SHA256 in (TargetSHA256s) or FolderPath in (TargetFolderPaths)
+    | summarize
+        ExecutionCount = count(),
+        FirstExec = min(Timestamp),
+        LastExec = max(Timestamp),
+        ExecAccounts = make_set(AccountName, 5)
+    | extend _join = 1
+);
+//
+// ============================================================================
+// EXECUTED DESCENDANTS — direct children and grandchildren rollups
+// ============================================================================
+let ChildRollup = materialize(
+    DeviceProcessEvents
+    | where Timestamp between (_windowStart .. _execWindowEnd)
+    | where HostToCheck == "" or DeviceName contains HostToCheck
+    | where ProcessId in (ChildPids)
+    | summarize ChildCount = dcount(ProcessId), ChildTop = make_set(FileName, 3)
+    | extend _join = 1
+);
+let GrandchildRollup = materialize(
+    DeviceProcessEvents
+    | where Timestamp between (_windowStart .. _execWindowEnd)
+    | where HostToCheck == "" or DeviceName contains HostToCheck
+    | where ProcessId in (GrandchildPids)
+    | summarize GrandchildCount = dcount(ProcessId), GrandchildTop = make_set(FileName, 3)
+    | extend _join = 1
+);
+//
+// ============================================================================
+// NETWORK REACH — outbound activity by chain
+// ============================================================================
+let NetworkRollup = materialize(
+    DeviceNetworkEvents
+    | where Timestamp between (_windowStart .. _execWindowEnd)
+    | where HostToCheck == "" or DeviceName contains HostToCheck
+    | where InitiatingProcessId in (CreatorAndForwardPids)
+    | summarize
+        NetworkCount = count(),
+        DistinctRemotes = dcount(strcat(coalesce(RemoteUrl, ""), "|", coalesce(RemoteIP, ""))),
+        TopRemoteUrls = make_set(iff(isnotempty(RemoteUrl), RemoteUrl, RemoteIP), 5)
+    | extend _join = 1
+);
+//
+// ============================================================================
+// REGISTRY WRITES — registry modifications by chain
+// ============================================================================
+let RegistryRollup = materialize(
+    DeviceRegistryEvents
+    | where Timestamp between (_windowStart .. _execWindowEnd)
+    | where HostToCheck == "" or DeviceName contains HostToCheck
+    | where InitiatingProcessId in (CreatorAndForwardPids)
+    | summarize
+        RegistryCount = count(),
+        RegistryPersistenceCount = countif(RegistryKey has_any (RegistryPersistenceKeys))
+    | extend _join = 1
+);
+//
+// ============================================================================
+// PERSISTENCE (DeviceEvents) — services and scheduled tasks created by chain
+// ============================================================================
+let PersistenceRollup = materialize(
+    DeviceEvents
+    | where Timestamp between (_windowStart .. _execWindowEnd)
+    | where HostToCheck == "" or DeviceName contains HostToCheck
+    | where ActionType in ("ServiceInstalled", "ScheduledTaskCreated", "ScheduledTaskUpdated")
+    | where InitiatingProcessId in (CreatorAndForwardPids)
+    | summarize
+        ServicesCount = countif(ActionType == "ServiceInstalled"),
+        ServicesList = make_set_if(FileName, ActionType == "ServiceInstalled", 10),
+        TasksCount = countif(ActionType in ("ScheduledTaskCreated", "ScheduledTaskUpdated")),
+        TasksList = make_set_if(FileName, ActionType in ("ScheduledTaskCreated", "ScheduledTaskUpdated"), 10)
+    | extend _join = 1
+);
+//
+// ============================================================================
+// AV / MDE ACTIONS — defender detections and remediations on the chain
+// ============================================================================
+let AvMdeRollup = materialize(
+    DeviceEvents
+    | where Timestamp between (_windowStart .. _execWindowEnd)
+    | where HostToCheck == "" or DeviceName contains HostToCheck
+    | where ActionType has_any ("AntivirusDetection", "AntivirusDetectionLowfi",
+        "AntivirusEmergencyUpdated", "AntivirusReport", "AntivirusScanCompleted",
+        "AntivirusDefinitionsUpdated", "ExploitGuard", "SmartScreen",
+        "AsrAuditModeEvent", "AsrLsassCredentialTheftBlocked",
+        "AsrUntrustedExecutableBlocked", "ControlledFolderAccess")
+    | where InitiatingProcessId in (CreatorAndForwardPids)
+        or SHA256 in (TargetSHA256s)
+        or FolderPath in (TargetFolderPaths)
+    | summarize
+        AvMdeCount = count(),
+        AvActions = make_set(ActionType, 10)
+    | extend _join = 1
+);
+//
+// ============================================================================
+// PRECEDING CONTEXT — browser/email/script-host network before AlertTime
+// ============================================================================
+let PrecedingRollup = materialize(
+    DeviceNetworkEvents
+    | where Timestamp between (AlertTime - PrecedingContextLookback .. AlertTime)
+    | where HostToCheck == "" or DeviceName contains HostToCheck
+    | where InitiatingProcessFileName has_any (PrecedingContextProcs)
+    | summarize
+        PrecedingCount = count(),
+        TopPrecedingUrls = make_set(iff(isnotempty(RemoteUrl), RemoteUrl, RemoteIP), 3),
+        PrecedingProcs = make_set(InitiatingProcessFileName, 10)
+    | extend _join = 1
+);
+//
+// ============================================================================
+// ASSEMBLE NARRATIVE
+// ============================================================================
+CreatorContext
+| join kind=leftouter ParentRollup on _join
+| join kind=leftouter GrandparentRollup on _join
+| join kind=leftouter ExecutionRollup on _join
+| join kind=leftouter ChildRollup on _join
+| join kind=leftouter GrandchildRollup on _join
+| join kind=leftouter NetworkRollup on _join
+| join kind=leftouter RegistryRollup on _join
+| join kind=leftouter PersistenceRollup on _join
+| join kind=leftouter AvMdeRollup on _join
+| join kind=leftouter PrecedingRollup on _join
+| extend
+    ParentName = coalesce(ParentName, "N/A"),
+    ParentCmd = coalesce(ParentCmd, "N/A"),
+    GrandparentName = coalesce(GrandparentName, "N/A"),
+    GrandparentCmd = coalesce(GrandparentCmd, "N/A"),
+    ExecutionCount = coalesce(ExecutionCount, tolong(0)),
+    ChildCount = coalesce(ChildCount, tolong(0)),
+    ChildTop = coalesce(ChildTop, dynamic([])),
+    GrandchildCount = coalesce(GrandchildCount, tolong(0)),
+    GrandchildTop = coalesce(GrandchildTop, dynamic([])),
+    NetworkCount = coalesce(NetworkCount, tolong(0)),
+    DistinctRemotes = coalesce(DistinctRemotes, tolong(0)),
+    TopRemoteUrls = coalesce(TopRemoteUrls, dynamic([])),
+    RegistryCount = coalesce(RegistryCount, tolong(0)),
+    RegistryPersistenceCount = coalesce(RegistryPersistenceCount, tolong(0)),
+    ServicesCount = coalesce(ServicesCount, tolong(0)),
+    ServicesList = coalesce(ServicesList, dynamic([])),
+    TasksCount = coalesce(TasksCount, tolong(0)),
+    TasksList = coalesce(TasksList, dynamic([])),
+    AvMdeCount = coalesce(AvMdeCount, tolong(0)),
+    AvActions = coalesce(AvActions, dynamic([])),
+    PrecedingCount = coalesce(PrecedingCount, tolong(0)),
+    TopPrecedingUrls = coalesce(TopPrecedingUrls, dynamic([])),
+    PrecedingProcs = coalesce(PrecedingProcs, dynamic([]))
+//
+// --- Build subsection lines ---
+| extend
+    _line_header = strcat("- TimeGenerated: ", format_datetime(Timestamp, "dd/MM/yyyy, HH:mm"),
+        " | File: ", FileName, " | Host: ", DeviceName),
+    //
+    _section_creator = strcat_array(pack_array(
+        "--- Creator Context ---",
+        strcat("- Process: ", InitiatingProcessFileName, " (", InitiatingProcessFolderPath, ")"),
+        strcat("- Command line: ", coalesce(InitiatingProcessCommandLine, "N/A")),
+        strcat("- Account: ", coalesce(InitiatingProcessAccountName, "N/A")),
+        strcat("- Parent (immediate): ", coalesce(InitiatingProcessParentFileName, "N/A"))
+    ), "\n"),
+    //
+    _section_ancestry = strcat_array(pack_array(
+        "--- Creator Ancestry ---",
+        strcat("- Process: ", InitiatingProcessFileName, " (", InitiatingProcessFolderPath, ")"),
+        strcat("- Parent: ", ParentName, " | ", ParentCmd),
+        strcat("- Grandparent: ", GrandparentName, " | ", GrandparentCmd)
+    ), "\n"),
+    //
+    _section_execution = strcat_array(pack_array(
+        "--- Execution Status ---",
+        case(
+            ExecutionCount == 0, "- File was NOT observed executing within the window.",
+            strcat("- File executed ", tostring(ExecutionCount), " time(s). First: ",
+                format_datetime(FirstExec, "dd/MM/yyyy, HH:mm"),
+                " | Last: ", format_datetime(LastExec, "dd/MM/yyyy, HH:mm"),
+                " | Account(s): ", tostring(ExecAccounts))
+        )
+    ), "\n"),
+    //
+    _section_descendants = strcat_array(pack_array(
+        "--- Executed Descendants ---",
+        strcat("- Direct children: ", tostring(ChildCount), ", top: ", tostring(ChildTop)),
+        strcat("- Grandchildren: ", tostring(GrandchildCount), ", top: ", tostring(GrandchildTop))
+    ), "\n"),
+    //
+    _section_network = strcat_array(pack_array(
+        "--- Network Reach ---",
+        case(
+            NetworkCount == 0, "- No outbound activity from chain processes.",
+            strcat("- ", tostring(NetworkCount), " network event(s) across ",
+                tostring(DistinctRemotes), " distinct destinations. Top: ",
+                tostring(TopRemoteUrls))
+        )
+    ), "\n"),
+    //
+    _section_registry = strcat_array(pack_array(
+        "--- Registry Writes ---",
+        case(
+            RegistryCount == 0, "- No registry writes from chain processes.",
+            strcat("- ", tostring(RegistryCount), " registry write(s) by chain.")
+        )
+    ), "\n"),
+    //
+    _section_persistence = strcat_array(pack_array(
+        "--- Persistence Created ---",
+        strcat("- Services installed by chain: ", tostring(ServicesCount), ", names: ", tostring(ServicesList)),
+        strcat("- Scheduled tasks created by chain: ", tostring(TasksCount), ", names: ", tostring(TasksList)),
+        strcat("- Registry persistence (existing): ", tostring(RegistryPersistenceCount))
+    ), "\n"),
+    //
+    _section_avmde = strcat_array(pack_array(
+        "--- AV / MDE Actions ---",
+        case(
+            AvMdeCount == 0, "- No AV/MDE detections or remediations on the chain.",
+            strcat("- ", tostring(AvMdeCount), " AV/MDE action(s). Types: ", tostring(AvActions))
+        )
+    ), "\n"),
+    //
+    _section_preceding = strcat_array(pack_array(
+        "--- Preceding Context ---",
+        strcat("- Browser/script-host activity in ", tostring(PrecedingContextLookback),
+            " before alert: ", tostring(PrecedingCount)),
+        strcat("- Top destinations: ", tostring(TopPrecedingUrls)),
+        strcat("- Initiating processes: ", tostring(PrecedingProcs))
+    ), "\n"),
+    //
+    _section_determination = case(
+        AvMdeCount > 0 and (ServicesCount + TasksCount + RegistryPersistenceCount) > 0,
+            "--- Determination ---\n- Suspicious. Defender flagged the chain and persistence was established. Escalate.",
+        ExecutionCount > 0 and (ServicesCount + TasksCount + RegistryPersistenceCount) > 0,
+            "--- Determination ---\n- Review required. File executed and established persistence. Verify legitimacy.",
+        ExecutionCount > 0 and NetworkCount > 0 and DistinctRemotes >= 3,
+            "--- Determination ---\n- Review required. File executed with multi-destination network activity.",
+        ExecutionCount == 0 and NetworkCount == 0 and ServicesCount == 0 and TasksCount == 0,
+            "--- Determination ---\n- Converges benign. File observed but no execution, network, or persistence. No further investigation required.",
+        "--- Determination ---\n- Review required. Mixed signals or insufficient context for automated determination."
+    )
+//
+// --- Assemble full narrative ---
+| extend InvestigationNarrative = strcat_array(pack_array(
+    _line_header,
+    _section_creator,
+    _section_ancestry,
+    _section_execution,
+    _section_descendants,
+    _section_network,
+    _section_registry,
+    _section_persistence,
+    _section_avmde,
+    _section_preceding,
+    _section_determination
+), "\n")
+| project DeviceName, FileName, InvestigationNarrative
