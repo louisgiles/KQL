@@ -1,1 +1,446 @@
+// name:              File Activity Narrative Generator
+// purpose:           Operation-aware, dash-prefixed ticket-note narrative for file-based alerts in Defender Advanced Hunting. Detects which lifecycle operation the target file underwent (executed_payload, blocked_at_write, staged_inert, modified, renamed, deleted) and rotates projection logic accordingly. Companion to file/deep-dive (the structured-triage counterpart) — same anchor model, same composite (ProcessId, ProcessCreationTime) keying, narrative output instead of tabular sections.
+// starting_entities: AlertTime, DeviceName, FileName, SHA256, FolderPath (any combination)
+// required_tables:   DeviceFileEvents
+// optional_tables:   DeviceFileCertificateInfo (signing), DeviceProcessEvents (execution, ancestry, descendants), DeviceNetworkEvents (network reach, preceding context), DeviceRegistryEvents (registry writes), DeviceEvents (services, scheduled tasks, AV detections, ASR, SmartScreen)
+// variables:         AlertTime, AnchorMode, TimeToCheck, AncestryLookback, PrecedingContextLookback, HostToCheck, FileNameToCheck, SHA256ToCheck, FolderPathToCheck
+// done_criteria:     Operation classified; shared file-identity header projected; arm-specific lifecycle shape projected; verdict-signals block appended without committing to a verdict; output pasted into the investigation ticket.
+// output_type:       narrative
+//
+// File Activity Narrative Generator
+// Companion to file/deep-dive. Reuses the deep-dive's anchor model and
+// composite-key derivations but rotates the projection by operation
+// instead of producing twelve tabular sections. Output is a single
+// column of dash-prefixed lines suitable for pasting into a closure
+// note.
+//
+// Anchor model: AnchorMode = "alert" centres the window on AlertTime
+// (default). AnchorMode = "file_origin" looks up the FileCreated event
+// for the target file within a 90d lookback and re-anchors on that
+// timestamp — use when the alert fires on a downstream event days or
+// weeks after the actual file lifecycle.
+//
+// Sensitivity is scoped to the target file's path category and signing
+// status (the object), not the creator process's command line or the
+// account's privilege (the actor). The verdict-signals line surfaces
+// the signal pattern — analyst makes the verdict call.
+//
+// Usage: Populate AlertTime and HostToCheck plus at least one of
+// FileNameToCheck, SHA256ToCheck, or FolderPathToCheck. Set AnchorMode
+// to "file_origin" if the alert fires long after the file event.
+//
+// Tables: DeviceFileEvents, DeviceFileCertificateInfo, DeviceProcessEvents,
+// DeviceNetworkEvents, DeviceRegistryEvents, DeviceEvents
 
+let AlertTime = datetime(2026-01-01T00:00:00Z);
+let AnchorMode = "alert";
+let TimeToCheck = 5m;
+//
+let HostToCheck = "";
+let FileNameToCheck = "";
+let SHA256ToCheck = "";
+let FolderPathToCheck = "";
+let AncestryLookback = 24h;
+let PrecedingContextLookback = 1h;
+//
+let _wideLookback = 90d;
+let _fileOriginEvent = materialize(
+    DeviceFileEvents
+    | where Timestamp between (AlertTime - _wideLookback .. AlertTime)
+    | where HostToCheck == "" or DeviceName =~ HostToCheck
+    | where ActionType == "FileCreated"
+    | where FileNameToCheck == "" or FileName contains FileNameToCheck
+    | where SHA256ToCheck == "" or SHA256 contains SHA256ToCheck
+    | where FolderPathToCheck == "" or FolderPath contains FolderPathToCheck
+    | summarize arg_min(Timestamp, *)
+);
+let _anchorTime = iff(AnchorMode == "file_origin",
+    coalesce(toscalar(_fileOriginEvent | project Timestamp), AlertTime),
+    AlertTime
+);
+let _windowStart = _anchorTime - TimeToCheck;
+let _windowEnd = _anchorTime + TimeToCheck;
+let _execWindowEnd = _anchorTime + max_of(TimeToCheck, 24h);
+let FileScope = materialize(
+    DeviceFileEvents
+    | where Timestamp between (_windowStart .. _windowEnd)
+    | where HostToCheck == "" or DeviceName =~ HostToCheck
+    | where FileNameToCheck == "" or FileName contains FileNameToCheck
+    | where SHA256ToCheck == "" or SHA256 contains SHA256ToCheck
+    | where FolderPathToCheck == "" or FolderPath contains FolderPathToCheck
+);
+let TargetSHA256s = toscalar(FileScope | where isnotempty(SHA256) | summarize make_set(SHA256, 100));
+let TargetSHA1s = toscalar(FileScope | where isnotempty(SHA1) | summarize make_set(SHA1, 100));
+let TargetFolderPaths = toscalar(FileScope | where isnotempty(FolderPath) | summarize make_set(FolderPath, 100));
+let TargetFileNames = toscalar(FileScope | where isnotempty(FileName) | summarize make_set(FileName, 100));
+let CreatorPidKeys = toscalar(FileScope | where isnotempty(InitiatingProcessId) | summarize make_set(strcat(tostring(InitiatingProcessId), "|", tostring(InitiatingProcessCreationTime)), 100));
+let ExecutedPidKeys = toscalar(
+    DeviceProcessEvents
+    | where Timestamp between (_windowStart .. _execWindowEnd)
+    | where HostToCheck == "" or DeviceName =~ HostToCheck
+    | where SHA256 in (TargetSHA256s) or FolderPath in (TargetFolderPaths)
+    | summarize make_set(strcat(tostring(ProcessId), "|", tostring(ProcessCreationTime)), 100)
+);
+let ParentPidKeys = toscalar(
+    DeviceProcessEvents
+    | where Timestamp >= _anchorTime - AncestryLookback and Timestamp <= _windowEnd
+    | where HostToCheck == "" or DeviceName =~ HostToCheck
+    | extend pkey = strcat(tostring(ProcessId), "|", tostring(ProcessCreationTime))
+    | where pkey in (CreatorPidKeys)
+    | summarize make_set(strcat(tostring(InitiatingProcessId), "|", tostring(InitiatingProcessCreationTime)), 100)
+);
+let GrandparentPidKeys = toscalar(
+    DeviceProcessEvents
+    | where Timestamp >= _anchorTime - AncestryLookback and Timestamp <= _windowEnd
+    | where HostToCheck == "" or DeviceName =~ HostToCheck
+    | extend pkey = strcat(tostring(ProcessId), "|", tostring(ProcessCreationTime))
+    | where pkey in (ParentPidKeys)
+    | summarize make_set(strcat(tostring(InitiatingProcessId), "|", tostring(InitiatingProcessCreationTime)), 100)
+);
+let ChildPidKeys = toscalar(
+    DeviceProcessEvents
+    | where Timestamp between (_windowStart .. _execWindowEnd)
+    | where HostToCheck == "" or DeviceName =~ HostToCheck
+    | extend ipkey = strcat(tostring(InitiatingProcessId), "|", tostring(InitiatingProcessCreationTime))
+    | where ipkey in (ExecutedPidKeys)
+    | summarize make_set(strcat(tostring(ProcessId), "|", tostring(ProcessCreationTime)), 100)
+);
+let GrandchildPidKeys = toscalar(
+    DeviceProcessEvents
+    | where Timestamp between (_windowStart .. _execWindowEnd)
+    | where HostToCheck == "" or DeviceName =~ HostToCheck
+    | extend ipkey = strcat(tostring(InitiatingProcessId), "|", tostring(InitiatingProcessCreationTime))
+    | where ipkey in (ChildPidKeys)
+    | summarize make_set(strcat(tostring(ProcessId), "|", tostring(ProcessCreationTime)), 100)
+);
+let CreatorAndForwardPidKeys = set_union(CreatorPidKeys, ExecutedPidKeys, ChildPidKeys, GrandchildPidKeys);
+//
+// === Path category function (file-scoped sensitivity, mirrors deep-dive Section 3) ===
+let _pathCategoryFn = (p:string) {
+    case(
+        p has_any (@"\Users\Public\", @"\ProgramData\", @"\Windows\Temp\"), "User-Writable / Temp",
+        p has_any (@"\AppData\Local\Temp", @"\AppData\Roaming\"), "User AppData",
+        p has @"\Windows\System32" or p has @"\Windows\SysWOW64", "System",
+        p has @"\Program Files", "Program Files",
+        p has @"\Users\" and not(p has_any (@"\Temp", @"\AppData\")), "User Profile",
+        "Other"
+    )
+};
+//
+// === Primary file-identity scalars (earliest event in FileScope) ===
+let _primaryRow = materialize(FileScope | summarize arg_min(Timestamp, *));
+let _primaryTs = toscalar(_primaryRow | project Timestamp);
+let _primaryAction = toscalar(_primaryRow | project ActionType);
+let _fileName = toscalar(_primaryRow | project FileName);
+let _folderPath = toscalar(_primaryRow | project FolderPath);
+let _sha256 = toscalar(_primaryRow | project SHA256);
+let _previousFileName = toscalar(_primaryRow | project PreviousFileName);
+let _previousFolderPath = toscalar(_primaryRow | project PreviousFolderPath);
+let _origin = toscalar(_primaryRow | project FileOriginUrl);
+let _referrer = toscalar(_primaryRow | project FileOriginReferrerUrl);
+let _initiatorImage = toscalar(_primaryRow | project InitiatingProcessFileName);
+let _initiatorPid = toscalar(_primaryRow | project InitiatingProcessId);
+let _initiatorAccount = toscalar(_primaryRow | project InitiatingProcessAccountName);
+let _pathCategory = _pathCategoryFn(_folderPath);
+let _prevPathCategory = _pathCategoryFn(_previousFolderPath);
+//
+// === Signing posture (object-scoped) ===
+let _certScope = materialize(
+    DeviceFileCertificateInfo
+    | where SHA1 in (TargetSHA1s)
+    | summarize arg_max(Timestamp, IsSigned, IsTrusted, Signer)
+);
+let _isSigned = toscalar(_certScope | project IsSigned);
+let _isTrusted = toscalar(_certScope | project IsTrusted);
+let _signer = toscalar(_certScope | project Signer);
+let _signedLine = case(
+    _isSigned == true and isnotempty(_signer), strcat("yes (", _signer, ")"),
+    _isSigned == true, "yes",
+    "no"
+);
+let _signedAndTrusted = (isnotnull(_isSigned) and _isSigned == true and isnotnull(_isTrusted) and _isTrusted == true);
+//
+// === Execution scope ===
+let _execScope = materialize(
+    DeviceProcessEvents
+    | where Timestamp between (_windowStart .. _execWindowEnd)
+    | where HostToCheck == "" or DeviceName =~ HostToCheck
+    | where SHA256 in (TargetSHA256s) or FolderPath in (TargetFolderPaths)
+);
+let _hasExecution = toscalar(_execScope | count) > 0;
+let _firstExecTs = toscalar(_execScope | summarize arg_min(Timestamp, Timestamp) | project Timestamp);
+let _execDelta = iff(isnotnull(_firstExecTs) and isnotnull(_primaryTs),
+    tostring(toint((_firstExecTs - _primaryTs) / 1s)),
+    "");
+//
+// === Execution chain (executed → child → grandchild image names) ===
+let _execChain = toscalar(
+    DeviceProcessEvents
+    | where Timestamp between (_windowStart .. _execWindowEnd)
+    | where HostToCheck == "" or DeviceName =~ HostToCheck
+    | extend pkey = strcat(tostring(ProcessId), "|", tostring(ProcessCreationTime))
+    | where pkey in (ExecutedPidKeys) or pkey in (ChildPidKeys) or pkey in (GrandchildPidKeys)
+    | extend Level = case(pkey in (ExecutedPidKeys), 0, pkey in (ChildPidKeys), 1, 2)
+    | summarize Names = strcat_array(make_set(FileName, 10), ", ") by Level
+    | order by Level asc
+    | summarize Chain = strcat_array(make_list(Names), " → ")
+    | project Chain
+);
+//
+// === Network reach from chain ===
+let _netScope = materialize(
+    DeviceNetworkEvents
+    | where Timestamp between (_windowStart .. _execWindowEnd)
+    | where HostToCheck == "" or DeviceName =~ HostToCheck
+    | extend ipkey = strcat(tostring(InitiatingProcessId), "|", tostring(InitiatingProcessCreationTime))
+    | where ipkey in (CreatorAndForwardPidKeys)
+);
+let _netCount = toscalar(_netScope | count);
+let _hasNetwork = (_netCount > 0);
+let _topRemote = toscalar(
+    _netScope
+    | extend Remote = iff(isnotempty(RemoteUrl), RemoteUrl, strcat(tostring(RemoteIP), ":", tostring(RemotePort)))
+    | summarize Hits = count() by Remote
+    | top 1 by Hits
+    | project Remote
+);
+let _netFromCreatorCount = toscalar(
+    _netScope
+    | extend ipkey2 = strcat(tostring(InitiatingProcessId), "|", tostring(InitiatingProcessCreationTime))
+    | where ipkey2 in (CreatorPidKeys)
+    | count
+);
+//
+// === Registry writes from chain ===
+let _regScope = materialize(
+    DeviceRegistryEvents
+    | where Timestamp between (_windowStart .. _execWindowEnd)
+    | where HostToCheck == "" or DeviceName =~ HostToCheck
+    | extend ipkey = strcat(tostring(InitiatingProcessId), "|", tostring(InitiatingProcessCreationTime))
+    | where ipkey in (CreatorAndForwardPidKeys)
+);
+let _regCount = toscalar(_regScope | count);
+let _regPersistCount = toscalar(
+    _regScope
+    | where RegistryKey has_any (@"\CurrentVersion\Run", @"\CurrentVersion\RunOnce", @"\Image File Execution Options")
+    | count
+);
+//
+// === Persistence creation by chain (services, scheduled tasks) ===
+let _persistScope = materialize(
+    DeviceEvents
+    | where Timestamp between (_windowStart .. _execWindowEnd)
+    | where HostToCheck == "" or DeviceName =~ HostToCheck
+    | where ActionType in ("ServiceInstalled", "ScheduledTaskCreated", "ScheduledTaskUpdated")
+    | extend ipkey = strcat(tostring(InitiatingProcessId), "|", tostring(InitiatingProcessCreationTime))
+    | where ipkey in (CreatorAndForwardPidKeys)
+);
+let _serviceCount = toscalar(_persistScope | where ActionType == "ServiceInstalled" | count);
+let _taskCount = toscalar(_persistScope | where ActionType in ("ScheduledTaskCreated", "ScheduledTaskUpdated") | count);
+let _hasPersistence = ((_serviceCount + _taskCount) > 0);
+let _persistLine = iff(_hasPersistence,
+    strcat("ServiceInstalled=", tostring(_serviceCount), ", ScheduledTaskCreated/Updated=", tostring(_taskCount)),
+    "none");
+//
+// === Sibling files (creator's other writes, target excluded) ===
+let _siblingScope = materialize(
+    DeviceFileEvents
+    | where Timestamp between (_windowStart .. _windowEnd)
+    | where HostToCheck == "" or DeviceName =~ HostToCheck
+    | extend ipkey = strcat(tostring(InitiatingProcessId), "|", tostring(InitiatingProcessCreationTime))
+    | where ipkey in (CreatorPidKeys)
+    | where not(SHA256 in (TargetSHA256s) and FolderPath in (TargetFolderPaths))
+);
+let _siblingCount = toscalar(_siblingScope | count);
+let _siblingTopRow = materialize(_siblingScope | summarize arg_min(Timestamp, *));
+let _siblingTopName = toscalar(_siblingTopRow | project FileName);
+let _siblingTopTs = toscalar(_siblingTopRow | project Timestamp);
+let _siblingTopDelta = iff(isnotnull(_siblingTopTs) and isnotnull(_primaryTs),
+    tostring(toint((_siblingTopTs - _primaryTs) / 1s)),
+    "");
+let _siblingLine = case(
+    _siblingCount == 0, "0",
+    isempty(_siblingTopName), tostring(_siblingCount),
+    strcat(tostring(_siblingCount), " (top: ", _siblingTopName, " at +", _siblingTopDelta, "s)")
+);
+//
+// === MDE actions on the target ===
+let _mdeScope = materialize(
+    union
+    (DeviceFileEvents
+        | where Timestamp between (_windowStart .. _execWindowEnd)
+        | where HostToCheck == "" or DeviceName =~ HostToCheck
+        | where SHA256 in (TargetSHA256s) or FolderPath in (TargetFolderPaths) or FileName in (TargetFileNames)
+        | where FolderPath has @"\ProgramData\Microsoft\Windows Defender\Quarantine"
+            or InitiatingProcessFileName =~ "MsMpEng.exe"
+            or InitiatingProcessFileName =~ "MpDefenderCoreService.exe"
+        | extend ActionSource = "FileEvent quarantine", DetectedActionType = ActionType
+        | project Timestamp, ActionSource, DetectedActionType),
+    (DeviceEvents
+        | where Timestamp between (_windowStart .. _execWindowEnd)
+        | where HostToCheck == "" or DeviceName =~ HostToCheck
+        | where ActionType has_any ("AntivirusDetection", "AntivirusScanCompleted",
+            "AntivirusReport", "ExploitGuardNetworkProtectionBlocked",
+            "SmartScreenUrlWarning", "SmartScreenAppWarning", "SmartScreenExploitWarning",
+            "TamperingAttempt", "AsrProcessBlocked", "AsrLsassBlocked", "AsrPersistenceThroughWmiBlocked")
+        | where SHA256 in (TargetSHA256s) or FolderPath in (TargetFolderPaths) or FileName in (TargetFileNames)
+        | extend ActionSource = ActionType, DetectedActionType = ActionType
+        | project Timestamp, ActionSource, DetectedActionType)
+);
+let _mdeBlockScope = materialize(
+    _mdeScope
+    | where DetectedActionType has_any ("AntivirusDetection", "AsrProcessBlocked", "SmartScreenAppWarning")
+        or ActionSource == "FileEvent quarantine"
+);
+let _hasMdeBlock = toscalar(_mdeBlockScope | count) > 0;
+let _firstMdeRow = materialize(_mdeBlockScope | summarize arg_min(Timestamp, *));
+let _mdeAction = toscalar(_firstMdeRow | project DetectedActionType);
+let _mdeTs = toscalar(_firstMdeRow | project Timestamp);
+let _detectionSource = toscalar(_firstMdeRow | project ActionSource);
+let _mdeDelta = iff(isnotnull(_mdeTs) and isnotnull(_primaryTs),
+    tostring(toint((_mdeTs - _primaryTs) / 1s)),
+    "");
+//
+// === Preceding context (browser/email/script-host before anchor) ===
+let _precedingTop = toscalar(
+    DeviceNetworkEvents
+    | where Timestamp between (_anchorTime - PrecedingContextLookback .. _anchorTime)
+    | where HostToCheck == "" or DeviceName =~ HostToCheck
+    | where InitiatingProcessFileName has_any (
+        "msedge.exe", "chrome.exe", "firefox.exe", "brave.exe", "opera.exe", "iexplore.exe",
+        "outlook.exe", "teams.exe",
+        "powershell.exe", "pwsh.exe", "cmd.exe", "wscript.exe", "cscript.exe", "mshta.exe",
+        "curl.exe", "wget.exe", "bitsadmin.exe", "certutil.exe"
+    )
+    | summarize Hits = count() by InitiatingProcessFileName
+    | top 1 by Hits
+    | project InitiatingProcessFileName
+);
+let _precedingLine = iff(isempty(_precedingTop), "none", _precedingTop);
+//
+// === Operation detection ===
+let _operation = case(
+    _hasMdeBlock, "blocked_at_write",
+    _primaryAction == "FileCreated" and _hasExecution, "executed_payload",
+    _primaryAction == "FileCreated", "staged_inert",
+    _primaryAction == "FileModified", "modified",
+    _primaryAction == "FileRenamed" and tostring(_previousFileName) != tostring(_fileName), "renamed",
+    _primaryAction == "FileDeleted", "deleted",
+    "unknown"
+);
+//
+// ============================================================================
+// NARRATIVE PROJECTION — dash-prefixed lines, sorted by Order, projected as Note
+// ============================================================================
+union
+// --- Operation banner ---
+(print Order = 0,  Note = strcat("- Operation: ", _operation)),
+// --- Shared file-identity header (every arm) ---
+(print Order = 1,  Note = strcat("- File: ", coalesce(_fileName, ""))),
+(print Order = 2,  Note = strcat("- Path: ", coalesce(_folderPath, ""))),
+(print Order = 3,  Note = strcat("- SHA256: ", coalesce(_sha256, ""))),
+(print Order = 4,  Note = strcat("- Path category: ", _pathCategory)),
+(print Order = 5,  Note = strcat("- Signed: ", _signedLine)),
+// --- executed_payload arm ---
+(print Order = 10, Note = strcat("- Origin: ", coalesce(_origin, "<not recorded>"),
+                                 " (referrer: ", coalesce(_referrer, "<none>"), ")")
+    | where _operation == "executed_payload"),
+(print Order = 11, Note = strcat("- Created: ", tostring(_primaryTs),
+                                 " by ", coalesce(_initiatorImage, "<unknown>"),
+                                 " (PID ", tostring(_initiatorPid),
+                                 ", user: ", coalesce(_initiatorAccount, "<unknown>"), ")")
+    | where _operation == "executed_payload"),
+(print Order = 12, Note = strcat("- Executed: yes, +", _execDelta, "s")
+    | where _operation == "executed_payload"),
+(print Order = 13, Note = strcat("- Execution chain: ", coalesce(_execChain, "<not recorded>"))
+    | where _operation == "executed_payload"),
+(print Order = 14, Note = strcat("- Network: ", tostring(_netCount),
+                                 " outbound from chain (top remote: ",
+                                 iff(isempty(_topRemote), "n/a", _topRemote), ")")
+    | where _operation == "executed_payload"),
+(print Order = 15, Note = strcat("- Registry: ", tostring(_regCount),
+                                 " writes (persistence keys: ", tostring(_regPersistCount), ")")
+    | where _operation == "executed_payload"),
+(print Order = 16, Note = strcat("- Persistence: ", _persistLine)
+    | where _operation == "executed_payload"),
+(print Order = 17, Note = "- MDE actions: none"
+    | where _operation == "executed_payload"),
+(print Order = 18, Note = strcat("- Sibling files: ", _siblingLine)
+    | where _operation == "executed_payload"),
+(print Order = 19, Note = strcat("- Preceding context: ", _precedingLine)
+    | where _operation == "executed_payload"),
+// --- blocked_at_write arm ---
+(print Order = 20, Note = strcat("- Origin: ", coalesce(_origin, "<not recorded>"))
+    | where _operation == "blocked_at_write"),
+(print Order = 21, Note = strcat("- Created: ", tostring(_primaryTs),
+                                 " by ", coalesce(_initiatorImage, "<unknown>"))
+    | where _operation == "blocked_at_write"),
+(print Order = 22, Note = strcat("- MDE action: ", coalesce(_mdeAction, "<unknown>"),
+                                 " at ", tostring(_mdeTs),
+                                 " (+", _mdeDelta, "s after create)")
+    | where _operation == "blocked_at_write"),
+(print Order = 23, Note = strcat("- Detection source: ", coalesce(_detectionSource, "<unknown>"))
+    | where _operation == "blocked_at_write"),
+(print Order = 24, Note = strcat("- Executed: ", iff(_hasExecution, "yes", "no"),
+                                 " — block can precede or follow execution attempt")
+    | where _operation == "blocked_at_write"),
+(print Order = 25, Note = strcat("- Sibling files: ", tostring(_siblingCount))
+    | where _operation == "blocked_at_write"),
+// --- staged_inert arm ---
+(print Order = 30, Note = strcat("- Origin: ", coalesce(_origin, "<not recorded>"))
+    | where _operation == "staged_inert"),
+(print Order = 31, Note = strcat("- Created: ", tostring(_primaryTs),
+                                 " by ", coalesce(_initiatorImage, "<unknown>"))
+    | where _operation == "staged_inert"),
+(print Order = 32, Note = "- Executed: no"
+    | where _operation == "staged_inert"),
+(print Order = 33, Note = strcat("- Network from creator: ",
+                                 iff(_netFromCreatorCount > 0, tostring(_netFromCreatorCount), "none"))
+    | where _operation == "staged_inert"),
+(print Order = 34, Note = strcat("- Sibling files: ", tostring(_siblingCount))
+    | where _operation == "staged_inert"),
+(print Order = 35, Note = "- Note: file written and dormant within window"
+    | where _operation == "staged_inert"),
+// --- modified arm ---
+(print Order = 40, Note = strcat("- Modified: ", tostring(_primaryTs),
+                                 " by ", coalesce(_initiatorImage, "<unknown>"))
+    | where _operation == "modified"),
+(print Order = 41, Note = "- Previous SHA256 unknown (modify events do not carry prior hash)"
+    | where _operation == "modified"),
+(print Order = 42, Note = strcat("- Executed by current chain: ", iff(_hasExecution, "yes", "no"))
+    | where _operation == "modified"),
+(print Order = 43, Note = strcat("- Sibling modifications by same process: ", tostring(_siblingCount))
+    | where _operation == "modified"),
+// --- renamed arm ---
+(print Order = 50, Note = strcat("- Renamed: ",
+                                 coalesce(_previousFolderPath, "<unknown>"), @"\", coalesce(_previousFileName, "<unknown>"),
+                                 " → ",
+                                 coalesce(_folderPath, "<unknown>"), @"\", coalesce(_fileName, "<unknown>"))
+    | where _operation == "renamed"),
+(print Order = 51, Note = strcat("- Renamed by: ", coalesce(_initiatorImage, "<unknown>"),
+                                 " (user: ", coalesce(_initiatorAccount, "<unknown>"), ")")
+    | where _operation == "renamed"),
+(print Order = 52, Note = strcat("- Path category change: ", _prevPathCategory, " → ", _pathCategory)
+    | where _operation == "renamed"),
+(print Order = 53, Note = strcat("- Cross-category rename: ",
+                                 iff(_prevPathCategory != _pathCategory, "yes", "no"))
+    | where _operation == "renamed"),
+// --- deleted arm ---
+(print Order = 60, Note = strcat("- Deleted: ", tostring(_primaryTs),
+                                 " by ", coalesce(_initiatorImage, "<unknown>"))
+    | where _operation == "deleted"),
+(print Order = 61, Note = strcat("- Deletion source: ",
+                                 case(
+                                     _initiatorImage =~ "MsMpEng.exe" or _initiatorImage =~ "MpDefenderCoreService.exe", "MDE quarantine",
+                                     isnotempty(_initiatorAccount), "user/process",
+                                     "process"))
+    | where _operation == "deleted"),
+// --- Verdict-signals block (every arm) ---
+(print Order = 100, Note = strcat("- Signals — executed: ", iff(_hasExecution, "yes", "no"),
+                                  ", MDE blocked: ", iff(_hasMdeBlock, "yes", "no"),
+                                  ", persistence: ", iff(_hasPersistence, "yes", "no"),
+                                  ", network reach: ", iff(_hasNetwork, "yes", "no"),
+                                  ", siblings: ", tostring(_siblingCount),
+                                  ", signed-and-trusted: ", iff(_signedAndTrusted, "yes", "no")))
+| sort by Order asc
+| project Note
