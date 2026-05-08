@@ -4,7 +4,7 @@
 // required_tables:   DeviceFileEvents
 // optional_tables:   DeviceFileCertificateInfo (signing info), DeviceProcessEvents (execution status, ancestry, descendants), DeviceNetworkEvents (network reach, preceding context), DeviceRegistryEvents (registry writes), DeviceEvents (services, scheduled tasks, AV detections, ASR, SmartScreen)
 // variables:         AlertTime, AnchorMode, TimeToCheck, AncestryLookback, PrecedingContextLookback, HostToCheck, FileNameToCheck, SHA256ToCheck, FolderPathToCheck
-// done_criteria:     File lifecycle and origin mapped; creator process chain identified and walked two levels up (parent via row-projection always, grandparent via creation-event lookup); execution status determined and walked two levels down (children, grandchildren); network and registry activity from creator/executed/descendant processes reviewed; persistence creation (services, scheduled tasks) by any chain process reviewed; sibling files assessed; MDE actions on the target file reviewed; preceding browser/email/script-host activity in the window before the anchor reviewed. Each finding classified against the four closure buckets.
+// done_criteria:     File lifecycle and origin mapped; creator process chain identified and walked two levels up (creator via row-projection always, parent and grandparent via creation-event lookup); execution status determined and walked two levels down (children, grandchildren); network and registry activity from creator/executed/descendant processes reviewed; persistence creation (services, scheduled tasks) by any chain process reviewed; sibling files assessed; MDE actions on the target file reviewed; preceding browser/email/script-host activity in the window before the anchor reviewed. Each finding classified against the four closure buckets.
 // output_type:       analysis
 //
 // File Activity Deep Dive
@@ -21,13 +21,15 @@
 //
 // Sections 1-3 and 7 derive from a shared materialized FileScope.
 // Sections 4-6, 8 and 11 branch into process, network, registry and
-// DeviceEvents tables using creator and forward-chain (executed, child,
-// grandchild) process IDs. Section 9 walks ancestry two levels back —
-// level 1 always available via row-projection from FileScope, level 2
-// dependent on the parent's creation event falling within
-// AncestryLookback. Section 10 walks descendants two levels forward.
-// Section 12 surfaces browser, email and script-host network activity
-// in the window before the anchor.
+// DeviceEvents tables using composite (ProcessId, ProcessCreationTime)
+// keys for creator and forward-chain (executed, child, grandchild)
+// processes, defending against PID reuse across the 24h forward window.
+// Section 9 walks ancestry two levels back — level 0 (creator) always
+// available via row-projection from FileScope, levels 1 (parent) and 2
+// (grandparent) dependent on the creator's and parent's creation events
+// falling within AncestryLookback. Section 10 walks descendants two
+// levels forward. Section 12 surfaces browser, email and script-host
+// network activity in the window before the anchor.
 //
 // Usage: Populate AlertTime and HostToCheck plus at least one of
 // FileNameToCheck, SHA256ToCheck, or FolderPathToCheck. Set AnchorMode
@@ -40,12 +42,6 @@
 let AlertTime = datetime(2026-01-01T00:00:00Z);
 let AnchorMode = "alert";
 let TimeToCheck = 5m;
-let HostToCheck = "";
-let FileNameToCheck = "";
-let SHA256ToCheck = "";
-let FolderPathToCheck = "";
-let AncestryLookback = 24h;
-let PrecedingContextLookback = 1h;
 //
 let RunFileLifecycle        = true;
 let RunCreatorContext       = true;
@@ -59,6 +55,13 @@ let RunCreatorAncestry      = true;
 let RunExecutedDescendants  = true;
 let RunPersistenceCreated   = true;
 let RunPrecedingContext     = true;
+//
+let HostToCheck = "";
+let FileNameToCheck = "";
+let SHA256ToCheck = "";
+let FolderPathToCheck = "";
+let AncestryLookback = 24h;
+let PrecedingContextLookback = 1h;
 //
 let _wideLookback = 90d;
 let _fileOriginEvent = materialize(
@@ -90,43 +93,47 @@ let TargetSHA256s = toscalar(FileScope | where isnotempty(SHA256) | summarize ma
 let TargetSHA1s = toscalar(FileScope | where isnotempty(SHA1) | summarize make_set(SHA1, 100));
 let TargetFolderPaths = toscalar(FileScope | where isnotempty(FolderPath) | summarize make_set(FolderPath, 100));
 let TargetFileNames = toscalar(FileScope | where isnotempty(FileName) | summarize make_set(FileName, 100));
-let CreatorPids = toscalar(FileScope | where isnotempty(InitiatingProcessId) | summarize make_set(InitiatingProcessId, 100));
-let ExecutedPids = toscalar(
+let CreatorPidKeys = toscalar(FileScope | where isnotempty(InitiatingProcessId) | summarize make_set(strcat(tostring(InitiatingProcessId), "|", tostring(InitiatingProcessCreationTime)), 100));
+let ExecutedPidKeys = toscalar(
     DeviceProcessEvents
     | where Timestamp between (_windowStart .. _execWindowEnd)
     | where HostToCheck == "" or DeviceName =~ HostToCheck
     | where SHA256 in (TargetSHA256s) or FolderPath in (TargetFolderPaths)
-    | summarize make_set(ProcessId, 100)
+    | summarize make_set(strcat(tostring(ProcessId), "|", tostring(ProcessCreationTime)), 100)
 );
-let ParentPids = toscalar(
+let ParentPidKeys = toscalar(
     DeviceProcessEvents
     | where Timestamp >= _anchorTime - AncestryLookback and Timestamp <= _windowEnd
     | where HostToCheck == "" or DeviceName =~ HostToCheck
-    | where ProcessId in (CreatorPids)
-    | summarize make_set(InitiatingProcessId, 100)
+    | extend pkey = strcat(tostring(ProcessId), "|", tostring(ProcessCreationTime))
+    | where pkey in (CreatorPidKeys)
+    | summarize make_set(strcat(tostring(InitiatingProcessId), "|", tostring(InitiatingProcessCreationTime)), 100)
 );
-let GrandparentPids = toscalar(
+let GrandparentPidKeys = toscalar(
     DeviceProcessEvents
     | where Timestamp >= _anchorTime - AncestryLookback and Timestamp <= _windowEnd
     | where HostToCheck == "" or DeviceName =~ HostToCheck
-    | where ProcessId in (ParentPids)
-    | summarize make_set(InitiatingProcessId, 100)
+    | extend pkey = strcat(tostring(ProcessId), "|", tostring(ProcessCreationTime))
+    | where pkey in (ParentPidKeys)
+    | summarize make_set(strcat(tostring(InitiatingProcessId), "|", tostring(InitiatingProcessCreationTime)), 100)
 );
-let ChildPids = toscalar(
+let ChildPidKeys = toscalar(
     DeviceProcessEvents
     | where Timestamp between (_windowStart .. _execWindowEnd)
     | where HostToCheck == "" or DeviceName =~ HostToCheck
-    | where InitiatingProcessId in (ExecutedPids)
-    | summarize make_set(ProcessId, 100)
+    | extend ipkey = strcat(tostring(InitiatingProcessId), "|", tostring(InitiatingProcessCreationTime))
+    | where ipkey in (ExecutedPidKeys)
+    | summarize make_set(strcat(tostring(ProcessId), "|", tostring(ProcessCreationTime)), 100)
 );
-let GrandchildPids = toscalar(
+let GrandchildPidKeys = toscalar(
     DeviceProcessEvents
     | where Timestamp between (_windowStart .. _execWindowEnd)
     | where HostToCheck == "" or DeviceName =~ HostToCheck
-    | where InitiatingProcessId in (ChildPids)
-    | summarize make_set(ProcessId, 100)
+    | extend ipkey = strcat(tostring(InitiatingProcessId), "|", tostring(InitiatingProcessCreationTime))
+    | where ipkey in (ChildPidKeys)
+    | summarize make_set(strcat(tostring(ProcessId), "|", tostring(ProcessCreationTime)), 100)
 );
-let CreatorAndForwardPids = array_concat(CreatorPids, ExecutedPids, ChildPids, GrandchildPids);
+let CreatorAndForwardPidKeys = set_union(CreatorPidKeys, ExecutedPidKeys, ChildPidKeys, GrandchildPidKeys);
 // === SECTION 1: File Lifecycle ===
 FileScope
 | where RunFileLifecycle
@@ -220,10 +227,11 @@ DeviceNetworkEvents
 | where RunNetworkReach
 | where Timestamp between (_windowStart .. _execWindowEnd)
 | where HostToCheck == "" or DeviceName =~ HostToCheck
-| where InitiatingProcessId in (CreatorAndForwardPids)
+| extend ipkey = strcat(tostring(InitiatingProcessId), "|", tostring(InitiatingProcessCreationTime))
+| where ipkey in (CreatorAndForwardPidKeys)
 | extend ProcessRole = case(
-    InitiatingProcessId in (CreatorPids), "Creator",
-    InitiatingProcessId in (ExecutedPids), "Executed",
+    ipkey in (CreatorPidKeys), "Creator",
+    ipkey in (ExecutedPidKeys), "Executed",
     "Descendant"
 )
 | project
@@ -245,10 +253,11 @@ DeviceRegistryEvents
 | where RunRegistryWrites
 | where Timestamp between (_windowStart .. _execWindowEnd)
 | where HostToCheck == "" or DeviceName =~ HostToCheck
-| where InitiatingProcessId in (CreatorAndForwardPids)
+| extend ipkey = strcat(tostring(InitiatingProcessId), "|", tostring(InitiatingProcessCreationTime))
+| where ipkey in (CreatorAndForwardPidKeys)
 | extend ProcessRole = case(
-    InitiatingProcessId in (CreatorPids), "Creator",
-    InitiatingProcessId in (ExecutedPids), "Executed",
+    ipkey in (CreatorPidKeys), "Creator",
+    ipkey in (ExecutedPidKeys), "Executed",
     "Descendant"
 )
 | project
@@ -268,7 +277,9 @@ DeviceFileEvents
 | where RunSiblingFiles
 | where Timestamp between (_windowStart .. _windowEnd)
 | where HostToCheck == "" or DeviceName =~ HostToCheck
-| where InitiatingProcessId in (CreatorPids)
+| extend ipkey = strcat(tostring(InitiatingProcessId), "|", tostring(InitiatingProcessCreationTime))
+| where ipkey in (CreatorPidKeys)
+| where not(SHA256 in (TargetSHA256s) and FolderPath in (TargetFolderPaths))
 | project
     Timestamp,
     ActionType,
@@ -322,7 +333,7 @@ union
     | where RunCreatorAncestry
     | where isnotempty(InitiatingProcessId)
     | summarize arg_max(Timestamp, *) by InitiatingProcessId
-    | extend AncestryLevel = "1 Parent (row-projection)", Source = "row-projection"
+    | extend AncestryLevel = "0 Creator (row-projection)", Source = "row-projection"
     | project
         Timestamp,
         AncestryLevel,
@@ -340,10 +351,11 @@ union
     | where RunCreatorAncestry
     | where Timestamp >= _anchorTime - AncestryLookback and Timestamp <= _windowEnd
     | where HostToCheck == "" or DeviceName =~ HostToCheck
-    | where ProcessId in (CreatorPids) or ProcessId in (ParentPids) or ProcessId in (GrandparentPids)
+    | extend pkey = strcat(tostring(ProcessId), "|", tostring(ProcessCreationTime))
+    | where pkey in (CreatorPidKeys) or pkey in (ParentPidKeys) or pkey in (GrandparentPidKeys)
     | extend AncestryLevel = case(
-        ProcessId in (CreatorPids), "0 Creator",
-        ProcessId in (ParentPids), "1 Parent (creation-event)",
+        pkey in (CreatorPidKeys), "0 Creator",
+        pkey in (ParentPidKeys), "1 Parent (creation-event)",
         "2 Grandparent"
     )
     | extend Source = "creation-event"
@@ -366,10 +378,11 @@ DeviceProcessEvents
 | where RunExecutedDescendants
 | where Timestamp between (_windowStart .. _execWindowEnd)
 | where HostToCheck == "" or DeviceName =~ HostToCheck
-| where ProcessId in (ExecutedPids) or ProcessId in (ChildPids) or ProcessId in (GrandchildPids)
+| extend pkey = strcat(tostring(ProcessId), "|", tostring(ProcessCreationTime))
+| where pkey in (ExecutedPidKeys) or pkey in (ChildPidKeys) or pkey in (GrandchildPidKeys)
 | extend DescendantLevel = case(
-    ProcessId in (ExecutedPids), "0 Executed",
-    ProcessId in (ChildPids), "1 Child",
+    pkey in (ExecutedPidKeys), "0 Executed",
+    pkey in (ChildPidKeys), "1 Child",
     "2 Grandchild"
 )
 | project
@@ -392,10 +405,11 @@ DeviceEvents
 | where Timestamp between (_windowStart .. _execWindowEnd)
 | where HostToCheck == "" or DeviceName =~ HostToCheck
 | where ActionType in ("ServiceInstalled", "ScheduledTaskCreated", "ScheduledTaskUpdated")
-| where InitiatingProcessId in (CreatorAndForwardPids)
+| extend ipkey = strcat(tostring(InitiatingProcessId), "|", tostring(InitiatingProcessCreationTime))
+| where ipkey in (CreatorAndForwardPidKeys)
 | extend ProcessRole = case(
-    InitiatingProcessId in (CreatorPids), "Creator",
-    InitiatingProcessId in (ExecutedPids), "Executed",
+    ipkey in (CreatorPidKeys), "Creator",
+    ipkey in (ExecutedPidKeys), "Executed",
     "Descendant"
 )
 | project
