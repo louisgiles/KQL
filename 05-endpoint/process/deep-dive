@@ -126,7 +126,7 @@ let GrandchildPidKeys = toscalar(
     | summarize make_set(strcat(tostring(ProcessId), "|", tostring(ProcessCreationTime)), 100)
 );
 let ChainPidKeys = set_union(TargetPidKeys, ChildPidKeys, GrandchildPidKeys);
-// === SECTION 1: Process Lifecycle === ===
+// === SECTION 1: Process Lifecycle ===
 ProcessScope
 | where RunProcessLifecycle
 | project
@@ -142,12 +142,12 @@ ProcessScope
     InitiatingProcessId,
     InitiatingProcessCommandLine,
     InitiatingProcessAccountName,
-    ProcessIntegrityLevel,
-    ProcessTokenElevation,
+    InitiatingProcessIntegrityLevel,
+    InitiatingProcessTokenElevation,
     DeviceName
 | sort by Timestamp asc
 ;
-// === SECTION 2: Command-Line Analysis === ===
+// === SECTION 2: Command-Line Analysis ===
 ProcessScope
 | where RunCommandLineAnalysis
 | extend
@@ -175,7 +175,7 @@ ProcessScope
     DeviceName
 | sort by Timestamp asc
 ;
-// === SECTION 3: Ancestry and Descendants === ===
+// === SECTION 3: Ancestry and Descendants ===
 union
 (
     DeviceProcessEvents
@@ -241,7 +241,7 @@ union
 )
 | sort by ChainLevel asc, Timestamp asc
 ;
-// === SECTION 4: File Activity by Chain === ===
+// === SECTION 4: File Activity by Chain ===
 DeviceFileEvents
 | where RunFileActivityByChain
 | where Timestamp between (_windowStart .. _execWindowEnd)
@@ -267,7 +267,7 @@ DeviceFileEvents
     DeviceName
 | sort by Timestamp asc
 ;
-// === SECTION 5: Network Reach by Chain === ===
+// === SECTION 5: Network Reach by Chain ===
 DeviceNetworkEvents
 | where RunNetworkReachByChain
 | where Timestamp between (_windowStart .. _execWindowEnd)
@@ -293,7 +293,7 @@ DeviceNetworkEvents
     DeviceName
 | sort by Timestamp asc
 ;
-// === SECTION 6: MDE Actions === ===
+// === SECTION 6: MDE Actions ===
 union
 (
     DeviceEvents
