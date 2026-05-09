@@ -1,1 +1,342 @@
+// name:              Process Activity Deep Dive
+// purpose:           Structured triage of process activity on a host — lifecycle, command-line indicators, ancestry and descendants chain walk, file and network behaviour by chain, and MDE actions across six togglable sections. Process-native primitives complementing the file-anchored deep-dive in the same family.
+// starting_entities: AlertTime, DeviceName, ProcessName, SHA256, ProcessId, CommandLine substring (any combination)
+// required_tables:   DeviceProcessEvents
+// optional_tables:   DeviceFileEvents (file activity by chain), DeviceNetworkEvents (network reach by chain), DeviceEvents (MDE actions, process termination)
+// variables:         AlertTime, AnchorMode, TimeToCheck, AncestryLookback, HostToCheck, ProcessNameToCheck, ProcessSHA256ToCheck, ProcessIdToCheck, CommandLineToCheck
+// done_criteria:     Process lifecycle and command-line indicators reviewed; ancestry walked two levels back, descendants two levels forward; file and network activity from chain processes reviewed; MDE actions on the chain reviewed. Each finding classified against the four closure buckets.
+// output_type:       analysis
+//
+// Process Activity Deep Dive
+// Process-anchored counterpart to file/deep-dive.kql in the endpoint
+// family. Six-section investigation tool for process-based alerts in
+// Defender Advanced Hunting. Each section produces a separate result
+// tab gated by a boolean toggle.
+//
+// Anchor model: AnchorMode = "alert" centres the window on AlertTime
+// (default). AnchorMode = "process_origin" looks up the earliest
+// matching ProcessCreated event for the target within a 90d lookback
+// and re-anchors the window on that timestamp — use when the alert
+// fires on a downstream event well after the process started.
+//
+// Composite (ProcessId, ProcessCreationTime) keying is used at every
+// PID join, defending against PID reuse across the 24h forward window.
+// TargetPidKeys derive from the materialized ProcessScope; child and
+// grandchild keys walk forward in the execution window; parent and
+// grandparent keys walk backward through AncestryLookback. ChainPidKeys
+// (target + descendants) gate the file, network, and MDE behaviour
+// sections.
+//
+// Scope: this is the v0 cut. Script-block, AMSI, token-modification,
+// and parent-authenticity sections are deferred to v2 pending tenant
+// ingestion validation. Graceful degradation for missing optional
+// tables is also deferred to v2 — assume the optional tables exist on
+// first pass.
+//
+// Usage: Populate AlertTime and HostToCheck plus at least one of
+// ProcessNameToCheck, ProcessSHA256ToCheck, ProcessIdToCheck, or
+// CommandLineToCheck. Set AnchorMode to "process_origin" if the alert
+// fires long after the process started. Toggle sections off to narrow
+// output.
+//
+// Tables: DeviceProcessEvents, DeviceFileEvents, DeviceNetworkEvents,
+// DeviceEvents
 
+let AlertTime = datetime(2026-01-01T00:00:00Z);
+let AnchorMode = "alert";
+let TimeToCheck = 5m;
+//
+let RunProcessLifecycle      = true;
+let RunCommandLineAnalysis   = true;
+let RunChainWalk             = true;
+let RunFileActivityByChain   = true;
+let RunNetworkReachByChain   = true;
+let RunMdeActions            = true;
+//
+let HostToCheck = "";
+let ProcessNameToCheck = "";
+let ProcessSHA256ToCheck = "";
+let ProcessIdToCheck = "";
+let CommandLineToCheck = "";
+let AncestryLookback = 24h;
+let PrecedingContextLookback = 1h;
+//
+let _wideLookback = 90d;
+let _processOriginEvent = materialize(
+    DeviceProcessEvents
+    | where Timestamp between (AlertTime - _wideLookback .. AlertTime)
+    | where HostToCheck == "" or DeviceName =~ HostToCheck
+    | where ActionType == "ProcessCreated"
+    | where ProcessNameToCheck == "" or FileName contains ProcessNameToCheck
+    | where ProcessSHA256ToCheck == "" or SHA256 contains ProcessSHA256ToCheck
+    | where ProcessIdToCheck == "" or tostring(ProcessId) == ProcessIdToCheck
+    | where CommandLineToCheck == "" or ProcessCommandLine contains CommandLineToCheck
+    | summarize arg_min(Timestamp, *)
+);
+let _anchorTime = iff(AnchorMode == "process_origin",
+    coalesce(toscalar(_processOriginEvent | project Timestamp), AlertTime),
+    AlertTime
+);
+let _windowStart = _anchorTime - TimeToCheck;
+let _windowEnd = _anchorTime + TimeToCheck;
+let _execWindowEnd = _anchorTime + max_of(TimeToCheck, 24h);
+let ProcessScope = materialize(
+    DeviceProcessEvents
+    | where Timestamp between (_windowStart .. _windowEnd)
+    | where HostToCheck == "" or DeviceName =~ HostToCheck
+    | where ProcessNameToCheck == "" or FileName contains ProcessNameToCheck
+    | where ProcessSHA256ToCheck == "" or SHA256 contains ProcessSHA256ToCheck
+    | where ProcessIdToCheck == "" or tostring(ProcessId) == ProcessIdToCheck
+    | where CommandLineToCheck == "" or ProcessCommandLine contains CommandLineToCheck
+);
+let TargetSHA256s = toscalar(ProcessScope | where isnotempty(SHA256) | summarize make_set(SHA256, 100));
+let TargetFolderPaths = toscalar(ProcessScope | where isnotempty(FolderPath) | summarize make_set(FolderPath, 100));
+let TargetFileNames = toscalar(ProcessScope | where isnotempty(FileName) | summarize make_set(FileName, 100));
+let TargetPidKeys = toscalar(ProcessScope | where isnotempty(ProcessId) | summarize make_set(strcat(tostring(ProcessId), "|", tostring(ProcessCreationTime)), 100));
+let ParentPidKeys = toscalar(
+    DeviceProcessEvents
+    | where Timestamp >= _anchorTime - AncestryLookback and Timestamp <= _windowEnd
+    | where HostToCheck == "" or DeviceName =~ HostToCheck
+    | extend pkey = strcat(tostring(ProcessId), "|", tostring(ProcessCreationTime))
+    | where pkey in (TargetPidKeys)
+    | summarize make_set(strcat(tostring(InitiatingProcessId), "|", tostring(InitiatingProcessCreationTime)), 100)
+);
+let GrandparentPidKeys = toscalar(
+    DeviceProcessEvents
+    | where Timestamp >= _anchorTime - AncestryLookback and Timestamp <= _windowEnd
+    | where HostToCheck == "" or DeviceName =~ HostToCheck
+    | extend pkey = strcat(tostring(ProcessId), "|", tostring(ProcessCreationTime))
+    | where pkey in (ParentPidKeys)
+    | summarize make_set(strcat(tostring(InitiatingProcessId), "|", tostring(InitiatingProcessCreationTime)), 100)
+);
+let ChildPidKeys = toscalar(
+    DeviceProcessEvents
+    | where Timestamp between (_windowStart .. _execWindowEnd)
+    | where HostToCheck == "" or DeviceName =~ HostToCheck
+    | extend ipkey = strcat(tostring(InitiatingProcessId), "|", tostring(InitiatingProcessCreationTime))
+    | where ipkey in (TargetPidKeys)
+    | summarize make_set(strcat(tostring(ProcessId), "|", tostring(ProcessCreationTime)), 100)
+);
+let GrandchildPidKeys = toscalar(
+    DeviceProcessEvents
+    | where Timestamp between (_windowStart .. _execWindowEnd)
+    | where HostToCheck == "" or DeviceName =~ HostToCheck
+    | extend ipkey = strcat(tostring(InitiatingProcessId), "|", tostring(InitiatingProcessCreationTime))
+    | where ipkey in (ChildPidKeys)
+    | summarize make_set(strcat(tostring(ProcessId), "|", tostring(ProcessCreationTime)), 100)
+);
+let ChainPidKeys = set_union(TargetPidKeys, ChildPidKeys, GrandchildPidKeys);
+// === SECTION 1: Process Lifecycle === ===
+ProcessScope
+| where RunProcessLifecycle
+| project
+    Timestamp,
+    ActionType,
+    FileName,
+    FolderPath,
+    SHA256,
+    ProcessCommandLine,
+    AccountName,
+    AccountDomain,
+    InitiatingProcessFileName,
+    InitiatingProcessId,
+    InitiatingProcessCommandLine,
+    InitiatingProcessAccountName,
+    ProcessIntegrityLevel,
+    ProcessTokenElevation,
+    DeviceName
+| sort by Timestamp asc
+;
+// === SECTION 2: Command-Line Analysis === ===
+ProcessScope
+| where RunCommandLineAnalysis
+| extend
+    HasEncodedCommand = ProcessCommandLine has_any ("-enc", "-encodedcommand", "-e "),
+    HasDownloadCradle = ProcessCommandLine has_any ("DownloadString", "DownloadFile", "IEX",
+        "Invoke-Expression", "Net.WebClient", "Invoke-WebRequest", "iwr"),
+    HasAmsiBypass = ProcessCommandLine has_any ("AmsiUtils", "amsiInitFailed",
+        "System.Management.Automation.AmsiUtils"),
+    HasObfuscationMarker = ProcessCommandLine has_any ("FromBase64String", "[char]", "-join",
+        "-bxor", "[convert]::"),
+    CommandLineLength = strlen(ProcessCommandLine)
+| extend
+    LengthAnomaly = (CommandLineLength > 1000) or (ProcessCommandLine matches regex @"\S{50,}")
+| project
+    Timestamp,
+    FileName,
+    ProcessCommandLine,
+    HasEncodedCommand,
+    HasDownloadCradle,
+    HasAmsiBypass,
+    HasObfuscationMarker,
+    CommandLineLength,
+    LengthAnomaly,
+    AccountName,
+    DeviceName
+| sort by Timestamp asc
+;
+// === SECTION 3: Ancestry and Descendants === ===
+union
+(
+    DeviceProcessEvents
+    | where RunChainWalk
+    | where Timestamp >= _anchorTime - AncestryLookback and Timestamp <= _windowEnd
+    | where HostToCheck == "" or DeviceName =~ HostToCheck
+    | extend pkey = strcat(tostring(ProcessId), "|", tostring(ProcessCreationTime))
+    | where pkey in (ParentPidKeys) or pkey in (GrandparentPidKeys)
+    | extend ChainLevel = case(
+        pkey in (ParentPidKeys), "-1 Parent",
+        "-2 Grandparent"
+    )
+    | project
+        ChainLevel,
+        Timestamp,
+        FileName,
+        FolderPath,
+        ProcessCommandLine,
+        ProcessId,
+        InitiatingProcessFileName,
+        InitiatingProcessId,
+        AccountName,
+        DeviceName
+),
+(
+    ProcessScope
+    | where RunChainWalk
+    | extend ChainLevel = "0 Target"
+    | project
+        ChainLevel,
+        Timestamp,
+        FileName,
+        FolderPath,
+        ProcessCommandLine,
+        ProcessId,
+        InitiatingProcessFileName,
+        InitiatingProcessId,
+        AccountName,
+        DeviceName
+),
+(
+    DeviceProcessEvents
+    | where RunChainWalk
+    | where Timestamp between (_windowStart .. _execWindowEnd)
+    | where HostToCheck == "" or DeviceName =~ HostToCheck
+    | extend pkey = strcat(tostring(ProcessId), "|", tostring(ProcessCreationTime))
+    | where pkey in (ChildPidKeys) or pkey in (GrandchildPidKeys)
+    | extend ChainLevel = case(
+        pkey in (ChildPidKeys), "+1 Child",
+        "+2 Grandchild"
+    )
+    | project
+        ChainLevel,
+        Timestamp,
+        FileName,
+        FolderPath,
+        ProcessCommandLine,
+        ProcessId,
+        InitiatingProcessFileName,
+        InitiatingProcessId,
+        AccountName,
+        DeviceName
+)
+| sort by ChainLevel asc, Timestamp asc
+;
+// === SECTION 4: File Activity by Chain === ===
+DeviceFileEvents
+| where RunFileActivityByChain
+| where Timestamp between (_windowStart .. _execWindowEnd)
+| where HostToCheck == "" or DeviceName =~ HostToCheck
+| extend ipkey = strcat(tostring(InitiatingProcessId), "|", tostring(InitiatingProcessCreationTime))
+| where ipkey in (ChainPidKeys)
+| extend ChainRole = case(
+    ipkey in (TargetPidKeys), "Target",
+    ipkey in (ChildPidKeys), "Child",
+    "Grandchild"
+)
+| project
+    Timestamp,
+    ChainRole,
+    ActionType,
+    FileName,
+    FolderPath,
+    SHA256,
+    FileSize,
+    FileOriginUrl,
+    InitiatingProcessFileName,
+    InitiatingProcessId,
+    DeviceName
+| sort by Timestamp asc
+;
+// === SECTION 5: Network Reach by Chain === ===
+DeviceNetworkEvents
+| where RunNetworkReachByChain
+| where Timestamp between (_windowStart .. _execWindowEnd)
+| where HostToCheck == "" or DeviceName =~ HostToCheck
+| extend ipkey = strcat(tostring(InitiatingProcessId), "|", tostring(InitiatingProcessCreationTime))
+| where ipkey in (ChainPidKeys)
+| extend ChainRole = case(
+    ipkey in (TargetPidKeys), "Target",
+    ipkey in (ChildPidKeys), "Child",
+    "Grandchild"
+)
+| project
+    Timestamp,
+    ChainRole,
+    InitiatingProcessFileName,
+    InitiatingProcessId,
+    RemoteUrl,
+    RemoteIP,
+    RemotePort,
+    LocalIP,
+    LocalPort,
+    Protocol,
+    DeviceName
+| sort by Timestamp asc
+;
+// === SECTION 6: MDE Actions === ===
+union
+(
+    DeviceEvents
+    | where RunMdeActions
+    | where Timestamp between (_windowStart .. _execWindowEnd)
+    | where HostToCheck == "" or DeviceName =~ HostToCheck
+    | where ActionType has_any ("AntivirusDetection", "AntivirusReport", "AsrProcessBlocked",
+        "AsrLsassBlocked", "AsrPersistenceThroughWmiBlocked",
+        "ExploitGuardNetworkProtectionBlocked", "SmartScreenAppWarning",
+        "SmartScreenExploitWarning", "TamperingAttempt", "ProcessBlockedByPolicy")
+    | extend ipkey = strcat(tostring(InitiatingProcessId), "|", tostring(InitiatingProcessCreationTime))
+    | where SHA256 in (TargetSHA256s)
+        or FolderPath in (TargetFolderPaths)
+        or FileName in (TargetFileNames)
+        or ipkey in (ChainPidKeys)
+    | extend ActionSource = "DefenderEvent"
+    | project
+        Timestamp,
+        ActionSource,
+        ActionType,
+        FileName,
+        FolderPath,
+        SHA256,
+        InitiatingProcessFileName,
+        DeviceName
+),
+(
+    DeviceProcessEvents
+    | where RunMdeActions
+    | where Timestamp between (_windowStart .. _execWindowEnd)
+    | where HostToCheck == "" or DeviceName =~ HostToCheck
+    | where ActionType == "ProcessTerminated"
+    | extend pkey = strcat(tostring(ProcessId), "|", tostring(ProcessCreationTime))
+    | where pkey in (ChainPidKeys)
+    | extend ActionSource = "ProcessTerminated"
+    | project
+        Timestamp,
+        ActionSource,
+        ActionType,
+        FileName,
+        FolderPath,
+        SHA256,
+        InitiatingProcessFileName,
+        DeviceName
+)
+| sort by Timestamp asc
