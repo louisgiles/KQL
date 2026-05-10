@@ -1,1 +1,546 @@
+// name:              Azure Activity Deep Dive
+// purpose:           Behavioural-context triage for recurring Azure Activity alerts:
+//                    suspicious azure activity, suspicious resource deployment,
+//                    suspicious resource deletion.
+// starting_entities: AlertTime, Caller, CallerIpAddress, OperationName, ResourceId, SubscriptionId
+// required_tables:   AzureActivity
+// optional_tables:   SigninLogs
+// variables:         AlertTime, AlertTitle, CallerToCheck, CallerIpToCheck, OperationToCheck, ResourceIdToCheck, SubscriptionIdToCheck
+// output_type:       analysis
+//
+// Philosophy:
+// Azure Activity benignity is often prevalence-based.
+// This query focuses on: what happened, who did it, how normal is it for that actor,
+// how normal is it for the tenant, and what related activity occurred around the alert.
 
+let AlertTime = datetime(2026-01-01T00:00:00Z);
+let AlertTitle = "";              // suspicious azure activity | suspicious resource deployment | suspicious resource deletion
+let CallerToCheck = "";           // Caller / UPN / app identity
+let CallerIpToCheck = "";         // CallerIpAddress
+let OperationToCheck = "";        // OperationNameValue preferred
+let ResourceIdToCheck = "";       // Full or partial ResourceId
+let SubscriptionIdToCheck = "";   // SubscriptionId
+//
+let EventWindow = 1h;
+let BaselineWindow = 90d;
+let SigninWindow = 24h;
+//
+let RunCoreActivity = true;
+let RunOperationClassification = true;
+let RunBehaviouralBaseline = true;
+let RunRelatedActivity = true;
+let RunRiskSignals = true;
+let RunActorSigninContext = true;
+//
+// ============================================================================
+// Core alert scope
+// ============================================================================
+let AlertScope = materialize(
+    AzureActivity
+    | where TimeGenerated between (AlertTime - EventWindow .. AlertTime + EventWindow)
+    | where isempty(CallerToCheck) or Caller contains CallerToCheck
+    | where isempty(CallerIpToCheck) or CallerIpAddress contains CallerIpToCheck
+    | where isempty(OperationToCheck) or OperationNameValue contains OperationToCheck or OperationName contains OperationToCheck
+    | where isempty(ResourceIdToCheck) or ResourceId contains ResourceIdToCheck
+    | where isempty(SubscriptionIdToCheck) or SubscriptionId contains SubscriptionIdToCheck
+    | extend
+        Actor = tolower(tostring(Caller)),
+        ActorIP = tostring(CallerIpAddress),
+        Operation = tostring(OperationNameValue),
+        OperationDisplay = tostring(OperationName),
+        Resource = tostring(ResourceId),
+        ResourceProvider = tostring(ResourceProviderValue),
+        ResourceGroup = tostring(ResourceGroup),
+        SubId = tostring(SubscriptionId),
+        Status = tostring(ActivityStatusValue),
+        StatusDisplay = tostring(ActivityStatus),
+        Correlation = tostring(CorrelationId),
+        ResourceType = extract(@"/providers/([^/]+/[^/]+)", 1, tostring(ResourceId)),
+        ResourceName = tostring(split(ResourceId, "/")[-1])
+    | where isnotempty(Operation) or isnotempty(OperationDisplay)
+);
+//
+let AlertActors = toscalar(AlertScope | where isnotempty(Actor) | summarize make_set(Actor, 100));
+let AlertIPs = toscalar(AlertScope | where isnotempty(ActorIP) | summarize make_set(ActorIP, 100));
+let AlertOperations = toscalar(AlertScope | where isnotempty(Operation) | summarize make_set(Operation, 100));
+let AlertResourceTypes = toscalar(AlertScope | where isnotempty(ResourceType) | summarize make_set(ResourceType, 100));
+let AlertSubscriptions = toscalar(AlertScope | where isnotempty(SubId) | summarize make_set(SubId, 100));
+//
+// ============================================================================
+// Classification map
+// ============================================================================
+let ClassifiedScope = materialize(
+    AlertScope
+    | extend ActivityCategory = case(
+        AlertTitle has "deployment"
+            or Operation has "Microsoft.Resources/deployments/write"
+            or Operation has "/deployments/write",
+                "Infrastructure Deployment",
+        AlertTitle has "deletion"
+            or Operation endswith "/delete",
+                "Resource Deletion",
+        Operation has "Microsoft.Authorization/roleAssignments/write"
+            or Operation has "Microsoft.Authorization/roleDefinitions/write"
+            or Operation has "Microsoft.Authorization/elevateAccess/action",
+                "Privilege Escalation / RBAC Change",
+        Operation has "Microsoft.Authorization/policyAssignments/write"
+            or Operation has "Microsoft.Authorization/policyAssignments/delete"
+            or Operation has "Microsoft.Security/"
+            or Operation has "Microsoft Defender"
+            or Operation has "diagnosticSettings/delete"
+            or Operation has "locks/delete",
+                "Security Control Modification",
+        Operation has "Microsoft.Network/networkSecurityGroups/securityRules/write"
+            or Operation has "Microsoft.Network/publicIPAddresses/write"
+            or Operation has "Microsoft.Network/loadBalancers/write"
+            or Operation has "Microsoft.Network/applicationGateways/write",
+                "Exposure / Network Change",
+        Operation has "Microsoft.ManagedIdentity/userAssignedIdentities/write"
+            or Operation has "Microsoft.Automation/automationAccounts/write"
+            or Operation has "Microsoft.Automation/automationAccounts/runbooks/write"
+            or Operation has "Microsoft.Compute/virtualMachines/extensions/write"
+            or Operation has "Microsoft.Web/sites/config/write",
+                "Persistence-Capable Change",
+        Operation has "Microsoft.KeyVault/vaults"
+            or Operation has "Microsoft.Storage/storageAccounts"
+            or Operation has "Microsoft.Sql/servers"
+            or Operation has "Microsoft.DocumentDB/databaseAccounts",
+                "Sensitive Resource Change",
+        "General Azure Activity"
+    )
+    | extend IsSensitiveCategory = ActivityCategory in (
+        "Privilege Escalation / RBAC Change",
+        "Security Control Modification",
+        "Exposure / Network Change",
+        "Persistence-Capable Change",
+        "Sensitive Resource Change",
+        "Resource Deletion"
+    )
+);
+//
+// ============================================================================
+// Historical baselines
+// ============================================================================
+let Historical = materialize(
+    AzureActivity
+    | where TimeGenerated between (AlertTime - BaselineWindow .. AlertTime - EventWindow)
+    | extend
+        Actor = tolower(tostring(Caller)),
+        ActorIP = tostring(CallerIpAddress),
+        Operation = tostring(OperationNameValue),
+        Resource = tostring(ResourceId),
+        SubId = tostring(SubscriptionId),
+        ResourceType = extract(@"/providers/([^/]+/[^/]+)", 1, tostring(ResourceId)),
+        Status = tostring(ActivityStatusValue)
+);
+//
+let ActorOperationBaseline =
+    Historical
+    | where Actor in (AlertActors)
+    | summarize
+        ActorOperationCount=count(),
+        ActorOperationSuccessCount=countif(Status =~ "Success"),
+        ActorOperationFirstSeen=min(TimeGenerated),
+        ActorOperationLastSeen=max(TimeGenerated),
+        ActorOperationDistinctResources=dcount(Resource),
+        ActorOperationDistinctSubs=dcount(SubId)
+        by Actor, Operation;
+//
+let ActorIpBaseline =
+    Historical
+    | where Actor in (AlertActors)
+    | summarize
+        ActorIpCount=count(),
+        ActorIpDaysSeen=dcount(bin(TimeGenerated, 1d)),
+        ActorIpFirstSeen=min(TimeGenerated),
+        ActorIpLastSeen=max(TimeGenerated)
+        by Actor, ActorIP;
+//
+let ActorSubscriptionBaseline =
+    Historical
+    | where Actor in (AlertActors)
+    | summarize
+        ActorSubscriptionCount=count(),
+        ActorSubscriptionDaysSeen=dcount(bin(TimeGenerated, 1d)),
+        ActorSubscriptionFirstSeen=min(TimeGenerated),
+        ActorSubscriptionLastSeen=max(TimeGenerated)
+        by Actor, SubId;
+//
+let ActorResourceTypeBaseline =
+    Historical
+    | where Actor in (AlertActors)
+    | summarize
+        ActorResourceTypeCount=count(),
+        ActorResourceTypeDaysSeen=dcount(bin(TimeGenerated, 1d)),
+        ActorResourceTypeFirstSeen=min(TimeGenerated),
+        ActorResourceTypeLastSeen=max(TimeGenerated)
+        by Actor, ResourceType;
+//
+let TenantOperationBaseline =
+    Historical
+    | summarize
+        TenantOperationCount=count(),
+        TenantOperationActors=dcount(Actor),
+        TenantOperationDistinctResources=dcount(Resource),
+        TenantOperationDaysSeen=dcount(bin(TimeGenerated, 1d))
+        by Operation;
+//
+let TenantResourceTypeBaseline =
+    Historical
+    | summarize
+        TenantResourceTypeCount=count(),
+        TenantResourceTypeActors=dcount(Actor),
+        TenantResourceTypeDaysSeen=dcount(bin(TimeGenerated, 1d))
+        by ResourceType;
+//
+// ============================================================================
+// Related activity window
+// ============================================================================
+let RelatedActivity = materialize(
+    AzureActivity
+    | where TimeGenerated between (AlertTime - EventWindow .. AlertTime + EventWindow)
+    | extend
+        Actor = tolower(tostring(Caller)),
+        ActorIP = tostring(CallerIpAddress),
+        Operation = tostring(OperationNameValue),
+        Resource = tostring(ResourceId),
+        SubId = tostring(SubscriptionId),
+        Status = tostring(ActivityStatusValue),
+        ResourceType = extract(@"/providers/([^/]+/[^/]+)", 1, tostring(ResourceId))
+    | where Actor in (AlertActors)
+        or ActorIP in (AlertIPs)
+        or Operation in (AlertOperations)
+        or ResourceType in (AlertResourceTypes)
+        or SubId in (AlertSubscriptions)
+);
+//
+let RelatedSummary =
+    RelatedActivity
+    | summarize
+        RelatedOps=count(),
+        RelatedSuccess=countif(Status =~ "Success"),
+        RelatedFailures=countif(Status !~ "Success"),
+        RelatedActors=dcount(Actor),
+        RelatedIPs=dcount(ActorIP),
+        RelatedResources=dcount(Resource),
+        RelatedOperations=make_set(Operation, 25)
+        by CorrelationId;
+//
+// ============================================================================
+// Actor sign-in context
+// ============================================================================
+let ActorSigninContext = materialize(
+    SigninLogs
+    | where TimeGenerated between (AlertTime - SigninWindow .. AlertTime + SigninWindow)
+    | extend Actor = tolower(UserPrincipalName)
+    | where Actor in (AlertActors)
+    | extend DeviceParsed = parse_json(tostring(DeviceDetail))
+    | extend
+        SigninTrustType = tostring(DeviceParsed.trustType),
+        SigninIsManaged = tostring(DeviceParsed.isManaged),
+        SigninIsCompliant = tostring(DeviceParsed.isCompliant),
+        SigninDeviceOS = tostring(DeviceParsed.operatingSystem),
+        SigninDeviceName = tostring(DeviceParsed.displayName)
+    | summarize arg_max(TimeGenerated,
+        IPAddress,
+        Location,
+        ResultType,
+        ResultDescription,
+        RiskLevelDuringSignIn,
+        RiskDetail,
+        RiskEventTypes,
+        ConditionalAccessStatus,
+        AuthenticationRequirement,
+        SigninTrustType,
+        SigninIsManaged,
+        SigninIsCompliant,
+        SigninDeviceOS,
+        SigninDeviceName)
+        by Actor
+    | project-rename
+        SigninTime = TimeGenerated,
+        SigninIP = IPAddress,
+        SigninLocation = Location,
+        SigninResult = ResultType,
+        SigninResultDescription = ResultDescription,
+        SigninRiskLevel = RiskLevelDuringSignIn,
+        SigninRiskDetail = RiskDetail,
+        SigninRiskEvents = RiskEventTypes,
+        SigninCAStatus = ConditionalAccessStatus,
+        SigninAuthRequirement = AuthenticationRequirement
+);
+//
+// ============================================================================
+// SECTION 1: Core Activity
+// ============================================================================
+ClassifiedScope
+| where RunCoreActivity
+| project
+    TimeGenerated,
+    AlertTitle,
+    ActivityCategory,
+    Operation,
+    OperationDisplay,
+    Actor,
+    ActorIP,
+    Status,
+    StatusDisplay,
+    ResourceProvider,
+    ResourceType,
+    ResourceGroup,
+    ResourceName,
+    Resource,
+    SubId,
+    Correlation
+| sort by TimeGenerated asc
+;
+//
+// ============================================================================
+// SECTION 2: Operation Classification
+// ============================================================================
+ClassifiedScope
+| where RunOperationClassification
+| summarize
+    Events=count(),
+    Successful=countif(Status =~ "Success"),
+    Failed=countif(Status !~ "Success"),
+    Actors=make_set(Actor, 10),
+    ActorIPs=make_set(ActorIP, 10),
+    Operations=make_set(Operation, 20),
+    Resources=make_set(Resource, 20),
+    Subscriptions=make_set(SubId, 10),
+    SensitiveCategory=any(IsSensitiveCategory)
+    by ActivityCategory
+| sort by SensitiveCategory desc, Events desc
+;
+//
+// ============================================================================
+// SECTION 3: Behavioural Baseline
+// ============================================================================
+ClassifiedScope
+| where RunBehaviouralBaseline
+| join kind=leftouter ActorOperationBaseline on Actor, Operation
+| join kind=leftouter ActorIpBaseline on Actor, ActorIP
+| join kind=leftouter ActorSubscriptionBaseline on Actor, SubId
+| join kind=leftouter ActorResourceTypeBaseline on Actor, ResourceType
+| join kind=leftouter TenantOperationBaseline on Operation
+| join kind=leftouter TenantResourceTypeBaseline on ResourceType
+| extend
+    ActorOperationCount=coalesce(ActorOperationCount, 0),
+    ActorIpCount=coalesce(ActorIpCount, 0),
+    ActorIpDaysSeen=coalesce(ActorIpDaysSeen, 0),
+    ActorSubscriptionCount=coalesce(ActorSubscriptionCount, 0),
+    ActorSubscriptionDaysSeen=coalesce(ActorSubscriptionDaysSeen, 0),
+    ActorResourceTypeCount=coalesce(ActorResourceTypeCount, 0),
+    ActorResourceTypeDaysSeen=coalesce(ActorResourceTypeDaysSeen, 0),
+    TenantOperationCount=coalesce(TenantOperationCount, 0),
+    TenantOperationActors=coalesce(TenantOperationActors, 0),
+    TenantOperationDaysSeen=coalesce(TenantOperationDaysSeen, 0),
+    TenantResourceTypeCount=coalesce(TenantResourceTypeCount, 0),
+    TenantResourceTypeActors=coalesce(TenantResourceTypeActors, 0),
+    TenantResourceTypeDaysSeen=coalesce(TenantResourceTypeDaysSeen, 0)
+| extend
+    ActorOperationFamiliarity = case(
+        ActorOperationCount == 0, "new for actor",
+        ActorOperationCount <= 2, "rare for actor",
+        ActorOperationCount <= 10, "occasional for actor",
+        "common for actor"
+    ),
+    ActorIpFamiliarity = case(
+        ActorIpCount == 0, "new IP for actor",
+        ActorIpDaysSeen <= 1, "rare IP for actor",
+        ActorIpDaysSeen <= 5, "occasional IP for actor",
+        "familiar IP for actor"
+    ),
+    ActorSubscriptionFamiliarity = case(
+        ActorSubscriptionCount == 0, "new subscription for actor",
+        ActorSubscriptionDaysSeen <= 1, "rare subscription for actor",
+        ActorSubscriptionDaysSeen <= 5, "occasional subscription for actor",
+        "familiar subscription for actor"
+    ),
+    ActorResourceTypeFamiliarity = case(
+        ActorResourceTypeCount == 0, "new resource type for actor",
+        ActorResourceTypeDaysSeen <= 1, "rare resource type for actor",
+        ActorResourceTypeDaysSeen <= 5, "occasional resource type for actor",
+        "familiar resource type for actor"
+    ),
+    TenantOperationFamiliarity = case(
+        TenantOperationCount == 0, "new operation in tenant baseline",
+        TenantOperationDaysSeen <= 1, "rare operation in tenant",
+        TenantOperationDaysSeen <= 5, "occasional operation in tenant",
+        "common operation in tenant"
+    )
+| project
+    TimeGenerated,
+    ActivityCategory,
+    Operation,
+    Actor,
+    ActorIP,
+    ResourceType,
+    ResourceGroup,
+    ResourceName,
+    SubId,
+    Status,
+    ActorOperationFamiliarity,
+    ActorOperationCount,
+    ActorOperationDistinctResources,
+    ActorOperationDistinctSubs,
+    ActorIpFamiliarity,
+    ActorIpCount,
+    ActorIpDaysSeen,
+    ActorSubscriptionFamiliarity,
+    ActorSubscriptionCount,
+    ActorSubscriptionDaysSeen,
+    ActorResourceTypeFamiliarity,
+    ActorResourceTypeCount,
+    ActorResourceTypeDaysSeen,
+    TenantOperationFamiliarity,
+    TenantOperationCount,
+    TenantOperationActors,
+    TenantOperationDaysSeen,
+    TenantResourceTypeCount,
+    TenantResourceTypeActors,
+    TenantResourceTypeDaysSeen
+| sort by TimeGenerated asc
+;
+//
+// ============================================================================
+// SECTION 4: Related Activity Window
+// ============================================================================
+RelatedActivity
+| where RunRelatedActivity
+| project
+    TimeGenerated,
+    Operation,
+    Actor,
+    ActorIP,
+    Status,
+    ResourceType,
+    ResourceGroup,
+    Resource,
+    SubId,
+    CorrelationId
+| sort by TimeGenerated asc
+;
+//
+// ============================================================================
+// SECTION 5: Actor Sign-In Context
+// ============================================================================
+ClassifiedScope
+| where RunActorSigninContext
+| join kind=leftouter ActorSigninContext on Actor
+| project
+    ActivityTime=TimeGenerated,
+    Actor,
+    ActorIP,
+    Operation,
+    ActivityCategory,
+    SigninTime,
+    SigninIP,
+    SigninLocation,
+    SigninResult,
+    SigninResultDescription,
+    SigninRiskLevel,
+    SigninRiskDetail,
+    SigninRiskEvents,
+    SigninCAStatus,
+    SigninAuthRequirement,
+    SigninTrustType,
+    SigninIsManaged,
+    SigninIsCompliant,
+    SigninDeviceName,
+    SigninDeviceOS
+| sort by ActivityTime asc
+;
+//
+// ============================================================================
+// SECTION 6: Risk Signals
+// ============================================================================
+ClassifiedScope
+| where RunRiskSignals
+| join kind=leftouter ActorOperationBaseline on Actor, Operation
+| join kind=leftouter ActorIpBaseline on Actor, ActorIP
+| join kind=leftouter ActorSubscriptionBaseline on Actor, SubId
+| join kind=leftouter ActorResourceTypeBaseline on Actor, ResourceType
+| join kind=leftouter TenantOperationBaseline on Operation
+| join kind=leftouter RelatedSummary on $left.Correlation == $right.CorrelationId
+| join kind=leftouter ActorSigninContext on Actor
+| extend
+    ActorOperationCount=coalesce(ActorOperationCount, 0),
+    ActorIpCount=coalesce(ActorIpCount, 0),
+    ActorSubscriptionCount=coalesce(ActorSubscriptionCount, 0),
+    ActorResourceTypeCount=coalesce(ActorResourceTypeCount, 0),
+    TenantOperationCount=coalesce(TenantOperationCount, 0),
+    RelatedOps=coalesce(RelatedOps, 0),
+    RelatedFailures=coalesce(RelatedFailures, 0)
+| extend
+    NewActorOperation = ActorOperationCount == 0,
+    NewActorIP = ActorIpCount == 0,
+    NewActorSubscription = ActorSubscriptionCount == 0,
+    NewActorResourceType = ActorResourceTypeCount == 0,
+    RareTenantOperation = TenantOperationCount <= 2,
+    FailedThenSuccessPattern = RelatedFailures > 0 and Status =~ "Success",
+    RelatedBurst = RelatedOps >= 10,
+    RiskySignin = SigninRiskLevel in ("medium", "high") or (isnotempty(SigninRiskDetail) and SigninRiskDetail != "none"),
+    UnmanagedSigninDevice = isnotempty(SigninTrustType) and SigninTrustType !in ("Azure AD joined", "Hybrid Azure AD joined"),
+    SensitiveCategory = IsSensitiveCategory
+| extend RiskFlags = strcat_array(array_concat(
+        iff(SensitiveCategory, pack_array("SENSITIVE_ACTIVITY_CATEGORY"), dynamic([])),
+        iff(NewActorOperation, pack_array("NEW_OPERATION_FOR_ACTOR"), dynamic([])),
+        iff(NewActorIP, pack_array("NEW_IP_FOR_ACTOR"), dynamic([])),
+        iff(NewActorSubscription, pack_array("NEW_SUBSCRIPTION_FOR_ACTOR"), dynamic([])),
+        iff(NewActorResourceType, pack_array("NEW_RESOURCE_TYPE_FOR_ACTOR"), dynamic([])),
+        iff(RareTenantOperation, pack_array("RARE_TENANT_OPERATION"), dynamic([])),
+        iff(FailedThenSuccessPattern, pack_array("FAILED_THEN_SUCCESS_PATTERN"), dynamic([])),
+        iff(RelatedBurst, pack_array("RELATED_ACTIVITY_BURST"), dynamic([])),
+        iff(RiskySignin, pack_array("RISKY_SIGNIN_CONTEXT"), dynamic([])),
+        iff(UnmanagedSigninDevice, pack_array("UNMANAGED_SIGNIN_DEVICE"), dynamic([]))
+    ), " | ")
+| extend TriageScore =
+    0
+    + iff(SensitiveCategory, 20, 0)
+    + iff(NewActorOperation, 20, 0)
+    + iff(NewActorIP, 15, 0)
+    + iff(NewActorSubscription, 15, 0)
+    + iff(NewActorResourceType, 10, 0)
+    + iff(RareTenantOperation, 10, 0)
+    + iff(FailedThenSuccessPattern, 10, 0)
+    + iff(RelatedBurst, 10, 0)
+    + iff(RiskySignin, 20, 0)
+    + iff(UnmanagedSigninDevice, 10, 0)
+| extend TriageVerdict = case(
+    TriageScore >= 70, "High concern - escalate",
+    TriageScore >= 40, "Medium concern - review closely",
+    TriageScore >= 20, "Low concern - validate expected behaviour",
+    "Likely benign based on available context"
+)
+| project
+    TriageVerdict,
+    TriageScore,
+    RiskFlags,
+    TimeGenerated,
+    AlertTitle,
+    ActivityCategory,
+    Operation,
+    Actor,
+    ActorIP,
+    Status,
+    ResourceType,
+    ResourceGroup,
+    ResourceName,
+    Resource,
+    SubId,
+    ActorOperationCount,
+    ActorIpCount,
+    ActorSubscriptionCount,
+    ActorResourceTypeCount,
+    TenantOperationCount,
+    RelatedOps,
+    RelatedFailures,
+    SigninRiskLevel,
+    SigninRiskDetail,
+    SigninTrustType,
+    SigninIsManaged,
+    SigninIsCompliant,
+    Correlation
+| sort by TriageScore desc, TimeGenerated asc
