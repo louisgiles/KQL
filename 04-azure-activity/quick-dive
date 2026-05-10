@@ -1,1 +1,214 @@
- 
+// name:              Azure Activity Quick Dive + Narrative
+// purpose:           Fast behavioural-context triage for recurring Azure Activity alerts:
+//                    suspicious azure activity, suspicious resource deployment,
+//                    suspicious resource deletion.
+// starting_entities: AlertTime, Caller, CallerIpAddress, OperationName, ResourceId, SubscriptionId
+// required_tables:   AzureActivity
+// optional_tables:   SigninLogs
+// output_type:       quick-triage
+//
+// Philosophy:
+// Azure benignity is often prevalence-based.
+// This query answers:
+// - What happened?
+// - Is it normal for the actor?
+// - Is it normal for the tenant?
+// - What is weird?
+// - Does this require deep-dive?
+
+let AlertTime = datetime(2026-01-01T00:00:00Z);
+let AlertTitle = "";
+let CallerToCheck = "";
+let CallerIpToCheck = "";
+let OperationToCheck = "";
+let ResourceIdToCheck = "";
+let SubscriptionIdToCheck = "";
+//
+let EventWindow = 1h;
+let BaselineWindow = 90d;
+//
+let AlertScope = materialize(
+    AzureActivity
+    | where TimeGenerated between (AlertTime - EventWindow .. AlertTime + EventWindow)
+    | where isempty(CallerToCheck) or Caller contains CallerToCheck
+    | where isempty(CallerIpToCheck) or CallerIpAddress contains CallerIpToCheck
+    | where isempty(OperationToCheck) or OperationNameValue contains OperationToCheck or OperationName contains OperationToCheck
+    | where isempty(ResourceIdToCheck) or ResourceId contains ResourceIdToCheck
+    | where isempty(SubscriptionIdToCheck) or SubscriptionId contains SubscriptionIdToCheck
+    | extend
+        Actor = tolower(tostring(Caller)),
+        ActorIP = tostring(CallerIpAddress),
+        Operation = tostring(OperationNameValue),
+        Resource = tostring(ResourceId),
+        ResourceGroup = tostring(ResourceGroup),
+        ResourceProvider = tostring(ResourceProviderValue),
+        Subscription = tostring(SubscriptionId),
+        Status = tostring(ActivityStatusValue),
+        Correlation = tostring(CorrelationId),
+        ResourceType = extract(@"/providers/([^/]+/[^/]+)", 1, tostring(ResourceId)),
+        ResourceName = tostring(split(ResourceId, "/")[-1])
+    | extend ActivityCategory = case(
+        AlertTitle has "deployment"
+            or Operation has "/deployments/write",
+                "Infrastructure Deployment",
+        AlertTitle has "deletion"
+            or Operation endswith "/delete",
+                "Resource Deletion",
+        Operation has "roleAssignments/write"
+            or Operation has "roleDefinitions/write",
+                "Privilege Escalation / RBAC Change",
+        Operation has "policyAssignments/write"
+            or Operation has "policyAssignments/delete",
+                "Security Control Modification",
+        Operation has "networkSecurityGroups/securityRules/write"
+            or Operation has "publicIPAddresses/write",
+                "Exposure / Network Change",
+        Operation has "automationAccounts/write"
+            or Operation has "virtualMachines/extensions/write",
+                "Persistence-Capable Change",
+        "General Azure Activity"
+    )
+);
+//
+let AlertActors = toscalar(AlertScope | summarize make_set(Actor, 100));
+let AlertIPs = toscalar(AlertScope | summarize make_set(ActorIP, 100));
+let AlertOperations = toscalar(AlertScope | summarize make_set(Operation, 100));
+let AlertResourceTypes = toscalar(AlertScope | summarize make_set(ResourceType, 100));
+let AlertSubscriptions = toscalar(AlertScope | summarize make_set(Subscription, 100));
+//
+let Historical =
+    AzureActivity
+    | where TimeGenerated between (AlertTime - BaselineWindow .. AlertTime - EventWindow)
+    | extend
+        Actor = tolower(tostring(Caller)),
+        ActorIP = tostring(CallerIpAddress),
+        Operation = tostring(OperationNameValue),
+        Subscription = tostring(SubscriptionId),
+        ResourceType = extract(@"/providers/([^/]+/[^/]+)", 1, tostring(ResourceId));
+//
+let ActorOperationBaseline =
+    Historical
+    | where Actor in (AlertActors)
+    | summarize ActorOperationCount=count() by Actor, Operation;
+//
+let ActorIpBaseline =
+    Historical
+    | where Actor in (AlertActors)
+    | summarize ActorIpCount=count(),
+                ActorIpDaysSeen=dcount(bin(TimeGenerated, 1d))
+                by Actor, ActorIP;
+//
+let ActorSubscriptionBaseline =
+    Historical
+    | where Actor in (AlertActors)
+    | summarize ActorSubscriptionCount=count(),
+                ActorSubscriptionDaysSeen=dcount(bin(TimeGenerated, 1d))
+                by Actor, Subscription;
+//
+let ActorResourceTypeBaseline =
+    Historical
+    | where Actor in (AlertActors)
+    | summarize ActorResourceTypeCount=count(),
+                ActorResourceTypeDaysSeen=dcount(bin(TimeGenerated, 1d))
+                by Actor, ResourceType;
+//
+let TenantOperationBaseline =
+    Historical
+    | summarize TenantOperationCount=count(),
+                TenantOperationActors=dcount(Actor)
+                by Operation;
+//
+let RelatedActivity =
+    AzureActivity
+    | where TimeGenerated between (AlertTime - EventWindow .. AlertTime + EventWindow)
+    | extend Actor = tolower(tostring(Caller))
+    | where Actor in (AlertActors)
+    | summarize RelatedOps=count() by CorrelationId;
+//
+AlertScope
+| join kind=leftouter ActorOperationBaseline on Actor, Operation
+| join kind=leftouter ActorIpBaseline on Actor, ActorIP
+| join kind=leftouter ActorSubscriptionBaseline on Subscription
+| join kind=leftouter ActorResourceTypeBaseline on Actor, ResourceType
+| join kind=leftouter TenantOperationBaseline on Operation
+| join kind=leftouter RelatedActivity on $left.Correlation == $right.CorrelationId
+| extend
+    ActorOperationCount=coalesce(ActorOperationCount, 0),
+    ActorIpCount=coalesce(ActorIpCount, 0),
+    ActorIpDaysSeen=coalesce(ActorIpDaysSeen, 0),
+    ActorSubscriptionCount=coalesce(ActorSubscriptionCount, 0),
+    ActorSubscriptionDaysSeen=coalesce(ActorSubscriptionDaysSeen, 0),
+    ActorResourceTypeCount=coalesce(ActorResourceTypeCount, 0),
+    ActorResourceTypeDaysSeen=coalesce(ActorResourceTypeDaysSeen, 0),
+    TenantOperationCount=coalesce(TenantOperationCount, 0),
+    TenantOperationActors=coalesce(TenantOperationActors, 0),
+    RelatedOps=coalesce(RelatedOps, 0)
+| extend
+    NewActorOperation = ActorOperationCount == 0,
+    NewActorIP = ActorIpCount == 0,
+    NewSubscriptionForActor = ActorSubscriptionCount == 0,
+    NewResourceTypeForActor = ActorResourceTypeCount == 0,
+    RareTenantOperation = TenantOperationCount <= 2
+| extend BehaviouralFlags = strcat_array(array_concat(
+        iff(NewActorOperation, pack_array("NEW_OPERATION_FOR_ACTOR"), dynamic([])),
+        iff(NewActorIP, pack_array("NEW_IP_FOR_ACTOR"), dynamic([])),
+        iff(NewSubscriptionForActor, pack_array("NEW_SUBSCRIPTION_FOR_ACTOR"), dynamic([])),
+        iff(NewResourceTypeForActor, pack_array("NEW_RESOURCE_TYPE_FOR_ACTOR"), dynamic([])),
+        iff(RareTenantOperation, pack_array("RARE_TENANT_OPERATION"), dynamic([]))
+    ), " | ")
+| extend QuickAssessment = case(
+        NewActorOperation and RareTenantOperation,
+            "Potentially suspicious - deep dive recommended",
+        NewActorIP and ActivityCategory == "Privilege Escalation / RBAC Change",
+            "Suspicious context - validate actor and review closely",
+        ActorOperationCount > 20
+            and ActorSubscriptionDaysSeen > 10
+            and ActorResourceTypeDaysSeen > 10,
+            "Likely benign based on legacy frequency",
+        RelatedOps >= 10,
+            "High surrounding activity - review related operations",
+        "Validate operational context"
+    )
+| extend Narrative = strcat(
+    "- Azure quick triage completed for ", AlertTitle, ".\n",
+    "- Activity category: ", ActivityCategory, ".\n",
+    "- Actor: ", Actor, "\n",
+    "- Source IP: ", ActorIP, "\n",
+    "- Operation: ", Operation, "\n",
+    "- Resource: ", Resource, "\n",
+    "- Status: ", Status, "\n",
+    "- Actor history: actor performed this operation ", tostring(ActorOperationCount), " time(s) in the last ", tostring(BaselineWindow), ".\n",
+    "- Tenant history: operation observed ", tostring(TenantOperationCount), " time(s) across ", tostring(TenantOperationActors), " actor(s) in the last ", tostring(BaselineWindow), ".\n",
+    "- Subscription familiarity: actor has activity in this subscription across ", tostring(ActorSubscriptionDaysSeen), " day(s).\n",
+    "- Resource type familiarity: actor has touched this resource type across ", tostring(ActorResourceTypeDaysSeen), " day(s).\n",
+    "- Related activity: ", tostring(RelatedOps), " related Azure operation(s) observed within ±", tostring(EventWindow), ".\n",
+    "- Behavioural flags: ", iff(isempty(BehaviouralFlags), "none", BehaviouralFlags), ".\n",
+    "- Quick assessment: ", QuickAssessment
+)
+| project
+    TimeGenerated,
+    AlertTitle,
+    ActivityCategory,
+    Actor,
+    ActorIP,
+    Operation,
+    ResourceType,
+    ResourceGroup,
+    ResourceName,
+    Resource,
+    Subscription,
+    Status,
+    ActorOperationCount,
+    ActorIpCount,
+    ActorIpDaysSeen,
+    ActorSubscriptionCount,
+    ActorSubscriptionDaysSeen,
+    ActorResourceTypeCount,
+    ActorResourceTypeDaysSeen,
+    TenantOperationCount,
+    TenantOperationActors,
+    RelatedOps,
+    BehaviouralFlags,
+    QuickAssessment,
+    Narrative
+| sort by TimeGenerated asc
