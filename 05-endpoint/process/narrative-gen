@@ -1,1 +1,418 @@
+// name:              Process Activity Narrative Generator
+// purpose:           Chain-aware, dash-prefixed ticket-note narrative for process-based alerts in Defender Advanced Hunting. Five-section composition: identity block, chain narrative (top-to-bottom walk with per-node signal counts), command-line shape across the chain, MDE response, and closure signals. Companion to process/deep-dive.kql in the endpoint family.
+// starting_entities: AlertTime, DeviceName, ProcessName, SHA256, ProcessId, CommandLine substring (any combination)
+// required_tables:   DeviceProcessEvents
+// optional_tables:   DeviceFileEvents (per-node file counts), DeviceNetworkEvents (per-node network counts), DeviceRegistryEvents (per-node registry counts), DeviceEvents (MDE response, persistence)
+// variables:         AlertTime, AnchorMode, TimeToCheck, AncestryLookback, HostToCheck, ProcessNameToCheck, ProcessSHA256ToCheck, ProcessIdToCheck, CommandLineToCheck
+// done_criteria:     Chain identified and walked top-to-bottom with per-node signal counts; command-line indicators aggregated across chain; MDE response and persistence aggregated across chain; closure signals projected without committing to a verdict; output pasted into the investigation ticket.
+// output_type:       narrative
+//
+// Process Activity Narrative Generator
+// Process-anchored narrative-gen counterpart to process/deep-dive.kql
+// in the endpoint family. Reuses the deep-dive's anchor model and
+// composite (ProcessId, ProcessCreationTime) keying. Output is a single
+// column of dash-prefixed lines suitable for pasting into a closure
+// note.
+//
+// Five-section chain-aware composition. Operation rotation is
+// intentionally absent — process incidents are chain-shaped, not
+// operation-shaped, so the chain is the unit of analysis rather than
+// a per-operation projection. The family contract is bent (dash-prefixed
+// style preserved, verdict-signals block preserved, operation rotation
+// dropped) not broken. Reasoning is recorded in process/notes.md.
+//
+// Chain narrative (Section 2) is the core. It walks the chain
+// grandparent → parent → target → child → grandchild, indenting each
+// descendant with an additional "→" prefix and inlining file, network,
+// and registry counts plus command-line indicators per node. Sections
+// 3 and 4 aggregate command-line shape and MDE response across the
+// chain rather than rotating projection logic. Section 5 closes with
+// a verdict-signals line surfacing the signal pattern; analyst makes
+// the verdict call.
+//
+// Anchor model: AnchorMode = "alert" centres the window on AlertTime
+// (default). AnchorMode = "process_origin" looks up the earliest
+// matching ProcessCreated event for the target within a 90d lookback
+// and re-anchors on that timestamp.
+//
+// Usage: Populate AlertTime and HostToCheck plus at least one of
+// ProcessNameToCheck, ProcessSHA256ToCheck, ProcessIdToCheck, or
+// CommandLineToCheck. Set AnchorMode to "process_origin" if the alert
+// fires long after the process started.
+//
+// Tables: DeviceProcessEvents, DeviceFileEvents, DeviceNetworkEvents,
+// DeviceRegistryEvents, DeviceEvents
 
+let AlertTime = datetime(2026-01-01T00:00:00Z);
+let AnchorMode = "alert";
+let TimeToCheck = 5m;
+//
+let HostToCheck = "";
+let ProcessNameToCheck = "";
+let ProcessSHA256ToCheck = "";
+let ProcessIdToCheck = "";
+let CommandLineToCheck = "";
+let AncestryLookback = 24h;
+//
+let _wideLookback = 90d;
+let _processOriginEvent = materialize(
+    DeviceProcessEvents
+    | where Timestamp between (AlertTime - _wideLookback .. AlertTime)
+    | where HostToCheck == "" or DeviceName =~ HostToCheck
+    | where ActionType == "ProcessCreated"
+    | where ProcessNameToCheck == "" or FileName contains ProcessNameToCheck
+    | where ProcessSHA256ToCheck == "" or SHA256 contains ProcessSHA256ToCheck
+    | where ProcessIdToCheck == "" or tostring(ProcessId) == ProcessIdToCheck
+    | where CommandLineToCheck == "" or ProcessCommandLine contains CommandLineToCheck
+    | summarize arg_min(Timestamp, *)
+);
+let _anchorTime = iff(AnchorMode == "process_origin",
+    coalesce(toscalar(_processOriginEvent | project Timestamp), AlertTime),
+    AlertTime
+);
+let _windowStart = _anchorTime - TimeToCheck;
+let _windowEnd = _anchorTime + TimeToCheck;
+let _execWindowEnd = _anchorTime + max_of(TimeToCheck, 24h);
+let ProcessScope = materialize(
+    DeviceProcessEvents
+    | where Timestamp between (_windowStart .. _windowEnd)
+    | where HostToCheck == "" or DeviceName =~ HostToCheck
+    | where ProcessNameToCheck == "" or FileName contains ProcessNameToCheck
+    | where ProcessSHA256ToCheck == "" or SHA256 contains ProcessSHA256ToCheck
+    | where ProcessIdToCheck == "" or tostring(ProcessId) == ProcessIdToCheck
+    | where CommandLineToCheck == "" or ProcessCommandLine contains CommandLineToCheck
+);
+let TargetSHA256s = toscalar(ProcessScope | where isnotempty(SHA256) | summarize make_set(SHA256, 100));
+let TargetFolderPaths = toscalar(ProcessScope | where isnotempty(FolderPath) | summarize make_set(FolderPath, 100));
+let TargetFileNames = toscalar(ProcessScope | where isnotempty(FileName) | summarize make_set(FileName, 100));
+let TargetPidKeys = toscalar(ProcessScope | where isnotempty(ProcessId) | summarize make_set(strcat(tostring(ProcessId), "|", tostring(ProcessCreationTime)), 100));
+let ParentPidKeys = toscalar(
+    DeviceProcessEvents
+    | where Timestamp >= _anchorTime - AncestryLookback and Timestamp <= _windowEnd
+    | where HostToCheck == "" or DeviceName =~ HostToCheck
+    | extend pkey = strcat(tostring(ProcessId), "|", tostring(ProcessCreationTime))
+    | where pkey in (TargetPidKeys)
+    | summarize make_set(strcat(tostring(InitiatingProcessId), "|", tostring(InitiatingProcessCreationTime)), 100)
+);
+let GrandparentPidKeys = toscalar(
+    DeviceProcessEvents
+    | where Timestamp >= _anchorTime - AncestryLookback and Timestamp <= _windowEnd
+    | where HostToCheck == "" or DeviceName =~ HostToCheck
+    | extend pkey = strcat(tostring(ProcessId), "|", tostring(ProcessCreationTime))
+    | where pkey in (ParentPidKeys)
+    | summarize make_set(strcat(tostring(InitiatingProcessId), "|", tostring(InitiatingProcessCreationTime)), 100)
+);
+let ChildPidKeys = toscalar(
+    DeviceProcessEvents
+    | where Timestamp between (_windowStart .. _execWindowEnd)
+    | where HostToCheck == "" or DeviceName =~ HostToCheck
+    | extend ipkey = strcat(tostring(InitiatingProcessId), "|", tostring(InitiatingProcessCreationTime))
+    | where ipkey in (TargetPidKeys)
+    | summarize make_set(strcat(tostring(ProcessId), "|", tostring(ProcessCreationTime)), 100)
+);
+let GrandchildPidKeys = toscalar(
+    DeviceProcessEvents
+    | where Timestamp between (_windowStart .. _execWindowEnd)
+    | where HostToCheck == "" or DeviceName =~ HostToCheck
+    | extend ipkey = strcat(tostring(InitiatingProcessId), "|", tostring(InitiatingProcessCreationTime))
+    | where ipkey in (ChildPidKeys)
+    | summarize make_set(strcat(tostring(ProcessId), "|", tostring(ProcessCreationTime)), 100)
+);
+let ChainPidKeys = set_union(TargetPidKeys, ChildPidKeys, GrandchildPidKeys);
+let _allChainPidKeys = set_union(GrandparentPidKeys, ParentPidKeys, TargetPidKeys, ChildPidKeys, GrandchildPidKeys);
+//
+// === Chain row materialization (one row per distinct chain process) ===
+let _chainRows = materialize(
+    union
+    (
+        DeviceProcessEvents
+        | where Timestamp >= _anchorTime - AncestryLookback and Timestamp <= _windowEnd
+        | where HostToCheck == "" or DeviceName =~ HostToCheck
+        | extend pkey = strcat(tostring(ProcessId), "|", tostring(ProcessCreationTime))
+        | where pkey in (ParentPidKeys) or pkey in (GrandparentPidKeys)
+        | extend ChainLevel = iff(pkey in (ParentPidKeys), -1, -2)
+    ),
+    (
+        ProcessScope
+        | extend pkey = strcat(tostring(ProcessId), "|", tostring(ProcessCreationTime))
+        | extend ChainLevel = 0
+    ),
+    (
+        DeviceProcessEvents
+        | where Timestamp between (_windowStart .. _execWindowEnd)
+        | where HostToCheck == "" or DeviceName =~ HostToCheck
+        | extend pkey = strcat(tostring(ProcessId), "|", tostring(ProcessCreationTime))
+        | where pkey in (ChildPidKeys) or pkey in (GrandchildPidKeys)
+        | extend ChainLevel = iff(pkey in (ChildPidKeys), 1, 2)
+    )
+    | summarize arg_min(Timestamp, *) by pkey
+);
+let _chainCount = toscalar(_chainRows | count);
+let _topLevel = toscalar(_chainRows | summarize min(ChainLevel));
+let _isSingleNode = (_chainCount == 1);
+//
+// === Per-node signal counts ===
+let _fileCounts = materialize(
+    DeviceFileEvents
+    | where Timestamp between (_windowStart .. _execWindowEnd)
+    | where HostToCheck == "" or DeviceName =~ HostToCheck
+    | extend ipkey = strcat(tostring(InitiatingProcessId), "|", tostring(InitiatingProcessCreationTime))
+    | where ipkey in (_allChainPidKeys)
+    | summarize FileCount = count() by ipkey
+);
+let _netCounts = materialize(
+    DeviceNetworkEvents
+    | where Timestamp between (_windowStart .. _execWindowEnd)
+    | where HostToCheck == "" or DeviceName =~ HostToCheck
+    | extend ipkey = strcat(tostring(InitiatingProcessId), "|", tostring(InitiatingProcessCreationTime))
+    | where ipkey in (_allChainPidKeys)
+    | summarize NetCount = count() by ipkey
+);
+let _regCounts = materialize(
+    DeviceRegistryEvents
+    | where Timestamp between (_windowStart .. _execWindowEnd)
+    | where HostToCheck == "" or DeviceName =~ HostToCheck
+    | extend ipkey = strcat(tostring(InitiatingProcessId), "|", tostring(InitiatingProcessCreationTime))
+    | where ipkey in (_allChainPidKeys)
+    | summarize RegCount = count() by ipkey
+);
+//
+// === Chain narrative rows (Note pre-built, ordered by depth from top) ===
+let _chainNotes = materialize(
+    _chainRows
+    | join kind=leftouter (_fileCounts) on $left.pkey == $right.ipkey
+    | join kind=leftouter (_netCounts) on $left.pkey == $right.ipkey
+    | join kind=leftouter (_regCounts) on $left.pkey == $right.ipkey
+    | extend
+        FileCount = coalesce(FileCount, 0L),
+        NetCount = coalesce(NetCount, 0L),
+        RegCount = coalesce(RegCount, 0L)
+    | extend
+        HasEncodedCommand = ProcessCommandLine has_any ("-enc", "-encodedcommand", "-e "),
+        HasDownloadCradle = ProcessCommandLine has_any ("DownloadString", "DownloadFile", "IEX",
+            "Invoke-Expression", "Net.WebClient", "Invoke-WebRequest", "iwr"),
+        HasAmsiBypass = ProcessCommandLine has_any ("AmsiUtils", "amsiInitFailed",
+            "System.Management.Automation.AmsiUtils"),
+        HasObfuscationMarker = ProcessCommandLine has_any ("FromBase64String", "[char]", "-join",
+            "-bxor", "[convert]::"),
+        HasLengthAnomaly = (strlen(ProcessCommandLine) > 1000) or (ProcessCommandLine matches regex @"\S{50,}")
+    | extend RawIndicators = strcat(
+        iff(HasEncodedCommand, "|encoded", ""),
+        iff(HasDownloadCradle, "|download cradle", ""),
+        iff(HasAmsiBypass, "|AMSI bypass", ""),
+        iff(HasObfuscationMarker, "|obfuscation", ""),
+        iff(HasLengthAnomaly, "|length anomaly", "")
+    )
+    | extend IndicatorList = iff(isempty(RawIndicators), "",
+        replace_string(substring(RawIndicators, 1), "|", ", "))
+    | extend RawSignals = strcat(
+        iff(isnotempty(IndicatorList), strcat("|indicators: ", IndicatorList), ""),
+        iff(FileCount > 0, strcat("|files: ", tostring(FileCount), " written"), ""),
+        iff(NetCount > 0, strcat("|network: ", tostring(NetCount), " outbound"), ""),
+        iff(RegCount > 0, strcat("|registry: ", tostring(RegCount), " writes"), "")
+    )
+    | extend SignalLine = iff(isempty(RawSignals), "",
+        replace_string(substring(RawSignals, 1), "|", ", "))
+    | extend TruncatedCmd = iff(strlen(ProcessCommandLine) > 200,
+        strcat(substring(ProcessCommandLine, 0, 200), "…"),
+        coalesce(ProcessCommandLine, ""))
+    | extend ArrowDepth = ChainLevel - _topLevel
+    | extend ArrowPrefix = iff(ArrowDepth <= 0, "", strcat_array(repeat("→ ", ArrowDepth), ""))
+    | extend Note = iff(ArrowDepth == 0,
+        strcat("- Chain top: ", coalesce(FileName, "<unknown>"),
+               " (PID ", tostring(ProcessId),
+               ", user ", coalesce(AccountName, "<unknown>"),
+               ") at ", tostring(Timestamp)),
+        strcat("- ", ArrowPrefix, coalesce(FileName, "<unknown>"),
+               " ", TruncatedCmd,
+               " — at ", tostring(Timestamp),
+               iff(isnotempty(SignalLine), strcat(", ", SignalLine), "")))
+);
+//
+// === Section 3 scalars: command-line shape across chain ===
+let _anyEncoded = toscalar(_chainNotes | where HasEncodedCommand | count) > 0;
+let _anyDownload = toscalar(_chainNotes | where HasDownloadCradle | count) > 0;
+let _anyAmsi = toscalar(_chainNotes | where HasAmsiBypass | count) > 0;
+let _anyObfusc = toscalar(_chainNotes | where HasObfuscationMarker | count) > 0;
+let _anyLengthAnomaly = toscalar(_chainNotes | where HasLengthAnomaly | count) > 0;
+let _anyIndicators = (_anyEncoded or _anyDownload or _anyAmsi or _anyObfusc or _anyLengthAnomaly);
+//
+// === Section 4 scalars: MDE response across chain ===
+let _mdeScope = materialize(
+    DeviceEvents
+    | where Timestamp between (_windowStart .. _execWindowEnd)
+    | where HostToCheck == "" or DeviceName =~ HostToCheck
+    | where ActionType has_any ("AntivirusDetection", "AntivirusReport", "AsrProcessBlocked",
+        "AsrLsassBlocked", "AsrPersistenceThroughWmiBlocked",
+        "ExploitGuardNetworkProtectionBlocked", "SmartScreenAppWarning",
+        "SmartScreenExploitWarning", "TamperingAttempt", "ProcessBlockedByPolicy")
+    | extend ipkey = strcat(tostring(InitiatingProcessId), "|", tostring(InitiatingProcessCreationTime))
+    | where SHA256 in (TargetSHA256s)
+        or FolderPath in (TargetFolderPaths)
+        or FileName in (TargetFileNames)
+        or ipkey in (_allChainPidKeys)
+);
+let _avDetCount = toscalar(_mdeScope | where ActionType == "AntivirusDetection" | count);
+let _asrCount = toscalar(_mdeScope | where ActionType in ("AsrProcessBlocked", "AsrLsassBlocked", "AsrPersistenceThroughWmiBlocked") | count);
+let _ssCount = toscalar(_mdeScope | where ActionType in ("SmartScreenAppWarning", "SmartScreenExploitWarning") | count);
+let _egCount = toscalar(_mdeScope | where ActionType == "ExploitGuardNetworkProtectionBlocked" | count);
+let _tamperCount = toscalar(_mdeScope | where ActionType == "TamperingAttempt" | count);
+let _ppCount = toscalar(_mdeScope | where ActionType == "ProcessBlockedByPolicy" | count);
+let _termCount = toscalar(
+    DeviceProcessEvents
+    | where Timestamp between (_windowStart .. _execWindowEnd)
+    | where HostToCheck == "" or DeviceName =~ HostToCheck
+    | where ActionType == "ProcessTerminated"
+    | extend pkey = strcat(tostring(ProcessId), "|", tostring(ProcessCreationTime))
+    | where pkey in (_allChainPidKeys)
+    | count
+);
+let _anyMdeAction = (_avDetCount + _asrCount + _ssCount + _egCount + _tamperCount + _ppCount + _termCount) > 0;
+//
+// === Section 5 scalars: closure signals ===
+let _chainDepth = toscalar(_chainRows | summarize dcount(ChainLevel));
+let _anyNetwork = toscalar(_chainNotes | where NetCount > 0 | count) > 0;
+let _anyFileWrite = toscalar(_chainNotes | where FileCount > 0 | count) > 0;
+let _anyRegWrite = toscalar(_chainNotes | where RegCount > 0 | count) > 0;
+let _persistCount = toscalar(
+    DeviceEvents
+    | where Timestamp between (_windowStart .. _execWindowEnd)
+    | where HostToCheck == "" or DeviceName =~ HostToCheck
+    | where ActionType in ("ServiceInstalled", "ScheduledTaskCreated")
+    | extend ipkey = strcat(tostring(InitiatingProcessId), "|", tostring(InitiatingProcessCreationTime))
+    | where ipkey in (_allChainPidKeys)
+    | count
+);
+let _anyPersistence = _persistCount > 0;
+let _terminatedEarly = toscalar(
+    DeviceProcessEvents
+    | where Timestamp between (_anchorTime - AncestryLookback .. _execWindowEnd)
+    | where HostToCheck == "" or DeviceName =~ HostToCheck
+    | where ActionType in ("ProcessCreated", "ProcessTerminated")
+    | extend pkey = strcat(tostring(ProcessId), "|", tostring(ProcessCreationTime))
+    | where pkey in (_allChainPidKeys)
+    | summarize CreatedAt = minif(Timestamp, ActionType == "ProcessCreated"),
+                TerminatedAt = minif(Timestamp, ActionType == "ProcessTerminated") by pkey
+    | where isnotnull(CreatedAt) and isnotnull(TerminatedAt) and (TerminatedAt - CreatedAt) <= 60s
+    | count
+) > 0;
+//
+// ============================================================================
+// NARRATIVE PROJECTION — sections unioned, sorted by (Order, TsSort), Note projected
+// ============================================================================
+union
+//
+// === SECTION 1: Identity block(s) ===
+(
+    ProcessScope
+    | serialize
+    | extend BlockIdx = row_number() - 1
+    | extend BlockArr = pack_array(
+        iff(BlockIdx > 0, "- ", ""),
+        strcat("- Host: ", coalesce(DeviceName, "")),
+        strcat("- Process: ", coalesce(FileName, "")),
+        strcat("- Path: ", coalesce(FolderPath, "")),
+        strcat("- SHA256: ", coalesce(SHA256, "")),
+        strcat("- Command line: ", coalesce(ProcessCommandLine, "")),
+        strcat("- Account: ", coalesce(AccountName, ""), " (", coalesce(AccountDomain, ""), ")"),
+        strcat("- Started: ", tostring(Timestamp),
+               " by ", coalesce(InitiatingProcessFileName, "<unknown>"),
+               " (PID ", tostring(InitiatingProcessId), ")"),
+        strcat("- Parent token: ", coalesce(InitiatingProcessIntegrityLevel, "<unknown>"),
+               ", elevation ", coalesce(InitiatingProcessTokenElevation, "<unknown>"))
+    )
+    | mv-expand with_itemindex=LineIdx Line = BlockArr to typeof(string)
+    | where Line != ""
+    | extend Order = 100 + BlockIdx * 12 + LineIdx
+    | extend TsSort = datetime(1970-01-01)
+    | project Order, TsSort, Note = Line
+),
+//
+// === SECTION 2: Chain narrative (multi-line) ===
+(
+    _chainNotes
+    | where not(_isSingleNode)
+    | extend ArrowDepth = ChainLevel - _topLevel
+    | extend Order = 200 + ArrowDepth
+    | extend TsSort = Timestamp
+    | project Order, TsSort, Note
+),
+//
+// === SECTION 2: Chain narrative (single-node fallback) ===
+(
+    _chainRows
+    | where _isSingleNode
+    | extend Order = 200
+    | extend TsSort = Timestamp
+    | extend Note = strcat("- Chain: ", coalesce(FileName, "<unknown>"),
+                           " (PID ", tostring(ProcessId), ") at ", tostring(Timestamp),
+                           " — single process, no chain activity in window")
+    | project Order, TsSort, Note
+),
+//
+// === SECTION 3: Command-line shape across chain ===
+(print Order = 300, TsSort = datetime(1970-01-01),
+       Note = "- Command-line indicators (chain-wide):"
+    | where _anyIndicators),
+(print Order = 301, TsSort = datetime(1970-01-01),
+       Note = strcat("- Encoded command: ", iff(_anyEncoded, "yes", "no"))
+    | where _anyIndicators),
+(print Order = 302, TsSort = datetime(1970-01-01),
+       Note = strcat("- Download cradle: ", iff(_anyDownload, "yes", "no"))
+    | where _anyIndicators),
+(print Order = 303, TsSort = datetime(1970-01-01),
+       Note = strcat("- AMSI bypass: ", iff(_anyAmsi, "yes", "no"))
+    | where _anyIndicators),
+(print Order = 304, TsSort = datetime(1970-01-01),
+       Note = strcat("- Obfuscation marker: ", iff(_anyObfusc, "yes", "no"))
+    | where _anyIndicators),
+(print Order = 305, TsSort = datetime(1970-01-01),
+       Note = strcat("- Length anomaly: ", iff(_anyLengthAnomaly, "yes", "no"))
+    | where _anyIndicators),
+(print Order = 306, TsSort = datetime(1970-01-01),
+       Note = "- Command-line indicators: none across chain"
+    | where not(_anyIndicators)),
+//
+// === SECTION 4: MDE response across chain ===
+(print Order = 400, TsSort = datetime(1970-01-01),
+       Note = "- MDE response:"
+    | where _anyMdeAction),
+(print Order = 401, TsSort = datetime(1970-01-01),
+       Note = strcat("- AntivirusDetection: ",
+                     iff(_avDetCount > 0, tostring(_avDetCount), "none"))
+    | where _anyMdeAction),
+(print Order = 402, TsSort = datetime(1970-01-01),
+       Note = strcat("- AsrProcessBlocked / AsrLsassBlocked / AsrPersistenceThroughWmiBlocked: ",
+                     tostring(_asrCount))
+    | where _anyMdeAction),
+(print Order = 403, TsSort = datetime(1970-01-01),
+       Note = strcat("- SmartScreenAppWarning / SmartScreenExploitWarning: ", tostring(_ssCount))
+    | where _anyMdeAction),
+(print Order = 404, TsSort = datetime(1970-01-01),
+       Note = strcat("- ExploitGuardNetworkProtectionBlocked: ", tostring(_egCount))
+    | where _anyMdeAction),
+(print Order = 405, TsSort = datetime(1970-01-01),
+       Note = strcat("- TamperingAttempt: ", tostring(_tamperCount))
+    | where _anyMdeAction),
+(print Order = 406, TsSort = datetime(1970-01-01),
+       Note = strcat("- ProcessBlockedByPolicy: ", tostring(_ppCount))
+    | where _anyMdeAction),
+(print Order = 407, TsSort = datetime(1970-01-01),
+       Note = strcat("- ProcessTerminated (from DeviceProcessEvents): ", tostring(_termCount))
+    | where _anyMdeAction),
+(print Order = 408, TsSort = datetime(1970-01-01),
+       Note = "- MDE response: none in window"
+    | where not(_anyMdeAction)),
+//
+// === SECTION 5: Closure signals ===
+(print Order = 500, TsSort = datetime(1970-01-01),
+       Note = strcat("- Closure signals — chain depth: ", tostring(_chainDepth),
+                     ", command-line indicators: ", iff(_anyIndicators, "yes", "no"),
+                     ", MDE response: ", iff(_anyMdeAction, "yes", "no"),
+                     ", network reach: ", iff(_anyNetwork, "yes", "no"),
+                     ", file writes: ", iff(_anyFileWrite, "yes", "no"),
+                     ", registry writes: ", iff(_anyRegWrite, "yes", "no"),
+                     ", persistence: ", iff(_anyPersistence, "yes", "no"),
+                     ", terminated early: ", iff(_terminatedEarly, "yes", "no")))
+| sort by Order asc, TsSort asc
+| project Note
