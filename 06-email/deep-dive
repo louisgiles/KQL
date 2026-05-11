@@ -1,0 +1,1221 @@
+// name:              Email Deep Dive
+// purpose:           Sectioned evidence engine for email/phishing investigations.
+//                    Anchored on a single target email, then expands into sender/auth posture,
+//                    delivery/remediation, prevalence, campaign context, URLs, attachments,
+//                    user clicks, optional endpoint correlation, and final risk signals.
+// starting_entities: NetworkMessageId, SenderFromAddress, RecipientEmailAddress, Subject
+// required_tables:   EmailEvents
+// optional_tables:   EmailAttachmentInfo, EmailUrlInfo, EmailPostDeliveryEvents, UrlClickEvents,
+//                    DeviceNetworkEvents, DeviceFileEvents, DeviceProcessEvents
+// variables:         NetworkMessageIdToCheck, SenderToCheck, RecipientToCheck, SubjectToCheck,
+//                    SearchLookback, BaselineWindow, CampaignWindow, EndpointCorrelationWindow
+// done_criteria:     Target message reviewed; sender/auth posture reviewed; delivery/remediation reviewed;
+//                    sender/domain/recipient prevalence reviewed; similar-message spread reviewed;
+//                    URL and attachment prevalence reviewed; user click exposure reviewed;
+//                    endpoint correlation reviewed where applicable; threat concern and exposure concern separated.
+// output_type:       analysis
+//
+// Design:
+// Email deep-dive is not just a longer quick-dive.
+// It answers:
+// - What was the message?
+// - Did authentication/delivery posture support concern?
+// - Was this sender/domain/recipient relationship normal?
+// - Is this isolated or campaign-like?
+// - What URLs/attachments were involved?
+// - Did anyone click?
+// - Was it remediated?
+// - Is endpoint follow-up needed?
+// - What is the split between threat concern and exposure concern?
+
+let NetworkMessageIdToCheck = "";
+let SenderToCheck = "";
+let RecipientToCheck = "";
+let SubjectToCheck = "";
+//
+let SearchLookback = 30d;
+let BaselineWindow = 90d;
+let BaselineLabel = "90d";
+let CampaignWindow = 7d;
+let EndpointCorrelationWindow = 2h;
+//
+let RunTargetMessage                 = true;
+let RunAuthenticationSenderInfra      = true;
+let RunDeliveryRemediationStatus      = true;
+let RunSenderDomainRecipientBaseline  = true;
+let RunRecipientSpreadSimilarMessages = true;
+let RunUrlAnalysis                    = true;
+let RunAttachmentAnalysis             = true;
+let RunUserClickActivity              = true;
+let RunPostDeliveryRemediationEvents  = true;
+let RunEndpointCorrelation            = false; // Optional. Enable when click/user impact requires endpoint follow-up.
+let RunRiskSignalsVerdict             = true;
+//
+// ============================================================================
+// Target message
+// ============================================================================
+let CandidateEmails = materialize(
+    EmailEvents
+    | extend EventTime = coalesce(
+        column_ifexists("Timestamp", datetime(null)),
+        column_ifexists("TimeGenerated", datetime(null))
+    )
+    | where EventTime >= ago(SearchLookback)
+    | where isempty(NetworkMessageIdToCheck) or NetworkMessageId == NetworkMessageIdToCheck
+    | where isempty(SenderToCheck) or SenderFromAddress contains SenderToCheck
+    | where isempty(RecipientToCheck) or RecipientEmailAddress contains RecipientToCheck
+    | where isempty(SubjectToCheck) or Subject contains SubjectToCheck
+    | extend
+        Sender = tolower(tostring(SenderFromAddress)),
+        SenderDomain = tolower(extract(@"@([^@]+)$", 1, tostring(SenderFromAddress))),
+        Recipient = tolower(tostring(RecipientEmailAddress)),
+        AuthJson = parse_json(tostring(AuthenticationDetails)),
+        DKIM = tolower(tostring(AuthJson.DKIM)),
+        DMARC = tolower(tostring(AuthJson.DMARC)),
+        SPF = tolower(tostring(AuthJson.SPF)),
+        CompAuth = tolower(tostring(AuthJson.CompAuth)),
+        SenderMailFromAddressSafe = tostring(column_ifexists("SenderMailFromAddress", "")),
+        SenderMailFromDomain = tolower(extract(@"@([^@]+)$", 1, tostring(column_ifexists("SenderMailFromAddress", "")))),
+        SenderIPv4Safe = tostring(column_ifexists("SenderIPv4", "")),
+        InternetMessageIdSafe = tostring(column_ifexists("InternetMessageId", "")),
+        DeliveryActionSafe = tostring(column_ifexists("DeliveryAction", "")),
+        DeliveryLocationSafe = tostring(column_ifexists("DeliveryLocation", "")),
+        ThreatTypesSafe = tostring(column_ifexists("ThreatTypes", "")),
+        ThreatNamesSafe = tostring(column_ifexists("ThreatNames", "")),
+        DetectionMethodsSafe = tostring(column_ifexists("DetectionMethods", "")),
+        EmailDirectionSafe = tostring(column_ifexists("EmailDirection", "")),
+        OrgLevelActionSafe = tostring(column_ifexists("OrgLevelAction", "")),
+        UserLevelActionSafe = tostring(column_ifexists("UserLevelAction", "")),
+        BulkComplaintLevelSafe = tostring(column_ifexists("BulkComplaintLevel", "")),
+        ConnectorIdSafe = tostring(column_ifexists("ConnectorId", "")),
+        PolicySafe = tostring(column_ifexists("Policy", "")),
+        PolicyActionSafe = tostring(column_ifexists("PolicyAction", ""))
+);
+// Prefer one target message. NetworkMessageId is the preferred input.
+let TargetEmail = materialize(
+    CandidateEmails
+    | top 1 by EventTime desc
+);
+let TargetTime = toscalar(TargetEmail | project EventTime);
+let TargetNetworkMessageId = toscalar(TargetEmail | project NetworkMessageId);
+let TargetSender = toscalar(TargetEmail | project Sender);
+let TargetSenderDomain = toscalar(TargetEmail | project SenderDomain);
+let TargetRecipient = toscalar(TargetEmail | project Recipient);
+let TargetSubject = toscalar(TargetEmail | project Subject);
+let TargetDisplayName = toscalar(TargetEmail | project SenderDisplayName);
+let TargetSenderIP = toscalar(TargetEmail | project SenderIPv4Safe);
+//
+// ============================================================================
+// Historical sender / domain / recipient / display name baseline
+// ============================================================================
+let HistoricalEmail = materialize(
+    EmailEvents
+    | extend EventTime = coalesce(
+        column_ifexists("Timestamp", datetime(null)),
+        column_ifexists("TimeGenerated", datetime(null))
+    )
+    | where EventTime between (TargetTime - BaselineWindow .. TargetTime - 1h)
+    | extend
+        Sender = tolower(tostring(SenderFromAddress)),
+        SenderDomain = tolower(extract(@"@([^@]+)$", 1, tostring(SenderFromAddress))),
+        Recipient = tolower(tostring(RecipientEmailAddress)),
+        SenderDisplayNameSafe = tostring(SenderDisplayName),
+        SenderIPv4Safe = tostring(column_ifexists("SenderIPv4", "")),
+        SenderMailFromAddressSafe = tostring(column_ifexists("SenderMailFromAddress", "")),
+        SenderMailFromDomain = tolower(extract(@"@([^@]+)$", 1, tostring(column_ifexists("SenderMailFromAddress", ""))))
+);
+let SenderBaseline = materialize(
+    HistoricalEmail
+    | where Sender == TargetSender
+    | summarize
+        SenderSeenCount=count(),
+        SenderDaysSeen=dcount(bin(EventTime, 1d)),
+        SenderRecipientsSeen=dcount(Recipient),
+        SenderFirstSeen=min(EventTime),
+        SenderLastSeen=max(EventTime),
+        SenderSubjects=make_set(Subject, 20),
+        SenderIPs=make_set(SenderIPv4Safe, 20)
+        by Sender
+);
+let SenderDomainBaseline = materialize(
+    HistoricalEmail
+    | where SenderDomain == TargetSenderDomain
+    | summarize
+        SenderDomainSeenCount=count(),
+        SenderDomainDaysSeen=dcount(bin(EventTime, 1d)),
+        SenderDomainRecipientsSeen=dcount(Recipient),
+        SenderDomainSendersSeen=dcount(Sender),
+        SenderDomainFirstSeen=min(EventTime),
+        SenderDomainLastSeen=max(EventTime),
+        SenderDomainSenders=make_set(Sender, 20)
+        by SenderDomain
+);
+let SenderRecipientBaseline = materialize(
+    HistoricalEmail
+    | where Sender == TargetSender
+    | where Recipient == TargetRecipient
+    | summarize
+        SenderRecipientSeenCount=count(),
+        SenderRecipientDaysSeen=dcount(bin(EventTime, 1d)),
+        SenderRecipientFirstSeen=min(EventTime),
+        SenderRecipientLastSeen=max(EventTime)
+        by Sender, Recipient
+);
+let SenderIPBaseline = materialize(
+    HistoricalEmail
+    | where SenderIPv4Safe == TargetSenderIP and isnotempty(TargetSenderIP)
+    | summarize
+        SenderIPSeenCount=count(),
+        SenderIPDaysSeen=dcount(bin(EventTime, 1d)),
+        SenderIPSendersSeen=dcount(Sender),
+        SenderIPDomainsSeen=dcount(SenderDomain),
+        SenderIPRecipientsSeen=dcount(Recipient)
+        by SenderIPv4Safe
+);
+let DisplayNameBaseline = materialize(
+    HistoricalEmail
+    | where SenderDisplayNameSafe =~ TargetDisplayName and isnotempty(TargetDisplayName)
+    | summarize
+        DisplayNameSeenCount=count(),
+        DisplayNameSendersSeen=dcount(Sender),
+        DisplayNameDomainsSeen=dcount(SenderDomain),
+        DisplayNameSenderExamples=make_set(Sender, 20),
+        DisplayNameDomainExamples=make_set(SenderDomain, 20)
+        by SenderDisplayNameSafe
+);
+//
+// ============================================================================
+// Recipient spread / similar messages / campaign context
+// ============================================================================
+let SimilarMessages = materialize(
+    EmailEvents
+    | extend EventTime = coalesce(
+        column_ifexists("Timestamp", datetime(null)),
+        column_ifexists("TimeGenerated", datetime(null))
+    )
+    | where EventTime between (TargetTime - CampaignWindow .. TargetTime + CampaignWindow)
+    | extend
+        Sender = tolower(tostring(SenderFromAddress)),
+        SenderDomain = tolower(extract(@"@([^@]+)$", 1, tostring(SenderFromAddress))),
+        Recipient = tolower(tostring(RecipientEmailAddress)),
+        DeliveryActionSafe = tostring(column_ifexists("DeliveryAction", "")),
+        DeliveryLocationSafe = tostring(column_ifexists("DeliveryLocation", "")),
+        ThreatTypesSafe = tostring(column_ifexists("ThreatTypes", "")),
+        ThreatNamesSafe = tostring(column_ifexists("ThreatNames", ""))
+    | extend SimilarityReason = strcat_array(array_concat(
+        iff(NetworkMessageId == TargetNetworkMessageId, pack_array("same NetworkMessageId"), dynamic([])),
+        iff(Sender == TargetSender, pack_array("same sender"), dynamic([])),
+        iff(SenderDomain == TargetSenderDomain, pack_array("same sender domain"), dynamic([])),
+        iff(Subject =~ TargetSubject and isnotempty(TargetSubject), pack_array("same subject"), dynamic([]))
+    ), " | ")
+    | where isnotempty(SimilarityReason)
+);
+let SimilarMessageSummary = materialize(
+    SimilarMessages
+    | summarize
+        SimilarMessageEvents=count(),
+        SimilarNetworkMessageIds=dcount(NetworkMessageId),
+        SimilarRecipients=dcount(Recipient),
+        SimilarSenders=dcount(Sender),
+        SimilarSenderDomains=dcount(SenderDomain),
+        SimilarFirstSeen=min(EventTime),
+        SimilarLastSeen=max(EventTime),
+        SimilarDeliveryActions=make_set(DeliveryActionSafe, 20),
+        SimilarDeliveryLocations=make_set(DeliveryLocationSafe, 20),
+        SimilarThreatTypes=make_set(ThreatTypesSafe, 20),
+        SimilarThreatNames=make_set(ThreatNamesSafe, 20),
+        SimilarityReasons=make_set(SimilarityReason, 20)
+);
+let SameMessageRecipients = materialize(
+    SimilarMessages
+    | where NetworkMessageId == TargetNetworkMessageId
+    | project
+        EventTime,
+        NetworkMessageId,
+        Recipient,
+        SenderFromAddress,
+        SenderDisplayName,
+        Subject,
+        DeliveryActionSafe,
+        DeliveryLocationSafe,
+        ThreatTypesSafe,
+        ThreatNamesSafe
+    | sort by EventTime asc
+);
+//
+// ============================================================================
+// URL context / URL prevalence / URL campaign spread
+// ============================================================================
+let TargetUrls = materialize(
+    union isfuzzy=true
+    (
+        EmailUrlInfo
+        | extend EventTime = coalesce(
+            column_ifexists("Timestamp", datetime(null)),
+            column_ifexists("TimeGenerated", datetime(null))
+        )
+        | where EventTime between (TargetTime - SearchLookback .. TargetTime + 1h)
+        | where NetworkMessageId == TargetNetworkMessageId
+        | extend
+            UrlSafe = tostring(column_ifexists("Url", "")),
+            UrlDomainSafe = tolower(tostring(column_ifexists("UrlDomain", ""))),
+            UrlThreatTypes = tostring(column_ifexists("ThreatTypes", "")),
+            UrlThreatNames = tostring(column_ifexists("ThreatNames", ""))
+        | extend UrlDomainSafe = iff(
+            isempty(UrlDomainSafe),
+            tolower(extract(@"^(?:https?://)?([^/:?#]+)", 1, UrlSafe)),
+            UrlDomainSafe
+        )
+        | where isnotempty(UrlSafe) or isnotempty(UrlDomainSafe)
+        | project EventTime, NetworkMessageId, UrlSafe, UrlDomainSafe, UrlThreatTypes, UrlThreatNames
+    )
+);
+let TargetUrlsSet = toscalar(TargetUrls | where isnotempty(UrlSafe) | summarize make_set(UrlSafe, 100));
+let TargetUrlDomains = toscalar(TargetUrls | where isnotempty(UrlDomainSafe) | summarize make_set(UrlDomainSafe, 100));
+let UrlDomainBaseline = materialize(
+    union isfuzzy=true
+    (
+        EmailUrlInfo
+        | extend EventTime = coalesce(
+            column_ifexists("Timestamp", datetime(null)),
+            column_ifexists("TimeGenerated", datetime(null))
+        )
+        | where EventTime between (TargetTime - BaselineWindow .. TargetTime - 1h)
+        | extend
+            UrlSafe = tostring(column_ifexists("Url", "")),
+            UrlDomainSafe = tolower(tostring(column_ifexists("UrlDomain", ""))),
+            RecipientSafe = tolower(tostring(column_ifexists("RecipientEmailAddress", "")))
+        | extend UrlDomainSafe = iff(
+            isempty(UrlDomainSafe),
+            tolower(extract(@"^(?:https?://)?([^/:?#]+)", 1, UrlSafe)),
+            UrlDomainSafe
+        )
+        | where UrlDomainSafe in (TargetUrlDomains)
+        | summarize
+            UrlDomainSeenCount=count(),
+            UrlDomainDaysSeen=dcount(bin(EventTime, 1d)),
+            UrlDomainRecipientsSeen=dcount(RecipientSafe),
+            UrlDomainFirstSeen=min(EventTime),
+            UrlDomainLastSeen=max(EventTime)
+            by UrlDomainSafe
+    )
+);
+let UrlExactBaseline = materialize(
+    union isfuzzy=true
+    (
+        EmailUrlInfo
+        | extend EventTime = coalesce(
+            column_ifexists("Timestamp", datetime(null)),
+            column_ifexists("TimeGenerated", datetime(null))
+        )
+        | where EventTime between (TargetTime - BaselineWindow .. TargetTime - 1h)
+        | extend
+            UrlSafe = tostring(column_ifexists("Url", "")),
+            RecipientSafe = tolower(tostring(column_ifexists("RecipientEmailAddress", "")))
+        | where UrlSafe in (TargetUrlsSet)
+        | summarize
+            UrlSeenCount=count(),
+            UrlDaysSeen=dcount(bin(EventTime, 1d)),
+            UrlRecipientsSeen=dcount(RecipientSafe),
+            UrlFirstSeen=min(EventTime),
+            UrlLastSeen=max(EventTime)
+            by UrlSafe
+    )
+);
+let UrlCampaignSpread = materialize(
+    union isfuzzy=true
+    (
+        EmailUrlInfo
+        | extend EventTime = coalesce(
+            column_ifexists("Timestamp", datetime(null)),
+            column_ifexists("TimeGenerated", datetime(null))
+        )
+        | where EventTime between (TargetTime - CampaignWindow .. TargetTime + CampaignWindow)
+        | extend
+            UrlSafe = tostring(column_ifexists("Url", "")),
+            UrlDomainSafe = tolower(tostring(column_ifexists("UrlDomain", ""))),
+            RecipientSafe = tolower(tostring(column_ifexists("RecipientEmailAddress", "")))
+        | extend UrlDomainSafe = iff(
+            isempty(UrlDomainSafe),
+            tolower(extract(@"^(?:https?://)?([^/:?#]+)", 1, UrlSafe)),
+            UrlDomainSafe
+        )
+        | where UrlSafe in (TargetUrlsSet) or UrlDomainSafe in (TargetUrlDomains)
+        | summarize
+            UrlCampaignEvents=count(),
+            UrlCampaignRecipients=dcount(RecipientSafe),
+            UrlCampaignFirstSeen=min(EventTime),
+            UrlCampaignLastSeen=max(EventTime)
+            by UrlSafe, UrlDomainSafe
+    )
+);
+let UrlClickSummaryByUrl = materialize(
+    union isfuzzy=true
+    (
+        UrlClickEvents
+        | extend EventTime = coalesce(
+            column_ifexists("Timestamp", datetime(null)),
+            column_ifexists("TimeGenerated", datetime(null))
+        )
+        | where EventTime between (TargetTime - SearchLookback .. TargetTime + 7d)
+        | where NetworkMessageId == TargetNetworkMessageId or Url in (TargetUrlsSet)
+        | extend
+            UrlSafe = tostring(column_ifexists("Url", "")),
+            AccountUpnSafe = tolower(tostring(column_ifexists("AccountUpn", ""))),
+            ActionTypeSafe = tostring(column_ifexists("ActionType", "")),
+            WorkloadSafe = tostring(column_ifexists("Workload", "")),
+            IPAddressSafe = tostring(column_ifexists("IPAddress", ""))
+        | summarize
+            ClickCount=count(),
+            ClickUsers=dcount(AccountUpnSafe),
+            ClickActions=make_set(ActionTypeSafe, 20),
+            ClickWorkloads=make_set(WorkloadSafe, 20),
+            ClickIPs=make_set(IPAddressSafe, 20),
+            FirstClick=min(EventTime),
+            LatestClick=max(EventTime)
+            by UrlSafe
+    )
+);
+let UrlSummary = materialize(
+    TargetUrls
+    | join kind=leftouter UrlDomainBaseline on UrlDomainSafe
+    | join kind=leftouter UrlExactBaseline on UrlSafe
+    | join kind=leftouter UrlCampaignSpread on UrlSafe, UrlDomainSafe
+    | join kind=leftouter UrlClickSummaryByUrl on UrlSafe
+    | extend
+        UrlDomainSeenCount=coalesce(UrlDomainSeenCount, 0),
+        UrlDomainDaysSeen=coalesce(UrlDomainDaysSeen, 0),
+        UrlDomainRecipientsSeen=coalesce(UrlDomainRecipientsSeen, 0),
+        UrlSeenCount=coalesce(UrlSeenCount, 0),
+        UrlDaysSeen=coalesce(UrlDaysSeen, 0),
+        UrlRecipientsSeen=coalesce(UrlRecipientsSeen, 0),
+        UrlCampaignEvents=coalesce(UrlCampaignEvents, 0),
+        UrlCampaignRecipients=coalesce(UrlCampaignRecipients, 0),
+        ClickCount=coalesce(ClickCount, 0),
+        ClickUsers=coalesce(ClickUsers, 0)
+    | extend
+        UrlDomainFamiliarity = case(
+            UrlDomainSeenCount == 0, "new URL domain in baseline",
+            UrlDomainDaysSeen <= 1, "rare URL domain",
+            UrlDomainDaysSeen <= 5, "occasional URL domain",
+            "familiar URL domain"
+        ),
+        UrlFamiliarity = case(
+            UrlSeenCount == 0, "new exact URL in baseline",
+            UrlDaysSeen <= 1, "rare exact URL",
+            UrlDaysSeen <= 5, "occasional exact URL",
+            "familiar exact URL"
+        )
+);
+//
+// ============================================================================
+// Attachment context / attachment hash prevalence / attachment campaign spread
+// ============================================================================
+let TargetAttachments = materialize(
+    union isfuzzy=true
+    (
+        EmailAttachmentInfo
+        | extend EventTime = coalesce(
+            column_ifexists("Timestamp", datetime(null)),
+            column_ifexists("TimeGenerated", datetime(null))
+        )
+        | where EventTime between (TargetTime - SearchLookback .. TargetTime + 1h)
+        | where NetworkMessageId == TargetNetworkMessageId
+        | extend
+            FileNameSafe = tostring(column_ifexists("FileName", "")),
+            SHA256Safe = tostring(column_ifexists("SHA256", "")),
+            FileTypeSafe = tolower(tostring(column_ifexists("FileType", ""))),
+            AttachmentThreatTypes = tostring(column_ifexists("ThreatTypes", "")),
+            AttachmentThreatNames = tostring(column_ifexists("ThreatNames", ""))
+        | extend FileExt = tolower(extract(@"\.([^\.\\\/]+)$", 1, FileNameSafe))
+        | extend AttachmentType = iff(isnotempty(FileTypeSafe), FileTypeSafe, FileExt)
+        | where isnotempty(FileNameSafe) or isnotempty(SHA256Safe)
+        | project EventTime, NetworkMessageId, FileNameSafe, SHA256Safe, AttachmentType, AttachmentThreatTypes, AttachmentThreatNames
+    )
+);
+let TargetAttachmentHashes = toscalar(TargetAttachments | where isnotempty(SHA256Safe) | summarize make_set(SHA256Safe, 100));
+let AttachmentHashBaseline = materialize(
+    union isfuzzy=true
+    (
+        EmailAttachmentInfo
+        | extend EventTime = coalesce(
+            column_ifexists("Timestamp", datetime(null)),
+            column_ifexists("TimeGenerated", datetime(null))
+        )
+        | where EventTime between (TargetTime - BaselineWindow .. TargetTime - 1h)
+        | extend
+            SHA256Safe = tostring(column_ifexists("SHA256", "")),
+            RecipientSafe = tolower(tostring(column_ifexists("RecipientEmailAddress", "")))
+        | where isnotempty(SHA256Safe)
+        | where SHA256Safe in (TargetAttachmentHashes)
+        | summarize
+            AttachmentHashSeenCount=count(),
+            AttachmentHashDaysSeen=dcount(bin(EventTime, 1d)),
+            AttachmentHashRecipientsSeen=dcount(RecipientSafe),
+            AttachmentHashFirstSeen=min(EventTime),
+            AttachmentHashLastSeen=max(EventTime)
+            by SHA256Safe
+    )
+);
+let AttachmentCampaignSpread = materialize(
+    union isfuzzy=true
+    (
+        EmailAttachmentInfo
+        | extend EventTime = coalesce(
+            column_ifexists("Timestamp", datetime(null)),
+            column_ifexists("TimeGenerated", datetime(null))
+        )
+        | where EventTime between (TargetTime - CampaignWindow .. TargetTime + CampaignWindow)
+        | extend
+            SHA256Safe = tostring(column_ifexists("SHA256", "")),
+            RecipientSafe = tolower(tostring(column_ifexists("RecipientEmailAddress", "")))
+        | where isnotempty(SHA256Safe)
+        | where SHA256Safe in (TargetAttachmentHashes)
+        | summarize
+            AttachmentCampaignEvents=count(),
+            AttachmentCampaignRecipients=dcount(RecipientSafe),
+            AttachmentCampaignFirstSeen=min(EventTime),
+            AttachmentCampaignLastSeen=max(EventTime)
+            by SHA256Safe
+    )
+);
+let AttachmentSummary = materialize(
+    TargetAttachments
+    | join kind=leftouter AttachmentHashBaseline on SHA256Safe
+    | join kind=leftouter AttachmentCampaignSpread on SHA256Safe
+    | extend
+        AttachmentHashSeenCount=coalesce(AttachmentHashSeenCount, 0),
+        AttachmentHashDaysSeen=coalesce(AttachmentHashDaysSeen, 0),
+        AttachmentHashRecipientsSeen=coalesce(AttachmentHashRecipientsSeen, 0),
+        AttachmentCampaignEvents=coalesce(AttachmentCampaignEvents, 0),
+        AttachmentCampaignRecipients=coalesce(AttachmentCampaignRecipients, 0)
+    | extend
+        IsRiskyAttachmentType = AttachmentType in (
+            "html", "htm", "js", "jse", "vbs", "vbe", "wsf", "wsh",
+            "lnk", "iso", "img", "exe", "scr", "dll", "bat", "cmd",
+            "ps1", "zip", "rar", "7z", "one", "docm", "xlsm", "pptm"
+        )
+    | extend
+        AttachmentHashFamiliarity = case(
+            isempty(SHA256Safe), "attachment hash not available",
+            AttachmentHashSeenCount == 0, "new attachment hash in baseline",
+            AttachmentHashDaysSeen <= 1, "rare attachment hash",
+            AttachmentHashDaysSeen <= 5, "occasional attachment hash",
+            "familiar attachment hash"
+        )
+);
+//
+// ============================================================================
+// Post-delivery remediation and user click context
+// ============================================================================
+let PostDeliveryEvents = materialize(
+    union isfuzzy=true
+    (
+        EmailPostDeliveryEvents
+        | extend EventTime = coalesce(
+            column_ifexists("Timestamp", datetime(null)),
+            column_ifexists("TimeGenerated", datetime(null))
+        )
+        | where EventTime between (TargetTime - SearchLookback .. TargetTime + 7d)
+        | where NetworkMessageId == TargetNetworkMessageId
+        | extend
+            ActionTypeSafe = tostring(column_ifexists("ActionType", "")),
+            ActionResultSafe = tostring(column_ifexists("ActionResult", "")),
+            RecipientSafe = tolower(tostring(column_ifexists("RecipientEmailAddress", ""))),
+            LocationSafe = tostring(column_ifexists("Location", ""))
+        | project EventTime, NetworkMessageId, RecipientSafe, ActionTypeSafe, ActionResultSafe, LocationSafe
+    )
+);
+let PostDeliverySummary = materialize(
+    PostDeliveryEvents
+    | summarize
+        PostDeliveryEventCount=count(),
+        PostDeliveryActions=make_set(ActionTypeSafe, 20),
+        PostDeliveryResults=make_set(ActionResultSafe, 20),
+        PostDeliveryRecipients=dcount(RecipientSafe),
+        LatestPostDeliveryEvent=max(EventTime)
+        by NetworkMessageId
+);
+let ClickEvents = materialize(
+    union isfuzzy=true
+    (
+        UrlClickEvents
+        | extend EventTime = coalesce(
+            column_ifexists("Timestamp", datetime(null)),
+            column_ifexists("TimeGenerated", datetime(null))
+        )
+        | where EventTime between (TargetTime - SearchLookback .. TargetTime + 7d)
+        | where NetworkMessageId == TargetNetworkMessageId or Url in (TargetUrlsSet)
+        | extend
+            UrlSafe = tostring(column_ifexists("Url", "")),
+            AccountUpnSafe = tolower(tostring(column_ifexists("AccountUpn", ""))),
+            ActionTypeSafe = tostring(column_ifexists("ActionType", "")),
+            WorkloadSafe = tostring(column_ifexists("Workload", "")),
+            IPAddressSafe = tostring(column_ifexists("IPAddress", "")),
+            IsClickedThroughSafe = tostring(column_ifexists("IsClickedThrough", "")),
+            ThreatTypesSafe = tostring(column_ifexists("ThreatTypes", ""))
+        | project EventTime, NetworkMessageId, AccountUpnSafe, UrlSafe, ActionTypeSafe, WorkloadSafe, IPAddressSafe, IsClickedThroughSafe, ThreatTypesSafe
+    )
+);
+let ClickSummary = materialize(
+    ClickEvents
+    | summarize
+        ClickCount=count(),
+        ClickUsers=dcount(AccountUpnSafe),
+        ClickUserList=make_set(AccountUpnSafe, 50),
+        ClickActions=make_set(ActionTypeSafe, 20),
+        ClickedUrls=make_set(UrlSafe, 50),
+        ClickIPs=make_set(IPAddressSafe, 20),
+        FirstClick=min(EventTime),
+        LatestClick=max(EventTime)
+        by NetworkMessageId
+);
+//
+// ============================================================================
+// Optional endpoint correlation after click
+// ============================================================================
+let ClickUsers = toscalar(ClickEvents | where isnotempty(AccountUpnSafe) | summarize make_set(AccountUpnSafe, 100));
+let ClickUrlDomains = toscalar(ClickEvents | extend ClickUrlDomain = tolower(extract(@"^(?:https?://)?([^/:?#]+)", 1, UrlSafe)) | where isnotempty(ClickUrlDomain) | summarize make_set(ClickUrlDomain, 100));
+let FirstClickTime = toscalar(ClickEvents | summarize min(EventTime));
+let EndpointNetworkCorrelation = materialize(
+    DeviceNetworkEvents
+    | where RunEndpointCorrelation
+    | where Timestamp between (FirstClickTime .. FirstClickTime + EndpointCorrelationWindow)
+    | extend AccountUpn = tolower(strcat(InitiatingProcessAccountDomain, "\\", InitiatingProcessAccountName))
+    | extend DestinationHost = tolower(extract(@"^(?:https?://)?([^/:?#]+)", 1, tostring(RemoteUrl)))
+    | where DestinationHost in (ClickUrlDomains)
+        or RemoteUrl in (TargetUrlsSet)
+    | project
+        Timestamp,
+        DeviceName,
+        InitiatingProcessFileName,
+        InitiatingProcessCommandLine,
+        InitiatingProcessAccountName,
+        RemoteUrl,
+        RemoteIP,
+        RemotePort,
+        DestinationHost
+);
+let EndpointFileCorrelation = materialize(
+    DeviceFileEvents
+    | where RunEndpointCorrelation
+    | where Timestamp between (FirstClickTime .. FirstClickTime + EndpointCorrelationWindow)
+    | where InitiatingProcessFileName has_any ("chrome.exe", "msedge.exe", "firefox.exe", "outlook.exe", "teams.exe")
+        or FolderPath has_any (@"\Downloads", @"\AppData\Local\Temp", @"\Windows\Temp")
+    | project
+        Timestamp,
+        DeviceName,
+        ActionType,
+        FileName,
+        FolderPath,
+        SHA256,
+        InitiatingProcessFileName,
+        InitiatingProcessCommandLine,
+        InitiatingProcessAccountName
+);
+let EndpointProcessCorrelation = materialize(
+    DeviceProcessEvents
+    | where RunEndpointCorrelation
+    | where Timestamp between (FirstClickTime .. FirstClickTime + EndpointCorrelationWindow)
+    | where InitiatingProcessFileName has_any ("chrome.exe", "msedge.exe", "firefox.exe", "outlook.exe", "teams.exe")
+        or FileName has_any ("powershell.exe", "cmd.exe", "wscript.exe", "cscript.exe", "mshta.exe", "rundll32.exe", "regsvr32.exe", "winword.exe", "excel.exe")
+    | project
+        Timestamp,
+        DeviceName,
+        FileName,
+        FolderPath,
+        SHA256,
+        ProcessCommandLine,
+        AccountName,
+        InitiatingProcessFileName,
+        InitiatingProcessCommandLine
+);
+//
+// ============================================================================
+// Aggregated signal table
+// ============================================================================
+let AggregateSignals = materialize(
+    TargetEmail
+    | join kind=leftouter SenderBaseline on Sender
+    | join kind=leftouter SenderDomainBaseline on SenderDomain
+    | join kind=leftouter SenderRecipientBaseline on Sender, Recipient
+    | join kind=leftouter SenderIPBaseline on $left.SenderIPv4Safe == $right.SenderIPv4Safe
+    | join kind=leftouter DisplayNameBaseline on $left.SenderDisplayName == $right.SenderDisplayNameSafe
+    | extend _joinKey = 1
+    | join kind=leftouter (SimilarMessageSummary | extend _joinKey = 1) on _joinKey
+    | join kind=leftouter (
+        UrlSummary
+        | summarize
+            UrlCount=dcount(UrlSafe),
+            UrlDomains=make_set(UrlDomainSafe, 50),
+            Urls=make_set(UrlSafe, 50),
+            RareUrlDomains=make_set_if(UrlDomainSafe, UrlDomainSeenCount == 0 or UrlDomainDaysSeen <= 1, 50),
+            UrlThreatTypes=make_set(UrlThreatTypes, 20),
+            UrlThreatNames=make_set(UrlThreatNames, 20),
+            UrlClicks=sum(ClickCount),
+            UrlCampaignRecipients=max(UrlCampaignRecipients)
+        | extend _joinKey = 1
+    ) on _joinKey
+    | join kind=leftouter (
+        AttachmentSummary
+        | summarize
+            AttachmentCount=dcount(FileNameSafe),
+            AttachmentNames=make_set(FileNameSafe, 50),
+            AttachmentSHA256s=make_set(SHA256Safe, 50),
+            AttachmentTypes=make_set(AttachmentType, 50),
+            RiskyAttachmentTypes=make_set_if(AttachmentType, IsRiskyAttachmentType, 50),
+            NewOrRareAttachmentHashes=make_set_if(SHA256Safe, AttachmentHashSeenCount == 0 or AttachmentHashDaysSeen <= 1, 50),
+            AttachmentThreatTypes=make_set(AttachmentThreatTypes, 20),
+            AttachmentThreatNames=make_set(AttachmentThreatNames, 20),
+            AttachmentCampaignRecipients=max(AttachmentCampaignRecipients)
+        | extend _joinKey = 1
+    ) on _joinKey
+    | join kind=leftouter PostDeliverySummary on NetworkMessageId
+    | join kind=leftouter ClickSummary on NetworkMessageId
+    | extend
+        SenderSeenCount=coalesce(SenderSeenCount, 0),
+        SenderDaysSeen=coalesce(SenderDaysSeen, 0),
+        SenderRecipientsSeen=coalesce(SenderRecipientsSeen, 0),
+        SenderDomainSeenCount=coalesce(SenderDomainSeenCount, 0),
+        SenderDomainDaysSeen=coalesce(SenderDomainDaysSeen, 0),
+        SenderDomainRecipientsSeen=coalesce(SenderDomainRecipientsSeen, 0),
+        SenderDomainSendersSeen=coalesce(SenderDomainSendersSeen, 0),
+        SenderRecipientSeenCount=coalesce(SenderRecipientSeenCount, 0),
+        SenderRecipientDaysSeen=coalesce(SenderRecipientDaysSeen, 0),
+        SenderIPSeenCount=coalesce(SenderIPSeenCount, 0),
+        SenderIPDaysSeen=coalesce(SenderIPDaysSeen, 0),
+        DisplayNameSeenCount=coalesce(DisplayNameSeenCount, 0),
+        DisplayNameSendersSeen=coalesce(DisplayNameSendersSeen, 0),
+        SimilarMessageEvents=coalesce(SimilarMessageEvents, 0),
+        SimilarNetworkMessageIds=coalesce(SimilarNetworkMessageIds, 0),
+        SimilarRecipients=coalesce(SimilarRecipients, 0),
+        UrlCount=coalesce(UrlCount, 0),
+        UrlClicks=coalesce(UrlClicks, 0),
+        UrlCampaignRecipients=coalesce(UrlCampaignRecipients, 0),
+        AttachmentCount=coalesce(AttachmentCount, 0),
+        AttachmentCampaignRecipients=coalesce(AttachmentCampaignRecipients, 0),
+        PostDeliveryEventCount=coalesce(PostDeliveryEventCount, 0),
+        PostDeliveryRecipients=coalesce(PostDeliveryRecipients, 0),
+        ClickCount=coalesce(ClickCount, 0),
+        ClickUsers=coalesce(ClickUsers, 0),
+        UrlDomains=coalesce(UrlDomains, dynamic([])),
+        Urls=coalesce(Urls, dynamic([])),
+        RareUrlDomains=coalesce(RareUrlDomains, dynamic([])),
+        UrlThreatTypes=coalesce(UrlThreatTypes, dynamic([])),
+        UrlThreatNames=coalesce(UrlThreatNames, dynamic([])),
+        AttachmentNames=coalesce(AttachmentNames, dynamic([])),
+        AttachmentSHA256s=coalesce(AttachmentSHA256s, dynamic([])),
+        AttachmentTypes=coalesce(AttachmentTypes, dynamic([])),
+        RiskyAttachmentTypes=coalesce(RiskyAttachmentTypes, dynamic([])),
+        NewOrRareAttachmentHashes=coalesce(NewOrRareAttachmentHashes, dynamic([])),
+        AttachmentThreatTypes=coalesce(AttachmentThreatTypes, dynamic([])),
+        AttachmentThreatNames=coalesce(AttachmentThreatNames, dynamic([])),
+        PostDeliveryActions=coalesce(PostDeliveryActions, dynamic([])),
+        PostDeliveryResults=coalesce(PostDeliveryResults, dynamic([])),
+        ClickActions=coalesce(ClickActions, dynamic([])),
+        ClickedUrls=coalesce(ClickedUrls, dynamic([]))
+    | extend
+        AuthPassCount =
+            iff(DKIM has "pass", 1, 0)
+            + iff(DMARC has "pass", 1, 0)
+            + iff(SPF has "pass", 1, 0)
+            + iff(CompAuth has "pass", 1, 0),
+        AuthFailCount =
+            iff(isnotempty(DKIM) and DKIM !has "pass", 1, 0)
+            + iff(isnotempty(DMARC) and DMARC !has "pass", 1, 0)
+            + iff(isnotempty(SPF) and SPF !has "pass", 1, 0)
+            + iff(isnotempty(CompAuth) and CompAuth !has "pass", 1, 0)
+    | extend
+        AuthSummary = strcat(
+            "DKIM=", iff(isempty(DKIM), "unknown", DKIM),
+            "; DMARC=", iff(isempty(DMARC), "unknown", DMARC),
+            "; SPF=", iff(isempty(SPF), "unknown", SPF),
+            "; CompAuth=", iff(isempty(CompAuth), "unknown", CompAuth)
+        )
+    | extend
+        IsNewSender = SenderSeenCount == 0,
+        IsRareSender = SenderSeenCount == 0 or SenderDaysSeen <= 1,
+        IsNewSenderDomain = SenderDomainSeenCount == 0,
+        IsRareSenderDomain = SenderDomainSeenCount == 0 or SenderDomainDaysSeen <= 1,
+        IsFirstContact = SenderRecipientSeenCount == 0,
+        IsNewSenderIP = isnotempty(SenderIPv4Safe) and SenderIPSeenCount == 0,
+        HasDisplayNameMismatchSignal = DisplayNameSendersSeen > 1 or DisplayNameDomainsSeen > 1,
+        HasAuthFailure = AuthFailCount > 0,
+        HasUrls = UrlCount > 0,
+        HasRareUrlDomain = array_length(RareUrlDomains) > 0,
+        HasAttachments = AttachmentCount > 0,
+        HasNewAttachmentHash = array_length(NewOrRareAttachmentHashes) > 0,
+        HasRiskyAttachmentType = array_length(RiskyAttachmentTypes) > 0,
+        HasThreatVerdict = isnotempty(ThreatTypesSafe) or isnotempty(ThreatNamesSafe) or isnotempty(DetectionMethodsSafe),
+        HasUrlThreatVerdict = array_length(UrlThreatTypes) > 0 or array_length(UrlThreatNames) > 0,
+        HasAttachmentThreatVerdict = array_length(AttachmentThreatTypes) > 0 or array_length(AttachmentThreatNames) > 0,
+        WasQuarantinedOrBlocked = DeliveryActionSafe has_any ("Blocked", "Block", "Quarantine", "Junk") or DeliveryLocationSafe has_any ("Quarantine", "Junk", "Deleted"),
+        WasDeliveredToUser = DeliveryActionSafe has_any ("Delivered", "Deliver") or DeliveryLocationSafe has_any ("Inbox", "Junk"),
+        HasPostDeliveryAction = PostDeliveryEventCount > 0,
+        HasClick = ClickCount > 0,
+        BroadRecipientSpread = SimilarRecipients >= 5 or UrlCampaignRecipients >= 5 or AttachmentCampaignRecipients >= 5
+    | extend
+        EmailShape = case(
+            HasClick and (HasThreatVerdict or HasUrlThreatVerdict or HasAttachmentThreatVerdict),
+                "delivered/clicked message with threat indicators",
+            HasClick,
+                "delivered and clicked message",
+            WasQuarantinedOrBlocked and not(HasClick),
+                "blocked/quarantined message with no click observed",
+            IsFirstContact and HasUrls and HasAuthFailure,
+                "first-contact sender with URL and auth failure",
+            IsFirstContact and HasAttachments and HasAuthFailure,
+                "first-contact sender with attachment and auth failure",
+            BroadRecipientSpread and HasUrls,
+                "broad-recipient message with URL",
+            BroadRecipientSpread and HasAttachments,
+                "broad-recipient message with attachment",
+            IsFirstContact and HasUrls,
+                "first-contact sender with URL",
+            IsFirstContact and HasAttachments,
+                "first-contact sender with attachment",
+            HasAuthFailure,
+                "auth-failed email",
+            HasUrls,
+                "email with URL",
+            HasAttachments,
+                "email with attachment",
+            "familiar/low-signal email shape"
+        )
+    | extend BehaviouralFlags = strcat_array(array_concat(
+        iff(IsNewSender, pack_array("NEW_SENDER"), dynamic([])),
+        iff(IsRareSender and not(IsNewSender), pack_array("RARE_SENDER"), dynamic([])),
+        iff(IsNewSenderDomain, pack_array("NEW_SENDER_DOMAIN"), dynamic([])),
+        iff(IsRareSenderDomain and not(IsNewSenderDomain), pack_array("RARE_SENDER_DOMAIN"), dynamic([])),
+        iff(IsFirstContact, pack_array("FIRST_CONTACT_TO_RECIPIENT"), dynamic([])),
+        iff(IsNewSenderIP, pack_array("NEW_SENDER_IP"), dynamic([])),
+        iff(HasDisplayNameMismatchSignal, pack_array("DISPLAY_NAME_REUSE_OR_MISMATCH"), dynamic([])),
+        iff(HasAuthFailure, pack_array("AUTH_FAILURE"), dynamic([])),
+        iff(HasUrls, pack_array("URL_PRESENT"), dynamic([])),
+        iff(HasRareUrlDomain, pack_array("RARE_URL_DOMAIN"), dynamic([])),
+        iff(HasAttachments, pack_array("ATTACHMENT_PRESENT"), dynamic([])),
+        iff(HasNewAttachmentHash, pack_array("NEW_OR_RARE_ATTACHMENT_HASH"), dynamic([])),
+        iff(HasRiskyAttachmentType, pack_array("RISKY_ATTACHMENT_TYPE"), dynamic([])),
+        iff(HasThreatVerdict, pack_array("EMAIL_THREAT_VERDICT_PRESENT"), dynamic([])),
+        iff(HasUrlThreatVerdict, pack_array("URL_THREAT_VERDICT_PRESENT"), dynamic([])),
+        iff(HasAttachmentThreatVerdict, pack_array("ATTACHMENT_THREAT_VERDICT_PRESENT"), dynamic([])),
+        iff(WasDeliveredToUser, pack_array("DELIVERED_TO_USER"), dynamic([])),
+        iff(WasQuarantinedOrBlocked, pack_array("BLOCKED_OR_QUARANTINED"), dynamic([])),
+        iff(HasPostDeliveryAction, pack_array("POST_DELIVERY_ACTION"), dynamic([])),
+        iff(HasClick, pack_array("USER_CLICK_OBSERVED"), dynamic([])),
+        iff(BroadRecipientSpread, pack_array("BROAD_RECIPIENT_SPREAD"), dynamic([]))
+    ), " | ")
+    | extend ThreatScore =
+        0
+        + iff(IsNewSender, 10, 0)
+        + iff(IsNewSenderDomain, 10, 0)
+        + iff(IsFirstContact, 10, 0)
+        + iff(IsNewSenderIP, 10, 0)
+        + iff(HasDisplayNameMismatchSignal, 10, 0)
+        + iff(HasAuthFailure, 20, 0)
+        + iff(HasRareUrlDomain, 15, 0)
+        + iff(HasUrls and not(HasRareUrlDomain), 5, 0)
+        + iff(HasNewAttachmentHash, 15, 0)
+        + iff(HasRiskyAttachmentType, 20, 0)
+        + iff(HasAttachments and not(HasNewAttachmentHash) and not(HasRiskyAttachmentType), 5, 0)
+        + iff(HasThreatVerdict, 30, 0)
+        + iff(HasUrlThreatVerdict, 25, 0)
+        + iff(HasAttachmentThreatVerdict, 25, 0)
+        + iff(BroadRecipientSpread, 10, 0),
+        ExposureScore =
+        0
+        + iff(HasClick, 40, 0)
+        + iff(WasDeliveredToUser and not(WasQuarantinedOrBlocked), 20, 0)
+        + iff(BroadRecipientSpread, 15, 0)
+        + iff(HasPostDeliveryAction, -10, 0)
+        + iff(WasQuarantinedOrBlocked and not(HasClick), -20, 0)
+    | extend
+        ThreatConcern = case(
+            ThreatScore >= 70, "High",
+            ThreatScore >= 40, "Medium",
+            ThreatScore >= 20, "Low",
+            "Limited"
+        ),
+        ExposureConcern = case(
+            HasClick, "High",
+            ExposureScore >= 30, "Medium",
+            WasQuarantinedOrBlocked and not(HasClick), "Low",
+            ExposureScore >= 10, "Low",
+            "Limited"
+        )
+    | extend RecommendedNextStep = case(
+        HasClick and ThreatConcern in ("High", "Medium"),
+            "Escalate/review user impact. Confirm click result, credential exposure risk and endpoint activity.",
+        ThreatConcern == "High" and ExposureConcern in ("Medium", "High"),
+            "Run remediation/user-impact review. Confirm delivery state, recipients, URL/attachment exposure and post-delivery action.",
+        ThreatConcern == "High" and ExposureConcern in ("Low", "Limited"),
+            "Validate quarantine/remediation. Consider campaign search and block indicators if not already contained.",
+        ThreatConcern == "Medium" and ExposureConcern in ("Medium", "High"),
+            "Review closely. Validate sender legitimacy, URL/attachment safety and user interaction.",
+        ThreatConcern == "Medium",
+            "Validate context and remediation state.",
+        ThreatConcern == "Low",
+            "Validate expected sender/message context.",
+        "Likely low priority unless business context contradicts telemetry."
+    )
+);
+//
+// ============================================================================
+// SECTION 1: Target Message
+// ============================================================================
+TargetEmail
+| where RunTargetMessage
+| project
+    EventTime,
+    NetworkMessageId,
+    InternetMessageIdSafe,
+    EmailDirectionSafe,
+    SenderFromAddress,
+    SenderMailFromAddressSafe,
+    SenderDisplayName,
+    SenderIPv4Safe,
+    RecipientEmailAddress,
+    Subject,
+    DeliveryActionSafe,
+    DeliveryLocationSafe,
+    OrgLevelActionSafe,
+    UserLevelActionSafe,
+    ThreatTypesSafe,
+    ThreatNamesSafe,
+    DetectionMethodsSafe,
+    BulkComplaintLevelSafe,
+    ConnectorIdSafe,
+    PolicySafe,
+    PolicyActionSafe
+;
+//
+// ============================================================================
+// SECTION 2: Authentication & Sender Infrastructure
+// ============================================================================
+AggregateSignals
+| where RunAuthenticationSenderInfra
+| extend
+    HeaderFromMailFromMismatch = isnotempty(SenderMailFromDomain) and SenderDomain != SenderMailFromDomain,
+    SenderIPFamiliarity = case(
+        isempty(SenderIPv4Safe), "sender IP not recorded",
+        SenderIPSeenCount == 0, "new sender IP in baseline",
+        SenderIPDaysSeen <= 1, "rare sender IP",
+        SenderIPDaysSeen <= 5, "occasional sender IP",
+        "familiar sender IP"
+    )
+| project
+    EventTime,
+    SenderFromAddress,
+    SenderDisplayName,
+    SenderMailFromAddressSafe,
+    SenderIPv4Safe,
+    SenderDomain,
+    SenderMailFromDomain,
+    HeaderFromMailFromMismatch,
+    AuthSummary,
+    DKIM,
+    DMARC,
+    SPF,
+    CompAuth,
+    AuthPassCount,
+    AuthFailCount,
+    SenderIPFamiliarity,
+    SenderIPSeenCount,
+    SenderIPDaysSeen,
+    SenderIPSendersSeen,
+    SenderIPDomainsSeen,
+    DisplayNameSeenCount,
+    DisplayNameSendersSeen,
+    DisplayNameDomainsSeen,
+    DisplayNameSenderExamples,
+    DisplayNameDomainExamples
+;
+//
+// ============================================================================
+// SECTION 3: Delivery / Remediation Status
+// ============================================================================
+AggregateSignals
+| where RunDeliveryRemediationStatus
+| project
+    EventTime,
+    NetworkMessageId,
+    RecipientEmailAddress,
+    DeliveryActionSafe,
+    DeliveryLocationSafe,
+    OrgLevelActionSafe,
+    UserLevelActionSafe,
+    PolicySafe,
+    PolicyActionSafe,
+    WasDeliveredToUser,
+    WasQuarantinedOrBlocked,
+    HasPostDeliveryAction,
+    PostDeliveryEventCount,
+    PostDeliveryActions,
+    PostDeliveryResults,
+    LatestPostDeliveryEvent,
+    HasClick,
+    ClickCount,
+    FirstClick,
+    LatestClick,
+    ExposureConcern,
+    ExposureScore
+;
+//
+// ============================================================================
+// SECTION 4: Sender, Domain & Recipient Baseline
+// ============================================================================
+AggregateSignals
+| where RunSenderDomainRecipientBaseline
+| extend
+    SenderFamiliarity = case(
+        SenderSeenCount == 0, "new sender in baseline",
+        SenderDaysSeen <= 1, "rare sender",
+        SenderDaysSeen <= 5, "occasional sender",
+        "familiar sender"
+    ),
+    SenderDomainFamiliarity = case(
+        SenderDomainSeenCount == 0, "new sender domain in baseline",
+        SenderDomainDaysSeen <= 1, "rare sender domain",
+        SenderDomainDaysSeen <= 5, "occasional sender domain",
+        "familiar sender domain"
+    ),
+    SenderRecipientFamiliarity = case(
+        SenderRecipientSeenCount == 0, "first observed sender-recipient relationship",
+        SenderRecipientDaysSeen <= 1, "rare sender-recipient relationship",
+        SenderRecipientDaysSeen <= 5, "occasional sender-recipient relationship",
+        "familiar sender-recipient relationship"
+    )
+| project
+    SenderFromAddress,
+    SenderDomain,
+    RecipientEmailAddress,
+    SenderFamiliarity,
+    SenderSeenCount,
+    SenderDaysSeen,
+    SenderRecipientsSeen,
+    SenderFirstSeen,
+    SenderLastSeen,
+    SenderSubjects,
+    SenderIPs,
+    SenderDomainFamiliarity,
+    SenderDomainSeenCount,
+    SenderDomainDaysSeen,
+    SenderDomainRecipientsSeen,
+    SenderDomainSendersSeen,
+    SenderDomainFirstSeen,
+    SenderDomainLastSeen,
+    SenderDomainSenders,
+    SenderRecipientFamiliarity,
+    SenderRecipientSeenCount,
+    SenderRecipientDaysSeen,
+    SenderRecipientFirstSeen,
+    SenderRecipientLastSeen
+;
+//
+// ============================================================================
+// SECTION 5: Recipient Spread / Similar Messages
+// ============================================================================
+SimilarMessages
+| where RunRecipientSpreadSimilarMessages
+| summarize
+    Events=count(),
+    Recipients=dcount(Recipient),
+    NetworkMessageIds=dcount(NetworkMessageId),
+    Senders=dcount(Sender),
+    SenderDomains=dcount(SenderDomain),
+    FirstSeen=min(EventTime),
+    LastSeen=max(EventTime),
+    DeliveryActions=make_set(DeliveryActionSafe, 20),
+    DeliveryLocations=make_set(DeliveryLocationSafe, 20),
+    ThreatTypes=make_set(ThreatTypesSafe, 20),
+    ThreatNames=make_set(ThreatNamesSafe, 20),
+    ExampleRecipients=make_set(Recipient, 50),
+    ExampleSubjects=make_set(Subject, 20)
+    by SimilarityReason
+| sort by Recipients desc, Events desc
+;
+//
+// ============================================================================
+// SECTION 6: URL Analysis
+// ============================================================================
+UrlSummary
+| where RunUrlAnalysis
+| project
+    UrlSafe,
+    UrlDomainSafe,
+    UrlFamiliarity,
+    UrlSeenCount,
+    UrlDaysSeen,
+    UrlRecipientsSeen,
+    UrlFirstSeen,
+    UrlLastSeen,
+    UrlDomainFamiliarity,
+    UrlDomainSeenCount,
+    UrlDomainDaysSeen,
+    UrlDomainRecipientsSeen,
+    UrlDomainFirstSeen,
+    UrlDomainLastSeen,
+    UrlCampaignEvents,
+    UrlCampaignRecipients,
+    UrlCampaignFirstSeen,
+    UrlCampaignLastSeen,
+    ClickCount,
+    ClickUsers,
+    ClickActions,
+    ClickIPs,
+    FirstClick,
+    LatestClick,
+    UrlThreatTypes,
+    UrlThreatNames
+| sort by ClickCount desc, UrlDomainSeenCount asc, UrlSeenCount asc
+;
+//
+// ============================================================================
+// SECTION 7: Attachment Analysis
+// ============================================================================
+AttachmentSummary
+| where RunAttachmentAnalysis
+| project
+    FileNameSafe,
+    SHA256Safe,
+    AttachmentType,
+    IsRiskyAttachmentType,
+    AttachmentHashFamiliarity,
+    AttachmentHashSeenCount,
+    AttachmentHashDaysSeen,
+    AttachmentHashRecipientsSeen,
+    AttachmentHashFirstSeen,
+    AttachmentHashLastSeen,
+    AttachmentCampaignEvents,
+    AttachmentCampaignRecipients,
+    AttachmentCampaignFirstSeen,
+    AttachmentCampaignLastSeen,
+    AttachmentThreatTypes,
+    AttachmentThreatNames
+| sort by IsRiskyAttachmentType desc, AttachmentHashSeenCount asc
+;
+//
+// ============================================================================
+// SECTION 8: User Click Activity
+// ============================================================================
+ClickEvents
+| where RunUserClickActivity
+| project
+    EventTime,
+    NetworkMessageId,
+    AccountUpnSafe,
+    UrlSafe,
+    ActionTypeSafe,
+    WorkloadSafe,
+    IPAddressSafe,
+    IsClickedThroughSafe,
+    ThreatTypesSafe
+| sort by EventTime asc
+;
+//
+// ============================================================================
+// SECTION 9: Post-Delivery / ZAP / Remediation Events
+// ============================================================================
+PostDeliveryEvents
+| where RunPostDeliveryRemediationEvents
+| project
+    EventTime,
+    NetworkMessageId,
+    RecipientSafe,
+    ActionTypeSafe,
+    ActionResultSafe,
+    LocationSafe
+| sort by EventTime asc
+;
+//
+// ============================================================================
+// SECTION 10: Optional Endpoint Correlation
+// ============================================================================
+union
+(
+    EndpointNetworkCorrelation
+    | where RunEndpointCorrelation
+    | extend EvidenceType = "Endpoint network after click"
+    | project
+        EvidenceType,
+        Timestamp,
+        DeviceName,
+        InitiatingProcessFileName,
+        InitiatingProcessCommandLine,
+        Account = InitiatingProcessAccountName,
+        RemoteUrl,
+        RemoteIP,
+        RemotePort,
+        Details = DestinationHost
+),
+(
+    EndpointFileCorrelation
+    | where RunEndpointCorrelation
+    | extend EvidenceType = "Endpoint file activity after click"
+    | project
+        EvidenceType,
+        Timestamp,
+        DeviceName,
+        InitiatingProcessFileName,
+        InitiatingProcessCommandLine,
+        Account = InitiatingProcessAccountName,
+        RemoteUrl = "",
+        RemoteIP = "",
+        RemotePort = int(null),
+        Details = strcat(ActionType, " | ", FileName, " | ", FolderPath, " | ", SHA256)
+),
+(
+    EndpointProcessCorrelation
+    | where RunEndpointCorrelation
+    | extend EvidenceType = "Endpoint process activity after click"
+    | project
+        EvidenceType,
+        Timestamp,
+        DeviceName,
+        InitiatingProcessFileName,
+        InitiatingProcessCommandLine,
+        Account = AccountName,
+        RemoteUrl = "",
+        RemoteIP = "",
+        RemotePort = int(null),
+        Details = strcat(FileName, " | ", FolderPath, " | ", ProcessCommandLine)
+)
+| sort by Timestamp asc
+;
+//
+// ============================================================================
+// SECTION 11: Risk Signals & Investigation Verdict
+// ============================================================================
+AggregateSignals
+| where RunRiskSignalsVerdict
+| project
+    EmailShape,
+    ThreatConcern,
+    ThreatScore,
+    ExposureConcern,
+    ExposureScore,
+    BehaviouralFlags,
+    RecommendedNextStep,
+    EventTime,
+    NetworkMessageId,
+    SenderFromAddress,
+    SenderDisplayName,
+    RecipientEmailAddress,
+    Subject,
+    DeliveryActionSafe,
+    DeliveryLocationSafe,
+    AuthSummary,
+    SenderSeenCount,
+    SenderDomainSeenCount,
+    SenderRecipientSeenCount,
+    SimilarRecipients,
+    UrlCount,
+    RareUrlDomains,
+    UrlClicks,
+    AttachmentCount,
+    RiskyAttachmentTypes,
+    NewOrRareAttachmentHashes,
+    PostDeliveryEventCount,
+    ClickCount,
+    ClickUsers
+| sort by ThreatScore desc, ExposureScore desc
