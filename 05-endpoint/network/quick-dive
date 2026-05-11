@@ -35,8 +35,8 @@ let NetworkScope = materialize(
     | where isempty(ProcessSHA256ToCheck) or InitiatingProcessSHA256 contains ProcessSHA256ToCheck
     | where isempty(ProcessIdToCheck) or tostring(InitiatingProcessId) == ProcessIdToCheck
     | where isempty(CommandLineToCheck) or InitiatingProcessCommandLine contains CommandLineToCheck
+    | extend DestinationHost = tolower(extract(@"^(?:https?://)?([^/:?#]+)", 1, tostring(RemoteUrl)))
     | extend
-        DestinationHost = tolower(extract(@"^(?:https?://)?([^/:?#]+)", 1, tostring(RemoteUrl))),
         Destination = iff(isnotempty(DestinationHost), DestinationHost, tostring(RemoteIP)),
         ProcName = tolower(tostring(InitiatingProcessFileName)),
         ProcKey = strcat(tostring(InitiatingProcessId), "|", tostring(InitiatingProcessCreationTime))
@@ -55,9 +55,8 @@ let TargetSHA256s = toscalar(NetworkScope | where isnotempty(InitiatingProcessSH
 let HistoricalNetwork = materialize(
     DeviceNetworkEvents
     | where Timestamp between (AlertTime - BaselineWindow .. AlertTime - TimeToCheck)
-    | extend
-        DestinationHost = tolower(extract(@"^(?:https?://)?([^/:?#]+)", 1, tostring(RemoteUrl))),
-        Destination = iff(isnotempty(DestinationHost), DestinationHost, tostring(RemoteIP))
+    | extend DestinationHost = tolower(extract(@"^(?:https?://)?([^/:?#]+)", 1, tostring(RemoteUrl)))
+    | extend Destination = iff(isnotempty(DestinationHost), DestinationHost, tostring(RemoteIP))
     | where isnotempty(Destination)
 );
 //
@@ -251,22 +250,27 @@ NetworkScope
     QuickScore >= 15, "Low concern - validate expected behaviour",
     "Limited suspicious signals in scoped telemetry"
 )
-| extend Narrative = strcat(
+| extend NarrativePart1 = strcat(
     "- Network quick triage completed for ", DeviceName, ".\n",
     "- Process: ", InitiatingProcessFileName, "\n",
     "- Account: ", InitiatingProcessAccountName, "\n",
     "- Destination: ", Destination, "\n",
     "- Remote URL: ", iff(isempty(RemoteUrl), "N/A", RemoteUrl), "\n",
     "- Remote IP: ", iff(isempty(RemoteIP), "N/A", RemoteIP), "\n",
-    "- Remote port: ", tostring(RemotePort), "\n",
+    "- Remote port: ", tostring(RemotePort), "\n"
+)
+| extend NarrativePart2 = strcat(
     "- Traffic shape: ", TrafficShape, ".\n",
     "- Destination prevalence: ", DestinationFamiliarity, " - seen on ", tostring(DestinationDevicesSeen), " device(s) across ", tostring(DestinationDaysSeen), " day(s) in ", BaselineLabel, ".\n",
     "- Process-destination prevalence: ", ProcessDestinationFamiliarity, " - ", tostring(ProcessDestinationCount), " prior event(s) in baseline.\n",
-    "- Device-destination prevalence: ", DeviceDestinationFamiliarity, " - ", tostring(DeviceDestinationCount), " prior event(s) in baseline.\n",
+    "- Device-destination prevalence: ", DeviceDestinationFamiliarity, " - ", tostring(DeviceDestinationCount), " prior event(s) in baseline.\n"
+)
+| extend NarrativePart3 = strcat(
     "- Nearby behaviour: ", tostring(NearbyFileCount), " file event(s), ", tostring(NearbyRegistryCount), " registry event(s), ", tostring(NearbyMdeCount), " MDE action(s).\n",
     "- Behavioural flags: ", iff(isempty(BehaviouralFlags), "none", BehaviouralFlags), ".\n",
     "- Quick assessment: ", QuickAssessment
 )
+| extend Narrative = strcat(NarrativePart1, NarrativePart2, NarrativePart3)
 | project
     Timestamp,
     DeviceName,
