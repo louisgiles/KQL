@@ -1,6 +1,6 @@
 // name:              Email Narrative Generator
 // purpose:           Dash-prefixed, paste-ready investigation note for email/phishing alerts.
-//                    Companion to email quick-dive and deep-dive.
+//                    Companion to email quick-dive and email deep-dive.
 // starting_entities: NetworkMessageId
 // required_tables:   EmailEvents
 // optional_tables:   EmailAttachmentInfo, EmailUrlInfo, EmailPostDeliveryEvents, UrlClickEvents
@@ -30,7 +30,6 @@ let TargetEmail = materialize(
         SenderDomain = tolower(extract(@"@([^@]+)$", 1, tostring(SenderFromAddress))),
         Recipient = tolower(tostring(RecipientEmailAddress)),
         SenderMailFromAddressSafe = tostring(column_ifexists("SenderMailFromAddress", "")),
-        SenderMailFromDomain = tolower(extract(@"@([^@]+)$", 1, tostring(column_ifexists("SenderMailFromAddress", "")))),
         SenderIPv4Safe = tostring(column_ifexists("SenderIPv4", "")),
         DeliveryActionSafe = tostring(column_ifexists("DeliveryAction", "")),
         DeliveryLocationSafe = tostring(column_ifexists("DeliveryLocation", "")),
@@ -40,12 +39,33 @@ let TargetEmail = materialize(
         DetectionMethodsSafe = tostring(column_ifexists("DetectionMethods", "")),
         OrgLevelActionSafe = tostring(column_ifexists("OrgLevelAction", "")),
         UserLevelActionSafe = tostring(column_ifexists("UserLevelAction", "")),
-        AuthJson = parse_json(tostring(AuthenticationDetails))
+        AuthRaw = tostring(AuthenticationDetails)
+    | extend AuthJson = parse_json(AuthRaw)
     | extend
-        DKIM = tolower(tostring(AuthJson.DKIM)),
-        DMARC = tolower(tostring(AuthJson.DMARC)),
-        SPF = tolower(tostring(AuthJson.SPF)),
-        CompAuth = tolower(tostring(AuthJson.CompAuth))
+        DKIM = tolower(tostring(coalesce(
+            extractjson("$.DKIM", AuthRaw),
+            extractjson("$.dkim", AuthRaw),
+            AuthJson["DKIM"],
+            AuthJson["dkim"]
+        ))),
+        DMARC = tolower(tostring(coalesce(
+            extractjson("$.DMARC", AuthRaw),
+            extractjson("$.dmarc", AuthRaw),
+            AuthJson["DMARC"],
+            AuthJson["dmarc"]
+        ))),
+        SPF = tolower(tostring(coalesce(
+            extractjson("$.SPF", AuthRaw),
+            extractjson("$.spf", AuthRaw),
+            AuthJson["SPF"],
+            AuthJson["spf"]
+        ))),
+        CompAuth = tolower(tostring(coalesce(
+            extractjson("$.CompAuth", AuthRaw),
+            extractjson("$.compauth", AuthRaw),
+            AuthJson["CompAuth"],
+            AuthJson["compauth"]
+        )))
     | summarize arg_max(EventTime, *) by NetworkMessageId
 );
 let TargetTime = toscalar(TargetEmail | project EventTime);
@@ -187,8 +207,8 @@ let UrlSummary =
         UrlDomains=make_set(UrlDomainSafe, 50),
         Urls=make_set(UrlSafe, 50),
         RareUrlDomains=make_set_if(UrlDomainSafe, UrlDomainSeenCount == 0 or UrlDomainDaysSeen <= 1, 50),
-        UrlThreatTypes=make_set(UrlThreatTypes, 20),
-        UrlThreatNames=make_set(UrlThreatNames, 20),
+        UrlThreatTypes=make_set_if(UrlThreatTypes, isnotempty(UrlThreatTypes), 20),
+        UrlThreatNames=make_set_if(UrlThreatNames, isnotempty(UrlThreatNames), 20),
         UrlDomainSeenCountTotal=sum(UrlDomainSeenCount),
         UrlDomainDaysSeenMax=max(UrlDomainDaysSeen),
         UrlDomainRecipientsSeenTotal=sum(UrlDomainRecipientsSeen);
@@ -256,9 +276,9 @@ let AttachmentSummary =
         AttachmentSHA256s=make_set(SHA256Safe, 50),
         AttachmentTypes=make_set(AttachmentType, 50),
         RiskyAttachmentTypes=make_set_if(AttachmentType, IsRiskyAttachmentType, 50),
-        NewOrRareAttachmentHashes=make_set_if(SHA256Safe, AttachmentHashSeenCount == 0 or AttachmentHashDaysSeen <= 1, 50),
-        AttachmentThreatTypes=make_set(AttachmentThreatTypes, 20),
-        AttachmentThreatNames=make_set(AttachmentThreatNames, 20),
+        NewOrRareAttachmentHashes=make_set_if(SHA256Safe, isnotempty(SHA256Safe) and (AttachmentHashSeenCount == 0 or AttachmentHashDaysSeen <= 1), 50),
+        AttachmentThreatTypes=make_set_if(AttachmentThreatTypes, isnotempty(AttachmentThreatTypes), 20),
+        AttachmentThreatNames=make_set_if(AttachmentThreatNames, isnotempty(AttachmentThreatNames), 20),
         AttachmentHashSeenCountTotal=sum(AttachmentHashSeenCount),
         AttachmentHashDaysSeenMax=max(AttachmentHashDaysSeen),
         AttachmentHashRecipientsSeenTotal=sum(AttachmentHashRecipientsSeen);
@@ -342,11 +362,15 @@ TargetEmail
     UrlDomains=coalesce(UrlDomains, dynamic([])),
     Urls=coalesce(Urls, dynamic([])),
     RareUrlDomains=coalesce(RareUrlDomains, dynamic([])),
+    UrlThreatTypes=coalesce(UrlThreatTypes, dynamic([])),
+    UrlThreatNames=coalesce(UrlThreatNames, dynamic([])),
     AttachmentNames=coalesce(AttachmentNames, dynamic([])),
     AttachmentSHA256s=coalesce(AttachmentSHA256s, dynamic([])),
     AttachmentTypes=coalesce(AttachmentTypes, dynamic([])),
     RiskyAttachmentTypes=coalesce(RiskyAttachmentTypes, dynamic([])),
     NewOrRareAttachmentHashes=coalesce(NewOrRareAttachmentHashes, dynamic([])),
+    AttachmentThreatTypes=coalesce(AttachmentThreatTypes, dynamic([])),
+    AttachmentThreatNames=coalesce(AttachmentThreatNames, dynamic([])),
     ClickActions=coalesce(ClickActions, dynamic([])),
     ClickedUrls=coalesce(ClickedUrls, dynamic([])),
     PostDeliveryActions=coalesce(PostDeliveryActions, dynamic([])),
@@ -408,11 +432,13 @@ TargetEmail
     IsFirstContact = SenderRecipientSeenCount == 0,
     HasAuthFailure = AuthFailCount > 0,
     HasUrls = UrlCount > 0,
-    HasRareUrlDomain = UrlCount > 0 and (UrlDomainSeenCountTotal == 0 or UrlDomainDaysSeenMax <= 1),
+    HasRareUrlDomain = UrlCount > 0 and array_length(RareUrlDomains) > 0,
     HasAttachments = AttachmentCount > 0,
-    HasNewAttachmentHash = AttachmentCount > 0 and array_length(AttachmentSHA256s) > 0 and (AttachmentHashSeenCountTotal == 0 or AttachmentHashDaysSeenMax <= 1),
+    HasNewAttachmentHash = AttachmentCount > 0 and array_length(NewOrRareAttachmentHashes) > 0,
     HasRiskyAttachmentType = array_length(RiskyAttachmentTypes) > 0,
     HasThreatVerdict = isnotempty(ThreatTypesSafe) or isnotempty(ThreatNamesSafe) or isnotempty(DetectionMethodsSafe),
+    HasUrlThreatVerdict = array_length(UrlThreatTypes) > 0 or array_length(UrlThreatNames) > 0,
+    HasAttachmentThreatVerdict = array_length(AttachmentThreatTypes) > 0 or array_length(AttachmentThreatNames) > 0,
     HasClick = ClickCount > 0,
     HasPostDeliveryAction = PostDeliveryEventCount > 0,
     WasQuarantinedOrBlocked = DeliveryActionSafe has_any ("Blocked", "Block", "Quarantine", "Junk") or DeliveryLocationSafe has_any ("Quarantine", "Junk", "Deleted"),
@@ -420,7 +446,7 @@ TargetEmail
     BroadRecipientSpread = SimilarRecipients >= 5
 | extend
     EmailShape = case(
-        HasClick and HasThreatVerdict, "delivered/clicked message with threat indicators",
+        HasClick and (HasThreatVerdict or HasUrlThreatVerdict or HasAttachmentThreatVerdict), "delivered/clicked message with threat indicators",
         HasClick, "delivered and clicked message",
         WasQuarantinedOrBlocked and not(HasClick), "blocked/quarantined message with no click observed",
         IsFirstContact and HasUrls and HasAuthFailure, "first-contact sender with URL and auth failure",
@@ -444,7 +470,9 @@ TargetEmail
     iff(HasAttachments, pack_array("ATTACHMENT_PRESENT"), dynamic([])),
     iff(HasNewAttachmentHash, pack_array("NEW_OR_RARE_ATTACHMENT_HASH"), dynamic([])),
     iff(HasRiskyAttachmentType, pack_array("RISKY_ATTACHMENT_TYPE"), dynamic([])),
-    iff(HasThreatVerdict, pack_array("THREAT_VERDICT_PRESENT"), dynamic([])),
+    iff(HasThreatVerdict, pack_array("EMAIL_THREAT_VERDICT_PRESENT"), dynamic([])),
+    iff(HasUrlThreatVerdict, pack_array("URL_THREAT_VERDICT_PRESENT"), dynamic([])),
+    iff(HasAttachmentThreatVerdict, pack_array("ATTACHMENT_THREAT_VERDICT_PRESENT"), dynamic([])),
     iff(WasDeliveredToUser, pack_array("DELIVERED_TO_USER"), dynamic([])),
     iff(WasQuarantinedOrBlocked, pack_array("BLOCKED_OR_QUARANTINED"), dynamic([])),
     iff(HasPostDeliveryAction, pack_array("POST_DELIVERY_ACTION"), dynamic([])),
@@ -461,6 +489,8 @@ TargetEmail
     + iff(HasNewAttachmentHash, 15, 0)
     + iff(HasRiskyAttachmentType, 20, 0)
     + iff(HasThreatVerdict, 30, 0)
+    + iff(HasUrlThreatVerdict, 25, 0)
+    + iff(HasAttachmentThreatVerdict, 25, 0)
     + iff(BroadRecipientSpread, 10, 0),
     ExposureScore =
     0
@@ -498,7 +528,7 @@ TargetEmail
         "low concern. Validate expected sender/message context.",
     "limited suspicious signals in scoped telemetry."
 )
-| extend InvestigationNarrative = strcat(
+| extend NarrativePart1 = strcat(
     "- Email activity reviewed.\n",
     "- Email shape: ", EmailShape, ".\n",
     "- Threat concern: ", ThreatConcern, ".\n",
@@ -510,21 +540,28 @@ TargetEmail
     "- Sender mail-from: ", iff(isempty(SenderMailFromAddressSafe), "N/A", SenderMailFromAddressSafe), "\n",
     "- Sender IP: ", iff(isempty(SenderIPv4Safe), "N/A", SenderIPv4Safe), "\n",
     "- Sender display name: ", SenderDisplayName, "\n",
-    "- Subject: ", Subject, "\n",
+    "- Subject: ", Subject, "\n"
+)
+| extend NarrativePart2 = strcat(
     "- Direction: ", iff(isempty(EmailDirectionSafe), "N/A", EmailDirectionSafe), "\n",
     "- Delivery action/location: ", iff(isempty(DeliveryActionSafe), "N/A", DeliveryActionSafe), " / ", iff(isempty(DeliveryLocationSafe), "N/A", DeliveryLocationSafe), "\n",
     "- Auth summary: ", AuthSummary, "\n",
     "- Sender prevalence: ", SenderFamiliarity, "; ", tostring(SenderSeenCount), " prior event(s) across ", tostring(SenderDaysSeen), " day(s) in ", BaselineLabel, ".\n",
     "- Sender domain prevalence: ", SenderDomainFamiliarity, "; ", tostring(SenderDomainSeenCount), " prior event(s) across ", tostring(SenderDomainDaysSeen), " day(s) in ", BaselineLabel, ".\n",
-    "- Sender-recipient relationship: ", SenderRecipientFamiliarity, "; ", tostring(SenderRecipientSeenCount), " prior event(s) in baseline.\n",
+    "- Sender-recipient relationship: ", SenderRecipientFamiliarity, "; ", tostring(SenderRecipientSeenCount), " prior event(s) in baseline.\n"
+)
+| extend NarrativePart3 = strcat(
     "- Similar message spread: ", tostring(SimilarRecipients), " recipient(s), ", tostring(SimilarNetworkMessageIds), " NetworkMessageId(s), ", tostring(SimilarEvents), " event(s) in lookback.\n",
     "- URLs: ", tostring(UrlCount), " observed; URL domain familiarity: ", UrlDomainFamiliarity, "; domains: ", iff(array_length(UrlDomains) == 0, "none", tostring(UrlDomains)), ".\n",
     "- Attachments: ", tostring(AttachmentCount), " observed; attachment hash familiarity: ", AttachmentHashFamiliarity, "; files: ", iff(array_length(AttachmentNames) == 0, "none", tostring(AttachmentNames)), ".\n",
-    "- Risky attachment types: ", iff(array_length(RiskyAttachmentTypes) == 0, "none", tostring(RiskyAttachmentTypes)), ".\n",
+    "- Risky attachment types: ", iff(array_length(RiskyAttachmentTypes) == 0, "none", tostring(RiskyAttachmentTypes)), ".\n"
+)
+| extend NarrativePart4 = strcat(
     "- Threat indicators: ", iff(HasThreatVerdict, strcat("ThreatTypes=", ThreatTypesSafe, "; ThreatNames=", ThreatNamesSafe, "; DetectionMethods=", DetectionMethodsSafe), "none recorded on EmailEvents"), ".\n",
     "- Post-delivery events: ", tostring(PostDeliveryEventCount), " observed; actions: ", iff(array_length(PostDeliveryActions) == 0, "none", tostring(PostDeliveryActions)), ".\n",
     "- URL clicks: ", tostring(ClickCount), " observed; users: ", tostring(ClickUsers), "; actions: ", iff(array_length(ClickActions) == 0, "none", tostring(ClickActions)), ".\n",
     "- Behavioural flags: ", iff(isempty(BehaviouralFlags), "none", BehaviouralFlags), ".\n",
     "- Determination: ", Determination
 )
+| extend InvestigationNarrative = strcat(NarrativePart1, NarrativePart2, NarrativePart3, NarrativePart4)
 | project InvestigationNarrative
