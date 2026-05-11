@@ -9,15 +9,6 @@
 //                    RemoteIPToCheck, RemotePortToCheck, ProcessNameToCheck, ProcessSHA256ToCheck,
 //                    ProcessIdToCheck, CommandLineToCheck
 // output_type:       analysis
-//
-// Design:
-// Network telemetry is weak on intent. This query does not try to "detect C2".
-// It answers:
-// - Is this destination normal?
-// - Is this process supposed to talk to it?
-// - What process chain caused the connection?
-// - What else did that process do?
-// - What nearby activity changes confidence?
 
 let AlertTime = datetime(2026-01-01T00:00:00Z);
 let AnchorMode = "alert"; // alert | network_origin
@@ -26,13 +17,13 @@ let BaselineWindow = 90d;
 let ForwardWindow = 24h;
 let AncestryLookback = 24h;
 //
-let RunTargetNetworkEvent            = true;
-let RunDestinationPrevalence         = true;
+let RunTargetNetworkEvent             = true;
+let RunDestinationPrevalence          = true;
 let RunProcessDestinationRelationship = true;
-let RunInitiatingProcessContext      = true;
-let RunRelatedNetworkActivity        = true;
-let RunNearbyBehaviour               = true;
-let RunTrafficShapeAndRiskSignals    = true;
+let RunInitiatingProcessContext       = true;
+let RunRelatedNetworkActivity         = true;
+let RunNearbyBehaviour                = true;
+let RunTrafficShapeAndRiskSignals     = true;
 //
 let HostToCheck = "";
 let RemoteUrlToCheck = "";
@@ -83,8 +74,8 @@ let NetworkScope = materialize(
     | where isempty(ProcessSHA256ToCheck) or InitiatingProcessSHA256 contains ProcessSHA256ToCheck
     | where isempty(ProcessIdToCheck) or tostring(InitiatingProcessId) == ProcessIdToCheck
     | where isempty(CommandLineToCheck) or InitiatingProcessCommandLine contains CommandLineToCheck
+    | extend DestinationHost = tolower(extract(@"^(?:https?://)?([^/:?#]+)", 1, tostring(RemoteUrl)))
     | extend
-        DestinationHost = tolower(extract(@"^(?:https?://)?([^/:?#]+)", 1, tostring(RemoteUrl))),
         Destination = iff(isnotempty(DestinationHost), DestinationHost, tostring(RemoteIP)),
         ipkey = strcat(tostring(InitiatingProcessId), "|", tostring(InitiatingProcessCreationTime))
     | where isnotempty(Destination)
@@ -105,8 +96,8 @@ let TargetPidKeys = toscalar(NetworkScope | where isnotempty(InitiatingProcessId
 let HistoricalNetwork = materialize(
     DeviceNetworkEvents
     | where Timestamp between (_anchorTime - BaselineWindow .. _windowStart)
+    | extend DestinationHost = tolower(extract(@"^(?:https?://)?([^/:?#]+)", 1, tostring(RemoteUrl)))
     | extend
-        DestinationHost = tolower(extract(@"^(?:https?://)?([^/:?#]+)", 1, tostring(RemoteUrl))),
         Destination = iff(isnotempty(DestinationHost), DestinationHost, tostring(RemoteIP)),
         ipkey = strcat(tostring(InitiatingProcessId), "|", tostring(InitiatingProcessCreationTime))
     | where isnotempty(Destination)
@@ -131,9 +122,8 @@ let DestinationBaseline = materialize(
 let DestinationRecentSpread = materialize(
     DeviceNetworkEvents
     | where Timestamp between (_anchorTime - 24h .. _windowEnd)
-    | extend
-        DestinationHost = tolower(extract(@"^(?:https?://)?([^/:?#]+)", 1, tostring(RemoteUrl))),
-        Destination = iff(isnotempty(DestinationHost), DestinationHost, tostring(RemoteIP))
+    | extend DestinationHost = tolower(extract(@"^(?:https?://)?([^/:?#]+)", 1, tostring(RemoteUrl)))
+    | extend Destination = iff(isnotempty(DestinationHost), DestinationHost, tostring(RemoteIP))
     | where Destination in (TargetDestinations)
     | summarize
         DevicesSeenLast24h=dcount(DeviceName),
@@ -470,8 +460,8 @@ DeviceNetworkEvents
 | where RunRelatedNetworkActivity
 | where Timestamp between (_windowStart .. _forwardWindowEnd)
 | where isempty(HostToCheck) or DeviceName =~ HostToCheck
+| extend DestinationHost = tolower(extract(@"^(?:https?://)?([^/:?#]+)", 1, tostring(RemoteUrl)))
 | extend
-    DestinationHost = tolower(extract(@"^(?:https?://)?([^/:?#]+)", 1, tostring(RemoteUrl))),
     Destination = iff(isnotempty(DestinationHost), DestinationHost, tostring(RemoteIP)),
     ipkey = strcat(tostring(InitiatingProcessId), "|", tostring(InitiatingProcessCreationTime))
 | where ipkey in (ChainPidKeys)
