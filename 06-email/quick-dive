@@ -573,7 +573,7 @@ TargetEmail
         "Low concern - validate expected sender/message context.",
     "Limited suspicious signals in scoped telemetry."
 )
-| extend Narrative = strcat(
+| extend NarrativePart1 = strcat(
     "- Email quick triage completed.\n",
     "- Email shape: ", EmailShape, ".\n",
     "- Threat concern: ", ThreatConcern, ".\n",
@@ -585,23 +585,30 @@ TargetEmail
     "- Sender IP: ", iff(isempty(SenderIPv4Safe), "N/A", SenderIPv4Safe), "\n",
     "- Sender display name: ", SenderDisplayName, "\n",
     "- Recipient: ", RecipientEmailAddress, "\n",
-    "- Subject: ", Subject, "\n",
+    "- Subject: ", Subject, "\n"
+)
+| extend NarrativePart2 = strcat(
     "- Direction: ", iff(isempty(EmailDirectionSafe), "N/A", EmailDirectionSafe), "\n",
     "- Delivery action/location: ", iff(isempty(DeliveryActionSafe), "N/A", DeliveryActionSafe), " / ", iff(isempty(DeliveryLocationSafe), "N/A", DeliveryLocationSafe), "\n",
     "- Auth summary: ", AuthSummary, "\n",
     "- Sender prevalence: ", SenderFamiliarity, "; ", tostring(SenderSeenCount), " prior event(s) across ", tostring(SenderDaysSeen), " day(s) in ", BaselineLabel, ".\n",
     "- Sender domain prevalence: ", SenderDomainFamiliarity, "; ", tostring(SenderDomainSeenCount), " prior event(s) across ", tostring(SenderDomainDaysSeen), " day(s) in ", BaselineLabel, ".\n",
-    "- Sender-recipient relationship: ", SenderRecipientFamiliarity, "; ", tostring(SenderRecipientSeenCount), " prior event(s) in baseline.\n",
+    "- Sender-recipient relationship: ", SenderRecipientFamiliarity, "; ", tostring(SenderRecipientSeenCount), " prior event(s) in baseline.\n"
+)
+| extend NarrativePart3 = strcat(
     "- Recipient spread: same message seen by ", tostring(SameMessageRecipientCount), " recipient(s); sender seen against ", tostring(SenderRecipientCount), " recipient(s) in lookback.\n",
     "- URLs: ", tostring(UrlCount), " observed; URL domain familiarity: ", UrlDomainFamiliarity, "; domains: ", iff(array_length(UrlDomains) == 0, "none", tostring(UrlDomains)), ".\n",
     "- Attachments: ", tostring(AttachmentCount), " observed; attachment hash familiarity: ", AttachmentHashFamiliarity, "; files: ", iff(array_length(AttachmentNames) == 0, "none", tostring(AttachmentNames)), ".\n",
-    "- Risky attachment types: ", iff(array_length(RiskyAttachmentTypes) == 0, "none", tostring(RiskyAttachmentTypes)), ".\n",
+    "- Risky attachment types: ", iff(array_length(RiskyAttachmentTypes) == 0, "none", tostring(RiskyAttachmentTypes)), ".\n"
+)
+| extend NarrativePart4 = strcat(
     "- Threat indicators: ", iff(HasThreatVerdict, strcat("ThreatTypes=", ThreatTypesSafe, "; ThreatNames=", ThreatNamesSafe, "; DetectionMethods=", DetectionMethodsSafe), "none recorded on EmailEvents"), ".\n",
     "- Post-delivery events: ", tostring(PostDeliveryEventCount), " observed; actions: ", iff(array_length(PostDeliveryActions) == 0, "none", tostring(PostDeliveryActions)), ".\n",
     "- URL clicks: ", tostring(ClickCount), " observed; users: ", tostring(ClickUsers), "; actions: ", iff(array_length(ClickActions) == 0, "none", tostring(ClickActions)), ".\n",
     "- Behavioural flags: ", iff(isempty(BehaviouralFlags), "none", BehaviouralFlags), ".\n",
     "- Quick assessment: ", QuickAssessment
 )
+| extend Narrative = strcat(NarrativePart1, NarrativePart2, NarrativePart3, NarrativePart4)
 | project
     EventTime,
     NetworkMessageId,
