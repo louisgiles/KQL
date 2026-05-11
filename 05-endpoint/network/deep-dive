@@ -1,1 +1,671 @@
+// name:              Network Activity Deep Dive
+// purpose:           Prevalence-first network investigation for Defender network alerts.
+//                    Focuses on destination normality, process-destination relationship,
+//                    lightweight process-chain context, nearby behaviour, and cautious traffic-shape signals.
+// starting_entities: AlertTime, DeviceName, RemoteUrl, RemoteIP, RemotePort, InitiatingProcessFileName, InitiatingProcessSHA256, InitiatingProcessId
+// required_tables:   DeviceNetworkEvents
+// optional_tables:   DeviceProcessEvents, DeviceFileEvents, DeviceRegistryEvents, DeviceEvents
+// variables:         AlertTime, AnchorMode, TimeToCheck, BaselineWindow, HostToCheck, RemoteUrlToCheck,
+//                    RemoteIPToCheck, RemotePortToCheck, ProcessNameToCheck, ProcessSHA256ToCheck,
+//                    ProcessIdToCheck, CommandLineToCheck
+// output_type:       analysis
+//
+// Design:
+// Network telemetry is weak on intent. This query does not try to "detect C2".
+// It answers:
+// - Is this destination normal?
+// - Is this process supposed to talk to it?
+// - What process chain caused the connection?
+// - What else did that process do?
+// - What nearby activity changes confidence?
 
+let AlertTime = datetime(2026-01-01T00:00:00Z);
+let AnchorMode = "alert"; // alert | network_origin
+let TimeToCheck = 10m;
+let BaselineWindow = 90d;
+let ForwardWindow = 24h;
+let AncestryLookback = 24h;
+//
+let RunTargetNetworkEvent            = true;
+let RunDestinationPrevalence         = true;
+let RunProcessDestinationRelationship = true;
+let RunInitiatingProcessContext      = true;
+let RunRelatedNetworkActivity        = true;
+let RunNearbyBehaviour               = true;
+let RunTrafficShapeAndRiskSignals    = true;
+//
+let HostToCheck = "";
+let RemoteUrlToCheck = "";
+let RemoteIPToCheck = "";
+let RemotePortToCheck = "";
+let ProcessNameToCheck = "";
+let ProcessSHA256ToCheck = "";
+let ProcessIdToCheck = "";
+let CommandLineToCheck = "";
+//
+// ============================================================================
+// Anchor model
+// ============================================================================
+let _wideLookback = 90d;
+let _networkOriginEvent = materialize(
+    DeviceNetworkEvents
+    | where Timestamp between (AlertTime - _wideLookback .. AlertTime)
+    | where isempty(HostToCheck) or DeviceName =~ HostToCheck
+    | where isempty(RemoteUrlToCheck) or RemoteUrl contains RemoteUrlToCheck
+    | where isempty(RemoteIPToCheck) or RemoteIP contains RemoteIPToCheck
+    | where isempty(RemotePortToCheck) or tostring(RemotePort) == RemotePortToCheck
+    | where isempty(ProcessNameToCheck) or InitiatingProcessFileName contains ProcessNameToCheck
+    | where isempty(ProcessSHA256ToCheck) or InitiatingProcessSHA256 contains ProcessSHA256ToCheck
+    | where isempty(ProcessIdToCheck) or tostring(InitiatingProcessId) == ProcessIdToCheck
+    | where isempty(CommandLineToCheck) or InitiatingProcessCommandLine contains CommandLineToCheck
+    | summarize arg_min(Timestamp, *)
+);
+let _anchorTime = iff(
+    AnchorMode == "network_origin",
+    coalesce(toscalar(_networkOriginEvent | project Timestamp), AlertTime),
+    AlertTime
+);
+let _windowStart = _anchorTime - TimeToCheck;
+let _windowEnd = _anchorTime + TimeToCheck;
+let _forwardWindowEnd = _anchorTime + max_of(TimeToCheck, ForwardWindow);
+//
+// ============================================================================
+// Target network scope
+// ============================================================================
+let NetworkScope = materialize(
+    DeviceNetworkEvents
+    | where Timestamp between (_windowStart .. _windowEnd)
+    | where isempty(HostToCheck) or DeviceName =~ HostToCheck
+    | where isempty(RemoteUrlToCheck) or RemoteUrl contains RemoteUrlToCheck
+    | where isempty(RemoteIPToCheck) or RemoteIP contains RemoteIPToCheck
+    | where isempty(RemotePortToCheck) or tostring(RemotePort) == RemotePortToCheck
+    | where isempty(ProcessNameToCheck) or InitiatingProcessFileName contains ProcessNameToCheck
+    | where isempty(ProcessSHA256ToCheck) or InitiatingProcessSHA256 contains ProcessSHA256ToCheck
+    | where isempty(ProcessIdToCheck) or tostring(InitiatingProcessId) == ProcessIdToCheck
+    | where isempty(CommandLineToCheck) or InitiatingProcessCommandLine contains CommandLineToCheck
+    | extend
+        DestinationHost = tolower(extract(@"^(?:https?://)?([^/:?#]+)", 1, tostring(RemoteUrl))),
+        Destination = iff(isnotempty(DestinationHost), DestinationHost, tostring(RemoteIP)),
+        ipkey = strcat(tostring(InitiatingProcessId), "|", tostring(InitiatingProcessCreationTime))
+    | where isnotempty(Destination)
+);
+//
+let TargetDestinations = toscalar(NetworkScope | where isnotempty(Destination) | summarize make_set(Destination, 100));
+let TargetRemoteIPs = toscalar(NetworkScope | where isnotempty(RemoteIP) | summarize make_set(RemoteIP, 100));
+let TargetRemoteUrls = toscalar(NetworkScope | where isnotempty(RemoteUrl) | summarize make_set(RemoteUrl, 100));
+let TargetRemotePorts = toscalar(NetworkScope | where isnotempty(RemotePort) | summarize make_set(RemotePort, 100));
+let TargetDevices = toscalar(NetworkScope | where isnotempty(DeviceName) | summarize make_set(DeviceName, 100));
+let TargetProcesses = toscalar(NetworkScope | where isnotempty(InitiatingProcessFileName) | summarize make_set(InitiatingProcessFileName, 100));
+let TargetSHA256s = toscalar(NetworkScope | where isnotempty(InitiatingProcessSHA256) | summarize make_set(InitiatingProcessSHA256, 100));
+let TargetPidKeys = toscalar(NetworkScope | where isnotempty(InitiatingProcessId) | summarize make_set(ipkey, 100));
+//
+// ============================================================================
+// Historical network baseline
+// ============================================================================
+let HistoricalNetwork = materialize(
+    DeviceNetworkEvents
+    | where Timestamp between (_anchorTime - BaselineWindow .. _windowStart)
+    | extend
+        DestinationHost = tolower(extract(@"^(?:https?://)?([^/:?#]+)", 1, tostring(RemoteUrl))),
+        Destination = iff(isnotempty(DestinationHost), DestinationHost, tostring(RemoteIP)),
+        ipkey = strcat(tostring(InitiatingProcessId), "|", tostring(InitiatingProcessCreationTime))
+    | where isnotempty(Destination)
+);
+//
+let DestinationBaseline = materialize(
+    HistoricalNetwork
+    | where Destination in (TargetDestinations)
+    | summarize
+        DestinationSeenCount=count(),
+        DestinationFirstSeen=min(Timestamp),
+        DestinationLastSeen=max(Timestamp),
+        DestinationDaysSeen=dcount(bin(Timestamp, 1d)),
+        DestinationDevicesSeen=dcount(DeviceName),
+        DestinationUsersSeen=dcount(InitiatingProcessAccountName),
+        DestinationProcessesSeen=dcount(InitiatingProcessFileName),
+        DestinationProcessNames=make_set(InitiatingProcessFileName, 20),
+        DestinationPortsSeen=make_set(RemotePort, 20)
+        by Destination
+);
+//
+let DestinationRecentSpread = materialize(
+    DeviceNetworkEvents
+    | where Timestamp between (_anchorTime - 24h .. _windowEnd)
+    | extend
+        DestinationHost = tolower(extract(@"^(?:https?://)?([^/:?#]+)", 1, tostring(RemoteUrl))),
+        Destination = iff(isnotempty(DestinationHost), DestinationHost, tostring(RemoteIP))
+    | where Destination in (TargetDestinations)
+    | summarize
+        DevicesSeenLast24h=dcount(DeviceName),
+        UsersSeenLast24h=dcount(InitiatingProcessAccountName),
+        ProcessesSeenLast24h=dcount(InitiatingProcessFileName),
+        EventsLast24h=count()
+        by Destination
+);
+//
+let ProcessDestinationBaseline = materialize(
+    HistoricalNetwork
+    | where Destination in (TargetDestinations)
+    | where InitiatingProcessFileName in (TargetProcesses)
+    | summarize
+        ProcessDestinationCount=count(),
+        ProcessDestinationDaysSeen=dcount(bin(Timestamp, 1d)),
+        ProcessDestinationFirstSeen=min(Timestamp),
+        ProcessDestinationLastSeen=max(Timestamp),
+        ProcessDestinationDevicesSeen=dcount(DeviceName)
+        by InitiatingProcessFileName, Destination
+);
+//
+let DeviceDestinationBaseline = materialize(
+    HistoricalNetwork
+    | where Destination in (TargetDestinations)
+    | where DeviceName in (TargetDevices)
+    | summarize
+        DeviceDestinationCount=count(),
+        DeviceDestinationDaysSeen=dcount(bin(Timestamp, 1d)),
+        DeviceDestinationFirstSeen=min(Timestamp),
+        DeviceDestinationLastSeen=max(Timestamp)
+        by DeviceName, Destination
+);
+//
+let UserDestinationBaseline = materialize(
+    HistoricalNetwork
+    | where Destination in (TargetDestinations)
+    | summarize
+        UserDestinationCount=count(),
+        UserDestinationDaysSeen=dcount(bin(Timestamp, 1d)),
+        UserDestinationFirstSeen=min(Timestamp),
+        UserDestinationLastSeen=max(Timestamp)
+        by InitiatingProcessAccountName, Destination
+);
+//
+// ============================================================================
+// Process chain keys
+// ============================================================================
+let ParentPidKeys = toscalar(
+    DeviceProcessEvents
+    | where Timestamp between (_anchorTime - AncestryLookback .. _windowEnd)
+    | where isempty(HostToCheck) or DeviceName =~ HostToCheck
+    | extend pkey = strcat(tostring(ProcessId), "|", tostring(ProcessCreationTime))
+    | where pkey in (TargetPidKeys)
+    | summarize make_set(strcat(tostring(InitiatingProcessId), "|", tostring(InitiatingProcessCreationTime)), 100)
+);
+let GrandparentPidKeys = toscalar(
+    DeviceProcessEvents
+    | where Timestamp between (_anchorTime - AncestryLookback .. _windowEnd)
+    | where isempty(HostToCheck) or DeviceName =~ HostToCheck
+    | extend pkey = strcat(tostring(ProcessId), "|", tostring(ProcessCreationTime))
+    | where pkey in (ParentPidKeys)
+    | summarize make_set(strcat(tostring(InitiatingProcessId), "|", tostring(InitiatingProcessCreationTime)), 100)
+);
+let ChildPidKeys = toscalar(
+    DeviceProcessEvents
+    | where Timestamp between (_windowStart .. _forwardWindowEnd)
+    | where isempty(HostToCheck) or DeviceName =~ HostToCheck
+    | extend ipkey = strcat(tostring(InitiatingProcessId), "|", tostring(InitiatingProcessCreationTime))
+    | where ipkey in (TargetPidKeys)
+    | summarize make_set(strcat(tostring(ProcessId), "|", tostring(ProcessCreationTime)), 100)
+);
+let GrandchildPidKeys = toscalar(
+    DeviceProcessEvents
+    | where Timestamp between (_windowStart .. _forwardWindowEnd)
+    | where isempty(HostToCheck) or DeviceName =~ HostToCheck
+    | extend ipkey = strcat(tostring(InitiatingProcessId), "|", tostring(InitiatingProcessCreationTime))
+    | where ipkey in (ChildPidKeys)
+    | summarize make_set(strcat(tostring(ProcessId), "|", tostring(ProcessCreationTime)), 100)
+);
+let ChainPidKeys = set_union(TargetPidKeys, ChildPidKeys, GrandchildPidKeys);
+let FullChainPidKeys = set_union(GrandparentPidKeys, ParentPidKeys, TargetPidKeys, ChildPidKeys, GrandchildPidKeys);
+//
+// ============================================================================
+// Nearby behaviour counts
+// ============================================================================
+let NearbyFileActivity = materialize(
+    DeviceFileEvents
+    | where Timestamp between (_windowStart .. _forwardWindowEnd)
+    | where isempty(HostToCheck) or DeviceName =~ HostToCheck
+    | extend ipkey = strcat(tostring(InitiatingProcessId), "|", tostring(InitiatingProcessCreationTime))
+    | where ipkey in (ChainPidKeys)
+);
+let NearbyRegistryActivity = materialize(
+    DeviceRegistryEvents
+    | where Timestamp between (_windowStart .. _forwardWindowEnd)
+    | where isempty(HostToCheck) or DeviceName =~ HostToCheck
+    | extend ipkey = strcat(tostring(InitiatingProcessId), "|", tostring(InitiatingProcessCreationTime))
+    | where ipkey in (ChainPidKeys)
+);
+let NearbyMdeActivity = materialize(
+    DeviceEvents
+    | where Timestamp between (_windowStart .. _forwardWindowEnd)
+    | where isempty(HostToCheck) or DeviceName =~ HostToCheck
+    | where ActionType has_any (
+        "AntivirusDetection", "AntivirusReport",
+        "AsrProcessBlocked", "AsrLsassBlocked", "AsrPersistenceThroughWmiBlocked",
+        "ExploitGuardNetworkProtectionBlocked",
+        "SmartScreenAppWarning", "SmartScreenExploitWarning",
+        "TamperingAttempt", "ProcessBlockedByPolicy"
+    )
+    | extend ipkey = strcat(tostring(InitiatingProcessId), "|", tostring(InitiatingProcessCreationTime))
+    | where ipkey in (ChainPidKeys)
+        or SHA256 in (TargetSHA256s)
+        or FileName in (TargetProcesses)
+);
+let NearbyFileCount = toscalar(NearbyFileActivity | count);
+let NearbyRegistryCount = toscalar(NearbyRegistryActivity | count);
+let NearbyMdeCount = toscalar(NearbyMdeActivity | count);
+//
+// ============================================================================
+// SECTION 1: Target Network Event
+// ============================================================================
+NetworkScope
+| where RunTargetNetworkEvent
+| project
+    Timestamp,
+    ActionType,
+    DeviceName,
+    InitiatingProcessFileName,
+    InitiatingProcessFolderPath,
+    InitiatingProcessCommandLine,
+    InitiatingProcessSHA256,
+    InitiatingProcessId,
+    InitiatingProcessCreationTime,
+    InitiatingProcessAccountName,
+    Destination,
+    RemoteUrl,
+    RemoteIP,
+    RemotePort,
+    LocalIP,
+    LocalPort,
+    Protocol,
+    ReportId
+| sort by Timestamp asc
+;
+//
+// ============================================================================
+// SECTION 2: Destination Prevalence
+// ============================================================================
+NetworkScope
+| where RunDestinationPrevalence
+| summarize arg_min(Timestamp, *) by Destination
+| join kind=leftouter DestinationBaseline on Destination
+| join kind=leftouter DestinationRecentSpread on Destination
+| extend
+    DestinationSeenCount=coalesce(DestinationSeenCount, 0),
+    DestinationDaysSeen=coalesce(DestinationDaysSeen, 0),
+    DestinationDevicesSeen=coalesce(DestinationDevicesSeen, 0),
+    DestinationUsersSeen=coalesce(DestinationUsersSeen, 0),
+    DestinationProcessesSeen=coalesce(DestinationProcessesSeen, 0),
+    DevicesSeenLast24h=coalesce(DevicesSeenLast24h, 0),
+    UsersSeenLast24h=coalesce(UsersSeenLast24h, 0),
+    ProcessesSeenLast24h=coalesce(ProcessesSeenLast24h, 0),
+    EventsLast24h=coalesce(EventsLast24h, 0)
+| extend DestinationFamiliarity = case(
+    DestinationSeenCount == 0, "New destination in baseline",
+    DestinationDaysSeen <= 1, "Rare destination",
+    DestinationDaysSeen <= 5, "Occasional destination",
+    "Common destination"
+)
+| extend DestinationSpread = case(
+    DestinationSeenCount == 0 and DevicesSeenLast24h >= 5, "New destination with rapid spread",
+    DevicesSeenLast24h >= 10 and ProcessesSeenLast24h >= 3, "High recent spread",
+    DevicesSeenLast24h <= 2, "Low recent spread",
+    "Moderate recent spread"
+)
+| project
+    Destination,
+    DestinationFamiliarity,
+    DestinationSpread,
+    DestinationSeenCount,
+    DestinationFirstSeen,
+    DestinationLastSeen,
+    DestinationDaysSeen,
+    DestinationDevicesSeen,
+    DestinationUsersSeen,
+    DestinationProcessesSeen,
+    DestinationProcessNames,
+    DestinationPortsSeen,
+    EventsLast24h,
+    DevicesSeenLast24h,
+    UsersSeenLast24h,
+    ProcessesSeenLast24h
+| sort by DestinationSeenCount asc
+;
+//
+// ============================================================================
+// SECTION 3: Process-Destination Relationship
+// ============================================================================
+NetworkScope
+| where RunProcessDestinationRelationship
+| join kind=leftouter ProcessDestinationBaseline on InitiatingProcessFileName, Destination
+| join kind=leftouter DeviceDestinationBaseline on DeviceName, Destination
+| join kind=leftouter UserDestinationBaseline on InitiatingProcessAccountName, Destination
+| extend
+    ProcessDestinationCount=coalesce(ProcessDestinationCount, 0),
+    ProcessDestinationDaysSeen=coalesce(ProcessDestinationDaysSeen, 0),
+    ProcessDestinationDevicesSeen=coalesce(ProcessDestinationDevicesSeen, 0),
+    DeviceDestinationCount=coalesce(DeviceDestinationCount, 0),
+    DeviceDestinationDaysSeen=coalesce(DeviceDestinationDaysSeen, 0),
+    UserDestinationCount=coalesce(UserDestinationCount, 0),
+    UserDestinationDaysSeen=coalesce(UserDestinationDaysSeen, 0)
+| extend
+    ProcessDestinationFamiliarity = case(
+        ProcessDestinationCount == 0, "New process-destination pair",
+        ProcessDestinationDaysSeen <= 1, "Rare process-destination pair",
+        ProcessDestinationDaysSeen <= 5, "Occasional process-destination pair",
+        "Common process-destination pair"
+    ),
+    DeviceDestinationFamiliarity = case(
+        DeviceDestinationCount == 0, "New destination for device",
+        DeviceDestinationDaysSeen <= 1, "Rare destination for device",
+        DeviceDestinationDaysSeen <= 5, "Occasional destination for device",
+        "Common destination for device"
+    ),
+    UserDestinationFamiliarity = case(
+        UserDestinationCount == 0, "New destination for user",
+        UserDestinationDaysSeen <= 1, "Rare destination for user",
+        UserDestinationDaysSeen <= 5, "Occasional destination for user",
+        "Common destination for user"
+    )
+| project
+    Timestamp,
+    DeviceName,
+    InitiatingProcessFileName,
+    InitiatingProcessAccountName,
+    Destination,
+    RemoteUrl,
+    RemoteIP,
+    RemotePort,
+    ProcessDestinationFamiliarity,
+    ProcessDestinationCount,
+    ProcessDestinationDaysSeen,
+    ProcessDestinationDevicesSeen,
+    DeviceDestinationFamiliarity,
+    DeviceDestinationCount,
+    DeviceDestinationDaysSeen,
+    UserDestinationFamiliarity,
+    UserDestinationCount,
+    UserDestinationDaysSeen
+| sort by Timestamp asc
+;
+//
+// ============================================================================
+// SECTION 4: Initiating Process Context
+// ============================================================================
+union
+(
+    DeviceProcessEvents
+    | where RunInitiatingProcessContext
+    | where Timestamp between (_anchorTime - AncestryLookback .. _windowEnd)
+    | where isempty(HostToCheck) or DeviceName =~ HostToCheck
+    | extend pkey = strcat(tostring(ProcessId), "|", tostring(ProcessCreationTime))
+    | where pkey in (GrandparentPidKeys) or pkey in (ParentPidKeys)
+    | extend ChainOrder = iff(pkey in (GrandparentPidKeys), 0, 1)
+    | extend ChainRole = iff(pkey in (GrandparentPidKeys), "Grandparent", "Parent")
+    | project
+        ChainOrder,
+        ChainRole,
+        Timestamp,
+        DeviceName,
+        FileName,
+        FolderPath,
+        SHA256,
+        ProcessCommandLine,
+        ProcessId,
+        ProcessCreationTime,
+        AccountName,
+        InitiatingProcessFileName,
+        InitiatingProcessCommandLine
+),
+(
+    NetworkScope
+    | where RunInitiatingProcessContext
+    | extend ChainOrder = 2
+    | extend ChainRole = "Network Initiating Process"
+    | project
+        ChainOrder,
+        ChainRole,
+        Timestamp,
+        DeviceName,
+        FileName=InitiatingProcessFileName,
+        FolderPath=InitiatingProcessFolderPath,
+        SHA256=InitiatingProcessSHA256,
+        ProcessCommandLine=InitiatingProcessCommandLine,
+        ProcessId=InitiatingProcessId,
+        ProcessCreationTime=InitiatingProcessCreationTime,
+        AccountName=InitiatingProcessAccountName,
+        InitiatingProcessFileName,
+        InitiatingProcessCommandLine
+),
+(
+    DeviceProcessEvents
+    | where RunInitiatingProcessContext
+    | where Timestamp between (_windowStart .. _forwardWindowEnd)
+    | where isempty(HostToCheck) or DeviceName =~ HostToCheck
+    | extend pkey = strcat(tostring(ProcessId), "|", tostring(ProcessCreationTime))
+    | where pkey in (ChildPidKeys) or pkey in (GrandchildPidKeys)
+    | extend ChainOrder = iff(pkey in (ChildPidKeys), 3, 4)
+    | extend ChainRole = iff(pkey in (ChildPidKeys), "Child", "Grandchild")
+    | project
+        ChainOrder,
+        ChainRole,
+        Timestamp,
+        DeviceName,
+        FileName,
+        FolderPath,
+        SHA256,
+        ProcessCommandLine,
+        ProcessId,
+        ProcessCreationTime,
+        AccountName,
+        InitiatingProcessFileName,
+        InitiatingProcessCommandLine
+)
+| sort by ChainOrder asc, Timestamp asc
+;
+//
+// ============================================================================
+// SECTION 5: Related Network Activity
+// ============================================================================
+DeviceNetworkEvents
+| where RunRelatedNetworkActivity
+| where Timestamp between (_windowStart .. _forwardWindowEnd)
+| where isempty(HostToCheck) or DeviceName =~ HostToCheck
+| extend
+    DestinationHost = tolower(extract(@"^(?:https?://)?([^/:?#]+)", 1, tostring(RemoteUrl))),
+    Destination = iff(isnotempty(DestinationHost), DestinationHost, tostring(RemoteIP)),
+    ipkey = strcat(tostring(InitiatingProcessId), "|", tostring(InitiatingProcessCreationTime))
+| where ipkey in (ChainPidKeys)
+    or Destination in (TargetDestinations)
+    or RemoteIP in (TargetRemoteIPs)
+| extend RelatedReason = strcat_array(array_concat(
+    iff(ipkey in (ChainPidKeys), pack_array("same process chain"), dynamic([])),
+    iff(Destination in (TargetDestinations), pack_array("same destination"), dynamic([])),
+    iff(RemoteIP in (TargetRemoteIPs), pack_array("same remote IP"), dynamic([]))
+), " | ")
+| project
+    Timestamp,
+    RelatedReason,
+    DeviceName,
+    InitiatingProcessFileName,
+    InitiatingProcessCommandLine,
+    InitiatingProcessAccountName,
+    Destination,
+    RemoteUrl,
+    RemoteIP,
+    RemotePort,
+    LocalIP,
+    LocalPort,
+    Protocol,
+    ActionType
+| sort by Timestamp asc
+;
+//
+// ============================================================================
+// SECTION 6: Nearby File / Registry / MDE Activity
+// ============================================================================
+union
+(
+    NearbyFileActivity
+    | where RunNearbyBehaviour
+    | extend EvidenceType = "File activity"
+    | extend Details = strcat(ActionType, " | ", FolderPath)
+    | project
+        Timestamp,
+        EvidenceType,
+        DeviceName,
+        InitiatingProcessFileName,
+        InitiatingProcessCommandLine,
+        Details,
+        FileName,
+        FolderPath,
+        SHA256
+),
+(
+    NearbyRegistryActivity
+    | where RunNearbyBehaviour
+    | extend EvidenceType = "Registry activity"
+    | extend Details = strcat(ActionType, " | ", RegistryKey, "\\", RegistryValueName, " | ", RegistryValueData)
+    | project
+        Timestamp,
+        EvidenceType,
+        DeviceName,
+        InitiatingProcessFileName,
+        InitiatingProcessCommandLine,
+        Details,
+        FileName=InitiatingProcessFileName,
+        FolderPath=InitiatingProcessFolderPath,
+        SHA256=InitiatingProcessSHA256
+),
+(
+    NearbyMdeActivity
+    | where RunNearbyBehaviour
+    | extend EvidenceType = "MDE / Defender activity"
+    | extend Details = strcat(ActionType, " | ", tostring(AdditionalFields))
+    | project
+        Timestamp,
+        EvidenceType,
+        DeviceName,
+        InitiatingProcessFileName,
+        InitiatingProcessCommandLine,
+        Details,
+        FileName,
+        FolderPath,
+        SHA256
+)
+| sort by Timestamp asc
+;
+//
+// ============================================================================
+// SECTION 7: Traffic Shape & Risk Signals
+// ============================================================================
+NetworkScope
+| where RunTrafficShapeAndRiskSignals
+| join kind=leftouter DestinationBaseline on Destination
+| join kind=leftouter DestinationRecentSpread on Destination
+| join kind=leftouter ProcessDestinationBaseline on InitiatingProcessFileName, Destination
+| join kind=leftouter DeviceDestinationBaseline on DeviceName, Destination
+| extend
+    DestinationSeenCount=coalesce(DestinationSeenCount, 0),
+    DestinationDaysSeen=coalesce(DestinationDaysSeen, 0),
+    DestinationDevicesSeen=coalesce(DestinationDevicesSeen, 0),
+    DevicesSeenLast24h=coalesce(DevicesSeenLast24h, 0),
+    ProcessDestinationCount=coalesce(ProcessDestinationCount, 0),
+    ProcessDestinationDaysSeen=coalesce(ProcessDestinationDaysSeen, 0),
+    DeviceDestinationCount=coalesce(DeviceDestinationCount, 0),
+    DeviceDestinationDaysSeen=coalesce(DeviceDestinationDaysSeen, 0)
+| extend
+    ProcessFamily = case(
+        InitiatingProcessFileName has_any ("chrome.exe", "msedge.exe", "firefox.exe", "brave.exe", "opera.exe", "iexplore.exe"), "Browser",
+        InitiatingProcessFileName has_any ("powershell.exe", "pwsh.exe", "cmd.exe", "wscript.exe", "cscript.exe", "mshta.exe", "python.exe", "pythonw.exe"), "Script / shell",
+        InitiatingProcessFileName has_any ("winword.exe", "excel.exe", "powerpnt.exe", "outlook.exe", "onenote.exe"), "Office",
+        InitiatingProcessFileName has_any ("rundll32.exe", "regsvr32.exe", "certutil.exe", "bitsadmin.exe", "wmic.exe", "msiexec.exe", "installutil.exe"), "LOLBin / installer",
+        InitiatingProcessFileName has_any ("ninja", "screenconnect", "connectwise", "splashtop", "teamviewer", "anydesk", "atera", "datto", "kaseya", "tacticalrmm"), "Admin / RMM",
+        "Other"
+    )
+| extend
+    DestinationShape = case(
+        Destination has_any ("raw.githubusercontent.com", "github.com", "gist.github.com", "pastebin.com"), "Code/content platform",
+        Destination has_any ("dropbox", "drive.google", "docs.google", "onedrive", "sharepoint", "box.com"), "Cloud storage / collaboration",
+        Destination has_any ("discord", "telegram", "slack.com"), "Messaging / collaboration",
+        Destination has_any ("blob.core.windows.net", "azureedge.net", "cloudfront.net", "workers.dev", "trycloudflare.com"), "Cloud/CDN/tunnel-adjacent",
+        isempty(RemoteUrl) and isnotempty(RemoteIP), "Direct IP connection",
+        "General destination"
+    )
+| extend
+    IsRareDestination = DestinationSeenCount == 0 or DestinationDaysSeen <= 1,
+    IsNewProcessDestinationPair = ProcessDestinationCount == 0,
+    IsRareProcessDestinationPair = ProcessDestinationDaysSeen <= 1,
+    IsNewDeviceDestination = DeviceDestinationCount == 0,
+    IsDirectIP = isempty(RemoteUrl) and isnotempty(RemoteIP),
+    IsUncommonPort = isnotempty(RemotePort) and RemotePort !in (80, 443, 53, 123, 25, 587, 993, 995, 445, 3389),
+    IsRapidSpread = DestinationSeenCount == 0 and DevicesSeenLast24h >= 5,
+    IsScriptToRareDestination = ProcessFamily == "Script / shell" and IsRareDestination,
+    IsOfficeToExternal = ProcessFamily == "Office" and isnotempty(Destination),
+    IsLolbinNetwork = ProcessFamily == "LOLBin / installer",
+    IsNonBrowserToCloudStorage = ProcessFamily != "Browser" and DestinationShape in ("Cloud storage / collaboration", "Code/content platform", "Cloud/CDN/tunnel-adjacent"),
+    HasNearbyFileWrites = NearbyFileCount > 0,
+    HasNearbyRegistryWrites = NearbyRegistryCount > 0,
+    HasNearbyMdeAction = NearbyMdeCount > 0
+| extend RiskFlags = strcat_array(array_concat(
+    iff(IsRareDestination, pack_array("RARE_DESTINATION"), dynamic([])),
+    iff(IsRapidSpread, pack_array("RAPID_DESTINATION_SPREAD"), dynamic([])),
+    iff(IsNewProcessDestinationPair, pack_array("NEW_PROCESS_DESTINATION_PAIR"), dynamic([])),
+    iff(IsNewDeviceDestination, pack_array("NEW_DEVICE_DESTINATION_PAIR"), dynamic([])),
+    iff(IsScriptToRareDestination, pack_array("SCRIPT_HOST_TO_RARE_DESTINATION"), dynamic([])),
+    iff(IsOfficeToExternal, pack_array("OFFICE_PROCESS_NETWORK_ACTIVITY"), dynamic([])),
+    iff(IsLolbinNetwork, pack_array("LOLBIN_NETWORK_ACTIVITY"), dynamic([])),
+    iff(IsNonBrowserToCloudStorage, pack_array("NON_BROWSER_TO_CLOUD_OR_CONTENT_PLATFORM"), dynamic([])),
+    iff(IsDirectIP, pack_array("DIRECT_IP_CONNECTION"), dynamic([])),
+    iff(IsUncommonPort, pack_array("UNCOMMON_REMOTE_PORT"), dynamic([])),
+    iff(HasNearbyFileWrites, pack_array("NEARBY_FILE_ACTIVITY"), dynamic([])),
+    iff(HasNearbyRegistryWrites, pack_array("NEARBY_REGISTRY_ACTIVITY"), dynamic([])),
+    iff(HasNearbyMdeAction, pack_array("NEARBY_MDE_ACTION"), dynamic([]))
+), " | ")
+| extend SignalScore =
+    0
+    + iff(IsRareDestination, 10, 0)
+    + iff(IsRapidSpread, 15, 0)
+    + iff(IsNewProcessDestinationPair, 15, 0)
+    + iff(IsNewDeviceDestination, 10, 0)
+    + iff(IsScriptToRareDestination, 20, 0)
+    + iff(IsOfficeToExternal, 10, 0)
+    + iff(IsLolbinNetwork, 15, 0)
+    + iff(IsNonBrowserToCloudStorage, 15, 0)
+    + iff(IsDirectIP, 10, 0)
+    + iff(IsUncommonPort, 10, 0)
+    + iff(HasNearbyFileWrites, 10, 0)
+    + iff(HasNearbyRegistryWrites, 10, 0)
+    + iff(HasNearbyMdeAction, 20, 0)
+| extend ConcernLevel = case(
+    SignalScore >= 70, "High concern - review process chain and escalate if unexplained",
+    SignalScore >= 40, "Medium concern - review closely",
+    SignalScore >= 20, "Low concern - validate expected behaviour",
+    "Limited suspicious signals in scoped telemetry"
+)
+| project
+    ConcernLevel,
+    SignalScore,
+    RiskFlags,
+    Timestamp,
+    DeviceName,
+    InitiatingProcessFileName,
+    ProcessFamily,
+    InitiatingProcessCommandLine,
+    InitiatingProcessAccountName,
+    Destination,
+    DestinationShape,
+    RemoteUrl,
+    RemoteIP,
+    RemotePort,
+    DestinationSeenCount,
+    DestinationDaysSeen,
+    DestinationDevicesSeen,
+    DevicesSeenLast24h,
+    ProcessDestinationCount,
+    ProcessDestinationDaysSeen,
+    DeviceDestinationCount,
+    DeviceDestinationDaysSeen,
+    NearbyFileCount,
+    NearbyRegistryCount,
+    NearbyMdeCount
+| sort by SignalScore desc, Timestamp asc
