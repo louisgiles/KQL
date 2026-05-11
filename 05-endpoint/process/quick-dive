@@ -1,0 +1,409 @@
+// name:              Process Activity Quick Dive + Narrative
+// purpose:           Fast process triage for Defender process alerts.
+//                    One-row output with process identity, parent/command-line shape,
+//                    prevalence, nearby behaviour counts, cautious flags, and paste-ready note.
+// required_tables:   DeviceProcessEvents
+// optional_tables:   DeviceNetworkEvents, DeviceFileEvents, DeviceRegistryEvents, DeviceEvents
+// output_type:       quick-triage
+//
+// Philosophy:
+// Process quick-dive is a decision gate, not a full chain investigation.
+// It answers:
+// - What ran?
+// - Who/what launched it?
+// - Is the process/parent pairing normal?
+// - Is the command line or path suspicious?
+// - Did it perform nearby network/file/registry/MDE activity?
+// - Should I run process deep-dive?
+
+let AlertTime = datetime(2026-01-01T00:00:00Z);
+let TimeToCheck = 10m;
+let BaselineWindow = 90d;
+let BaselineLabel = "90d";
+let ForwardWindow = 1h;
+//
+let HostToCheck = "";
+let ProcessNameToCheck = "";
+let ProcessSHA256ToCheck = "";
+let ProcessIdToCheck = "";
+let CommandLineToCheck = "";
+let AccountToCheck = "";
+//
+// ============================================================================
+// Target process event
+// ============================================================================
+let ProcessScope = materialize(
+    DeviceProcessEvents
+    | where Timestamp between (AlertTime - TimeToCheck .. AlertTime + TimeToCheck)
+    | where isempty(HostToCheck) or DeviceName =~ HostToCheck
+    | where isempty(ProcessNameToCheck) or FileName contains ProcessNameToCheck
+    | where isempty(ProcessSHA256ToCheck) or SHA256 =~ ProcessSHA256ToCheck
+    | where isempty(ProcessIdToCheck) or tostring(ProcessId) == ProcessIdToCheck
+    | where isempty(CommandLineToCheck) or ProcessCommandLine contains CommandLineToCheck
+    | where isempty(AccountToCheck) or AccountName contains AccountToCheck
+    | extend
+        ProcName = tolower(tostring(FileName)),
+        ParentName = tolower(tostring(InitiatingProcessFileName)),
+        ProcKey = strcat(tostring(ProcessId), "|", tostring(ProcessCreationTime)),
+        ParentKey = strcat(tostring(InitiatingProcessId), "|", tostring(InitiatingProcessCreationTime))
+);
+//
+let TargetRow = materialize(ProcessScope | summarize arg_min(Timestamp, *));
+let TargetProcesses = toscalar(ProcessScope | where isnotempty(FileName) | summarize make_set(FileName, 100));
+let TargetSHA256s = toscalar(ProcessScope | where isnotempty(SHA256) | summarize make_set(SHA256, 100));
+let TargetDevices = toscalar(ProcessScope | where isnotempty(DeviceName) | summarize make_set(DeviceName, 100));
+let TargetAccounts = toscalar(ProcessScope | where isnotempty(AccountName) | summarize make_set(AccountName, 100));
+let TargetProcKeys = toscalar(ProcessScope | where isnotempty(ProcKey) | summarize make_set(ProcKey, 100));
+//
+// ============================================================================
+// Historical baseline
+// ============================================================================
+let HistoricalProcess = materialize(
+    DeviceProcessEvents
+    | where Timestamp between (AlertTime - BaselineWindow .. AlertTime - TimeToCheck)
+    | extend
+        ProcName = tolower(tostring(FileName)),
+        ParentName = tolower(tostring(InitiatingProcessFileName))
+);
+//
+let TenantProcessBaseline = materialize(
+    HistoricalProcess
+    | where FileName in (TargetProcesses)
+    | summarize
+        TenantProcessCount=count(),
+        TenantProcessFirstSeen=min(Timestamp),
+        TenantProcessLastSeen=max(Timestamp),
+        TenantProcessDaysSeen=dcount(bin(Timestamp, 1d)),
+        TenantProcessDevicesSeen=dcount(DeviceName),
+        TenantProcessAccountsSeen=dcount(AccountName),
+        TenantProcessHashes=make_set(SHA256, 20),
+        TenantProcessPaths=make_set(FolderPath, 20)
+        by FileName
+);
+//
+let DeviceProcessBaseline = materialize(
+    HistoricalProcess
+    | where DeviceName in (TargetDevices)
+    | where FileName in (TargetProcesses)
+    | summarize
+        DeviceProcessCount=count(),
+        DeviceProcessDaysSeen=dcount(bin(Timestamp, 1d)),
+        DeviceProcessFirstSeen=min(Timestamp),
+        DeviceProcessLastSeen=max(Timestamp)
+        by DeviceName, FileName
+);
+//
+let ParentProcessBaseline = materialize(
+    HistoricalProcess
+    | where FileName in (TargetProcesses)
+    | summarize
+        ParentProcessPairCount=count(),
+        ParentProcessPairDaysSeen=dcount(bin(Timestamp, 1d)),
+        ParentProcessPairFirstSeen=min(Timestamp),
+        ParentProcessPairLastSeen=max(Timestamp),
+        ParentProcessPairDevicesSeen=dcount(DeviceName)
+        by InitiatingProcessFileName, FileName
+);
+//
+let AccountProcessBaseline = materialize(
+    HistoricalProcess
+    | where AccountName in (TargetAccounts)
+    | where FileName in (TargetProcesses)
+    | summarize
+        AccountProcessCount=count(),
+        AccountProcessDaysSeen=dcount(bin(Timestamp, 1d)),
+        AccountProcessFirstSeen=min(Timestamp),
+        AccountProcessLastSeen=max(Timestamp)
+        by AccountName, FileName
+);
+//
+// ============================================================================
+// Nearby behaviour - target process only, no full chain walk
+// ============================================================================
+let NearbyNetworkActivity = materialize(
+    DeviceNetworkEvents
+    | where Timestamp between (AlertTime - TimeToCheck .. AlertTime + ForwardWindow)
+    | where isempty(HostToCheck) or DeviceName =~ HostToCheck
+    | extend ProcKey = strcat(tostring(InitiatingProcessId), "|", tostring(InitiatingProcessCreationTime))
+    | where ProcKey in (TargetProcKeys)
+);
+//
+let NearbyFileActivity = materialize(
+    DeviceFileEvents
+    | where Timestamp between (AlertTime - TimeToCheck .. AlertTime + ForwardWindow)
+    | where isempty(HostToCheck) or DeviceName =~ HostToCheck
+    | extend ProcKey = strcat(tostring(InitiatingProcessId), "|", tostring(InitiatingProcessCreationTime))
+    | where ProcKey in (TargetProcKeys)
+);
+//
+let NearbyRegistryActivity = materialize(
+    DeviceRegistryEvents
+    | where Timestamp between (AlertTime - TimeToCheck .. AlertTime + ForwardWindow)
+    | where isempty(HostToCheck) or DeviceName =~ HostToCheck
+    | extend ProcKey = strcat(tostring(InitiatingProcessId), "|", tostring(InitiatingProcessCreationTime))
+    | where ProcKey in (TargetProcKeys)
+);
+//
+let NearbyMdeActivity = materialize(
+    DeviceEvents
+    | where Timestamp between (AlertTime - TimeToCheck .. AlertTime + ForwardWindow)
+    | where isempty(HostToCheck) or DeviceName =~ HostToCheck
+    | where ActionType has_any (
+        "AntivirusDetection",
+        "AntivirusReport",
+        "AsrProcessBlocked",
+        "AsrLsassBlocked",
+        "AsrPersistenceThroughWmiBlocked",
+        "ExploitGuardNetworkProtectionBlocked",
+        "SmartScreenAppWarning",
+        "SmartScreenExploitWarning",
+        "TamperingAttempt",
+        "ProcessBlockedByPolicy"
+    )
+    | extend ProcKey = strcat(tostring(InitiatingProcessId), "|", tostring(InitiatingProcessCreationTime))
+    | where ProcKey in (TargetProcKeys)
+        or SHA256 in (TargetSHA256s)
+);
+//
+let ChildProcessActivity = materialize(
+    DeviceProcessEvents
+    | where Timestamp between (AlertTime - TimeToCheck .. AlertTime + ForwardWindow)
+    | where isempty(HostToCheck) or DeviceName =~ HostToCheck
+    | extend ParentProcKey = strcat(tostring(InitiatingProcessId), "|", tostring(InitiatingProcessCreationTime))
+    | where ParentProcKey in (TargetProcKeys)
+);
+//
+let NearbyNetworkCount = toscalar(NearbyNetworkActivity | count);
+let NearbyFileCount = toscalar(NearbyFileActivity | count);
+let NearbyRegistryCount = toscalar(NearbyRegistryActivity | count);
+let NearbyMdeCount = toscalar(NearbyMdeActivity | count);
+let ChildProcessCount = toscalar(ChildProcessActivity | count);
+let TopRemote = toscalar(
+    NearbyNetworkActivity
+    | extend Remote = iff(isnotempty(RemoteUrl), RemoteUrl, strcat(tostring(RemoteIP), ":", tostring(RemotePort)))
+    | summarize Hits=count() by Remote
+    | top 1 by Hits desc
+    | project Remote
+);
+let TopFile = toscalar(NearbyFileActivity | summarize arg_min(Timestamp, FileName) | project FileName);
+let TopChild = toscalar(ChildProcessActivity | summarize arg_min(Timestamp, FileName) | project FileName);
+let TopMdeAction = toscalar(NearbyMdeActivity | summarize arg_min(Timestamp, ActionType) | project ActionType);
+//
+// ============================================================================
+// Quick dive output
+// ============================================================================
+TargetRow
+| join kind=leftouter TenantProcessBaseline on FileName
+| join kind=leftouter DeviceProcessBaseline on DeviceName, FileName
+| join kind=leftouter ParentProcessBaseline on InitiatingProcessFileName, FileName
+| join kind=leftouter AccountProcessBaseline on AccountName, FileName
+| extend
+    TenantProcessCount=coalesce(TenantProcessCount, 0),
+    TenantProcessDaysSeen=coalesce(TenantProcessDaysSeen, 0),
+    TenantProcessDevicesSeen=coalesce(TenantProcessDevicesSeen, 0),
+    TenantProcessAccountsSeen=coalesce(TenantProcessAccountsSeen, 0),
+    DeviceProcessCount=coalesce(DeviceProcessCount, 0),
+    DeviceProcessDaysSeen=coalesce(DeviceProcessDaysSeen, 0),
+    ParentProcessPairCount=coalesce(ParentProcessPairCount, 0),
+    ParentProcessPairDaysSeen=coalesce(ParentProcessPairDaysSeen, 0),
+    ParentProcessPairDevicesSeen=coalesce(ParentProcessPairDevicesSeen, 0),
+    AccountProcessCount=coalesce(AccountProcessCount, 0),
+    AccountProcessDaysSeen=coalesce(AccountProcessDaysSeen, 0)
+| extend
+    ProcessFamily = case(
+        ProcName in~ ("chrome.exe", "msedge.exe", "firefox.exe", "brave.exe", "opera.exe", "iexplore.exe"), "Browser",
+        ProcName in~ ("powershell.exe", "pwsh.exe", "cmd.exe", "wscript.exe", "cscript.exe", "mshta.exe", "python.exe", "pythonw.exe"), "Script / shell",
+        ProcName in~ ("winword.exe", "excel.exe", "powerpnt.exe", "outlook.exe", "onenote.exe"), "Office",
+        ProcName in~ ("rundll32.exe", "regsvr32.exe", "certutil.exe", "bitsadmin.exe", "wmic.exe", "msiexec.exe", "installutil.exe"), "LOLBin / installer",
+        ProcName has_any ("ninja", "screenconnect", "connectwise", "splashtop", "teamviewer", "anydesk", "atera", "datto", "kaseya", "tacticalrmm"), "Admin / RMM",
+        "Other"
+    ),
+    ParentFamily = case(
+        ParentName in~ ("chrome.exe", "msedge.exe", "firefox.exe", "brave.exe", "opera.exe", "iexplore.exe"), "Browser",
+        ParentName in~ ("powershell.exe", "pwsh.exe", "cmd.exe", "wscript.exe", "cscript.exe", "mshta.exe", "python.exe", "pythonw.exe"), "Script / shell",
+        ParentName in~ ("winword.exe", "excel.exe", "powerpnt.exe", "outlook.exe", "onenote.exe"), "Office",
+        ParentName in~ ("rundll32.exe", "regsvr32.exe", "certutil.exe", "bitsadmin.exe", "wmic.exe", "msiexec.exe", "installutil.exe"), "LOLBin / installer",
+        ParentName has_any ("ninja", "screenconnect", "connectwise", "splashtop", "teamviewer", "anydesk", "atera", "datto", "kaseya", "tacticalrmm"), "Admin / RMM",
+        "Other"
+    )
+| extend
+    HasEncodedCommand = ProcessCommandLine has_any ("-enc", "-encodedcommand", "-e "),
+    HasDownloadCradle = ProcessCommandLine has_any ("DownloadString", "DownloadFile", "IEX", "Invoke-Expression", "Net.WebClient", "Invoke-WebRequest", "iwr", "curl", "wget"),
+    HasAmsiBypass = ProcessCommandLine has_any ("AmsiUtils", "amsiInitFailed", "System.Management.Automation.AmsiUtils"),
+    HasObfuscationMarker = ProcessCommandLine has_any ("FromBase64String", "[char]", "-join", "-bxor", "[convert]::"),
+    HasLengthAnomaly = strlen(ProcessCommandLine) > 1000 or ProcessCommandLine matches regex @"\S{50,}",
+    UserWritablePath = FolderPath has_any (
+        @"\Users\Public\",
+        @"\AppData\Local\Temp",
+        @"\AppData\Roaming",
+        @"\Downloads",
+        @"\Windows\Temp",
+        @"\ProgramData"
+    )
+| extend
+    ProcessShape = case(
+        ParentFamily == "Office" and ProcessFamily == "Script / shell" and HasEncodedCommand, "Office-spawned script-host with encoded command",
+        ParentFamily == "Office" and ProcessFamily == "Script / shell", "Office-spawned script-host",
+        ParentFamily == "Browser" and ProcessFamily == "Script / shell", "Browser-spawned script-host",
+        ProcessFamily == "Script / shell" and HasEncodedCommand, "Script-host with encoded command",
+        ProcessFamily == "Script / shell" and HasDownloadCradle, "Script-host with download cradle",
+        ProcessFamily == "LOLBin / installer", "LOLBin / installer execution",
+        ProcessFamily == "Admin / RMM", "Admin/RMM process activity",
+        ParentFamily == "Admin / RMM", "Admin/RMM-launched process",
+        ParentFamily == "Other" and ProcessFamily == "Other", "General process activity",
+        strcat(ParentFamily, " launched ", ProcessFamily)
+    )
+| extend
+    TenantProcessFamiliarity = case(
+        TenantProcessCount == 0, "new process in tenant baseline",
+        TenantProcessDaysSeen <= 1, "rare process in tenant",
+        TenantProcessDaysSeen <= 5, "occasional process in tenant",
+        "common process in tenant"
+    ),
+    DeviceProcessFamiliarity = case(
+        DeviceProcessCount == 0, "new process for device",
+        DeviceProcessDaysSeen <= 1, "rare process for device",
+        DeviceProcessDaysSeen <= 5, "occasional process for device",
+        "common process for device"
+    ),
+    ParentProcessPairFamiliarity = case(
+        ParentProcessPairCount == 0, "new parent-process pair",
+        ParentProcessPairDaysSeen <= 1, "rare parent-process pair",
+        ParentProcessPairDaysSeen <= 5, "occasional parent-process pair",
+        "common parent-process pair"
+    ),
+    AccountProcessFamiliarity = case(
+        AccountProcessCount == 0, "new process for account",
+        AccountProcessDaysSeen <= 1, "rare process for account",
+        AccountProcessDaysSeen <= 5, "occasional process for account",
+        "common process for account"
+    )
+| extend
+    IsRareTenantProcess = TenantProcessCount == 0 or TenantProcessDaysSeen <= 1,
+    IsNewDeviceProcess = DeviceProcessCount == 0,
+    IsNewParentProcessPair = ParentProcessPairCount == 0,
+    IsNewAccountProcess = AccountProcessCount == 0,
+    IsOfficeSpawnedScript = ParentFamily == "Office" and ProcessFamily == "Script / shell",
+    IsBrowserSpawnedScript = ParentFamily == "Browser" and ProcessFamily == "Script / shell",
+    IsScriptHost = ProcessFamily == "Script / shell",
+    IsLolbin = ProcessFamily == "LOLBin / installer",
+    HasNearbyNetwork = NearbyNetworkCount > 0,
+    HasNearbyFile = NearbyFileCount > 0,
+    HasNearbyRegistry = NearbyRegistryCount > 0,
+    HasNearbyMde = NearbyMdeCount > 0,
+    HasChildren = ChildProcessCount > 0
+| extend BehaviouralFlags = strcat_array(array_concat(
+    iff(IsRareTenantProcess, pack_array("RARE_PROCESS_IN_TENANT"), dynamic([])),
+    iff(IsNewDeviceProcess, pack_array("NEW_PROCESS_FOR_DEVICE"), dynamic([])),
+    iff(IsNewParentProcessPair, pack_array("NEW_PARENT_PROCESS_PAIR"), dynamic([])),
+    iff(IsNewAccountProcess, pack_array("NEW_PROCESS_FOR_ACCOUNT"), dynamic([])),
+    iff(IsOfficeSpawnedScript, pack_array("OFFICE_SPAWNED_SCRIPT"), dynamic([])),
+    iff(IsBrowserSpawnedScript, pack_array("BROWSER_SPAWNED_SCRIPT"), dynamic([])),
+    iff(IsScriptHost, pack_array("SCRIPT_HOST_EXECUTION"), dynamic([])),
+    iff(IsLolbin, pack_array("LOLBIN_EXECUTION"), dynamic([])),
+    iff(HasEncodedCommand, pack_array("ENCODED_COMMAND"), dynamic([])),
+    iff(HasDownloadCradle, pack_array("DOWNLOAD_CRADLE"), dynamic([])),
+    iff(HasAmsiBypass, pack_array("AMSI_BYPASS_MARKER"), dynamic([])),
+    iff(HasObfuscationMarker, pack_array("OBFUSCATION_MARKER"), dynamic([])),
+    iff(HasLengthAnomaly, pack_array("COMMAND_LINE_LENGTH_ANOMALY"), dynamic([])),
+    iff(UserWritablePath, pack_array("USER_WRITABLE_PATH"), dynamic([])),
+    iff(HasNearbyNetwork, pack_array("NEARBY_NETWORK_ACTIVITY"), dynamic([])),
+    iff(HasNearbyFile, pack_array("NEARBY_FILE_ACTIVITY"), dynamic([])),
+    iff(HasNearbyRegistry, pack_array("NEARBY_REGISTRY_ACTIVITY"), dynamic([])),
+    iff(HasNearbyMde, pack_array("NEARBY_MDE_ACTION"), dynamic([])),
+    iff(HasChildren, pack_array("CHILD_PROCESS_ACTIVITY"), dynamic([]))
+), " | ")
+| extend QuickScore =
+    0
+    + iff(IsRareTenantProcess, 10, 0)
+    + iff(IsNewDeviceProcess, 10, 0)
+    + iff(IsNewParentProcessPair, 15, 0)
+    + iff(IsNewAccountProcess, 10, 0)
+    + iff(IsOfficeSpawnedScript, 20, 0)
+    + iff(IsBrowserSpawnedScript, 15, 0)
+    + iff(IsScriptHost, 10, 0)
+    + iff(IsLolbin, 15, 0)
+    + iff(HasEncodedCommand, 20, 0)
+    + iff(HasDownloadCradle, 20, 0)
+    + iff(HasAmsiBypass, 25, 0)
+    + iff(HasObfuscationMarker, 15, 0)
+    + iff(HasLengthAnomaly, 10, 0)
+    + iff(UserWritablePath, 10, 0)
+    + iff(HasNearbyNetwork, 10, 0)
+    + iff(HasNearbyFile, 10, 0)
+    + iff(HasNearbyRegistry, 10, 0)
+    + iff(HasNearbyMde, 25, 0)
+    + iff(HasChildren, 10, 0)
+| extend QuickAssessment = case(
+    QuickScore >= 80, "High concern - run process deep dive and review full chain",
+    QuickScore >= 45, "Review closely - deep dive recommended if activity is not expected",
+    QuickScore >= 20, "Low concern - validate expected behaviour",
+    "Limited suspicious signals in scoped telemetry"
+)
+| extend TruncatedCommandLine = iff(strlen(ProcessCommandLine) > 300, strcat(substring(ProcessCommandLine, 0, 300), "..."), ProcessCommandLine)
+| extend NearbyDetail = strcat(
+    tostring(NearbyNetworkCount), " network event(s)",
+    iff(isnotempty(TopRemote), strcat(" (top remote: ", TopRemote, ")"), ""),
+    ", ", tostring(NearbyFileCount), " file event(s)",
+    iff(isnotempty(TopFile), strcat(" (example: ", TopFile, ")"), ""),
+    ", ", tostring(NearbyRegistryCount), " registry event(s), ",
+    tostring(NearbyMdeCount), " MDE action(s)",
+    iff(isnotempty(TopMdeAction), strcat(" (example: ", TopMdeAction, ")"), ""),
+    ", ", tostring(ChildProcessCount), " child process(es)",
+    iff(isnotempty(TopChild), strcat(" (example: ", TopChild, ")"), "")
+)
+| extend Narrative = strcat(
+    "- Process quick triage completed for ", DeviceName, ".\n",
+    "- Process: ", FileName, "\n",
+    "- Parent process: ", iff(isempty(InitiatingProcessFileName), "N/A", InitiatingProcessFileName), "\n",
+    "- Account: ", iff(isempty(AccountName), "N/A", AccountName), "\n",
+    "- Path: ", iff(isempty(FolderPath), "N/A", FolderPath), "\n",
+    "- SHA256: ", iff(isempty(SHA256), "N/A", SHA256), "\n",
+    "- Command line: ", iff(isempty(TruncatedCommandLine), "N/A", TruncatedCommandLine), "\n",
+    "- Process shape: ", ProcessShape, ".\n",
+    "- Tenant process prevalence: ", TenantProcessFamiliarity, " - seen on ", tostring(TenantProcessDevicesSeen), " device(s) across ", tostring(TenantProcessDaysSeen), " day(s) in ", BaselineLabel, ".\n",
+    "- Device process prevalence: ", DeviceProcessFamiliarity, " - ", tostring(DeviceProcessCount), " prior event(s) in baseline.\n",
+    "- Parent-process prevalence: ", ParentProcessPairFamiliarity, " - ", tostring(ParentProcessPairCount), " prior event(s) in baseline.\n",
+    "- Account-process prevalence: ", AccountProcessFamiliarity, " - ", tostring(AccountProcessCount), " prior event(s) in baseline.\n",
+    "- Nearby behaviour: ", NearbyDetail, ".\n",
+    "- Behavioural flags: ", iff(isempty(BehaviouralFlags), "none", BehaviouralFlags), ".\n",
+    "- Quick assessment: ", QuickAssessment
+)
+| project
+    Timestamp,
+    DeviceName,
+    FileName,
+    FolderPath,
+    SHA256,
+    ProcessCommandLine,
+    AccountName,
+    InitiatingProcessFileName,
+    InitiatingProcessCommandLine,
+    ProcessFamily,
+    ParentFamily,
+    ProcessShape,
+    TenantProcessFamiliarity,
+    TenantProcessCount,
+    TenantProcessDaysSeen,
+    TenantProcessDevicesSeen,
+    TenantProcessAccountsSeen,
+    DeviceProcessFamiliarity,
+    DeviceProcessCount,
+    DeviceProcessDaysSeen,
+    ParentProcessPairFamiliarity,
+    ParentProcessPairCount,
+    ParentProcessPairDaysSeen,
+    ParentProcessPairDevicesSeen,
+    AccountProcessFamiliarity,
+    AccountProcessCount,
+    AccountProcessDaysSeen,
+    NearbyNetworkCount,
+    NearbyFileCount,
+    NearbyRegistryCount,
+    NearbyMdeCount,
+    ChildProcessCount,
+    BehaviouralFlags,
+    QuickScore,
+    QuickAssessment,
+    Narrative
+| sort by QuickScore desc, Timestamp asc
