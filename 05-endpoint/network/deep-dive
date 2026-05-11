@@ -589,13 +589,14 @@ NetworkScope
     IsDirectIP = isempty(RemoteUrl) and isnotempty(RemoteIP),
     IsUncommonPort = isnotempty(RemotePort) and RemotePort !in (80, 443, 53, 123, 25, 587, 993, 995, 445, 3389),
     IsRapidSpread = DestinationSeenCount == 0 and DevicesSeenLast24h >= 5,
-    IsScriptToRareDestination = ProcessFamily == "Script / shell" and IsRareDestination,
-    IsOfficeToExternal = ProcessFamily == "Office" and isnotempty(Destination),
-    IsLolbinNetwork = ProcessFamily == "LOLBin / installer",
-    IsNonBrowserToCloudStorage = ProcessFamily != "Browser" and DestinationShape in ("Cloud storage / collaboration", "Code/content platform", "Cloud/CDN/tunnel-adjacent"),
     HasNearbyFileWrites = NearbyFileCount > 0,
     HasNearbyRegistryWrites = NearbyRegistryCount > 0,
     HasNearbyMdeAction = NearbyMdeCount > 0
+| extend
+    IsScriptToRareDestination = ProcessFamily == "Script / shell" and IsRareDestination,
+    IsOfficeToExternal = ProcessFamily == "Office" and isnotempty(Destination),
+    IsLolbinNetwork = ProcessFamily == "LOLBin / installer",
+    IsNonBrowserToCloudStorage = ProcessFamily != "Browser" and DestinationShape in ("Cloud storage / collaboration", "Code/content platform", "Cloud/CDN/tunnel-adjacent")
 | extend RiskFlags = strcat_array(array_concat(
     iff(IsRareDestination, pack_array("RARE_DESTINATION"), dynamic([])),
     iff(IsRapidSpread, pack_array("RAPID_DESTINATION_SPREAD"), dynamic([])),
