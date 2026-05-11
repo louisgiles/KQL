@@ -5,18 +5,13 @@
 // starting_entities: NetworkMessageId, SenderFromAddress, RecipientEmailAddress, Subject
 // required_tables:   EmailEvents
 // optional_tables:   EmailAttachmentInfo, EmailUrlInfo, EmailPostDeliveryEvents, UrlClickEvents
-// variables:         NetworkMessageIdToCheck, SenderToCheck, RecipientToCheck, SubjectToCheck, SearchLookback, BaselineWindow
+// variables:         TargetNetworkMessageId, SenderToCheck, RecipientToCheck, SubjectToCheck, SearchLookback, BaselineWindow
 // done_criteria:     Target email identified; sender/domain/recipient prevalence reviewed; authentication reviewed;
 //                    URL/attachment prevalence reviewed; delivery/remediation/click exposure reviewed;
 //                    threat concern and exposure concern separated.
 // output_type:       quick-triage
-//
-// Design:
-// Email quick-dive is a decision gate.
-// It separates threat concern from exposure concern.
-// A quarantined suspicious email is not the same as a delivered and clicked suspicious email.
 
-let NetworkMessageIdToCheck = "";
+let TargetNetworkMessageId = "";
 let SenderToCheck = "";
 let RecipientToCheck = "";
 let SubjectToCheck = "";
@@ -34,7 +29,7 @@ let CandidateEmails = materialize(
         column_ifexists("TimeGenerated", datetime(null))
     )
     | where EventTime >= ago(SearchLookback)
-    | where isempty(NetworkMessageIdToCheck) or NetworkMessageId == NetworkMessageIdToCheck
+    | where isempty(TargetNetworkMessageId) or NetworkMessageId == TargetNetworkMessageId
     | where isempty(SenderToCheck) or SenderFromAddress contains SenderToCheck
     | where isempty(RecipientToCheck) or RecipientEmailAddress contains RecipientToCheck
     | where isempty(SubjectToCheck) or Subject contains SubjectToCheck
@@ -42,11 +37,6 @@ let CandidateEmails = materialize(
         Sender = tolower(tostring(SenderFromAddress)),
         SenderDomain = tolower(extract(@"@([^@]+)$", 1, tostring(SenderFromAddress))),
         Recipient = tolower(tostring(RecipientEmailAddress)),
-        AuthJson = parse_json(tostring(AuthenticationDetails)),
-        DKIM = tolower(tostring(AuthJson.DKIM)),
-        DMARC = tolower(tostring(AuthJson.DMARC)),
-        SPF = tolower(tostring(AuthJson.SPF)),
-        CompAuth = tolower(tostring(AuthJson.CompAuth)),
         SenderMailFromAddressSafe = tostring(column_ifexists("SenderMailFromAddress", "")),
         SenderIPv4Safe = tostring(column_ifexists("SenderIPv4", "")),
         DeliveryActionSafe = tostring(column_ifexists("DeliveryAction", "")),
@@ -57,7 +47,34 @@ let CandidateEmails = materialize(
         EmailDirectionSafe = tostring(column_ifexists("EmailDirection", "")),
         OrgLevelActionSafe = tostring(column_ifexists("OrgLevelAction", "")),
         UserLevelActionSafe = tostring(column_ifexists("UserLevelAction", "")),
-        BulkComplaintLevelSafe = tostring(column_ifexists("BulkComplaintLevel", ""))
+        BulkComplaintLevelSafe = tostring(column_ifexists("BulkComplaintLevel", "")),
+        AuthRaw = tostring(AuthenticationDetails)
+    | extend AuthJson = parse_json(AuthRaw)
+    | extend
+        DKIM = tolower(tostring(coalesce(
+            extractjson("$.DKIM", AuthRaw),
+            extractjson("$.dkim", AuthRaw),
+            AuthJson["DKIM"],
+            AuthJson["dkim"]
+        ))),
+        DMARC = tolower(tostring(coalesce(
+            extractjson("$.DMARC", AuthRaw),
+            extractjson("$.dmarc", AuthRaw),
+            AuthJson["DMARC"],
+            AuthJson["dmarc"]
+        ))),
+        SPF = tolower(tostring(coalesce(
+            extractjson("$.SPF", AuthRaw),
+            extractjson("$.spf", AuthRaw),
+            AuthJson["SPF"],
+            AuthJson["spf"]
+        ))),
+        CompAuth = tolower(tostring(coalesce(
+            extractjson("$.CompAuth", AuthRaw),
+            extractjson("$.compauth", AuthRaw),
+            AuthJson["CompAuth"],
+            AuthJson["compauth"]
+        )))
 );
 // Prefer one target message. NetworkMessageId is the preferred input.
 let TargetEmail = materialize(
@@ -65,7 +82,7 @@ let TargetEmail = materialize(
     | top 1 by EventTime desc
 );
 let TargetTime = toscalar(TargetEmail | project EventTime);
-let TargetNetworkMessageId = toscalar(TargetEmail | project NetworkMessageId);
+let TargetNetworkMessageIdResolved = toscalar(TargetEmail | project NetworkMessageId);
 let TargetSender = toscalar(TargetEmail | project Sender);
 let TargetSenderDomain = toscalar(TargetEmail | project SenderDomain);
 let TargetRecipient = toscalar(TargetEmail | project Recipient);
@@ -130,11 +147,11 @@ let RecipientSpread =
     | extend
         Sender = tolower(tostring(SenderFromAddress)),
         Recipient = tolower(tostring(RecipientEmailAddress))
-    | where NetworkMessageId == TargetNetworkMessageId or Sender == TargetSender
+    | where NetworkMessageId == TargetNetworkMessageIdResolved or Sender == TargetSender
     | summarize
-        SameMessageRecipientCount=dcountif(Recipient, NetworkMessageId == TargetNetworkMessageId),
+        SameMessageRecipientCount=dcountif(Recipient, NetworkMessageId == TargetNetworkMessageIdResolved),
         SenderRecipientCount=dcountif(Recipient, Sender == TargetSender),
-        SameMessageRecipients=make_set_if(Recipient, NetworkMessageId == TargetNetworkMessageId, 50)
+        SameMessageRecipients=make_set_if(Recipient, NetworkMessageId == TargetNetworkMessageIdResolved, 50)
         by Sender;
 //
 // ============================================================================
@@ -149,32 +166,23 @@ let TargetUrls = materialize(
             column_ifexists("TimeGenerated", datetime(null))
         )
         | where EventTime between (TargetTime - SearchLookback .. TargetTime + 1h)
-        | where NetworkMessageId == TargetNetworkMessageId
+        | where NetworkMessageId == TargetNetworkMessageIdResolved
         | extend
             UrlSafe = tostring(column_ifexists("Url", "")),
             UrlDomainSafe = tolower(tostring(column_ifexists("UrlDomain", ""))),
-            UrlThreatTypes = tostring(column_ifexists("ThreatTypes", "")),
-            UrlThreatNames = tostring(column_ifexists("ThreatNames", ""))
+            UrlThreatTypesSafe = tostring(column_ifexists("ThreatTypes", "")),
+            UrlThreatNamesSafe = tostring(column_ifexists("ThreatNames", ""))
         | extend UrlDomainSafe = iff(
             isempty(UrlDomainSafe),
             tolower(extract(@"^(?:https?://)?([^/:?#]+)", 1, UrlSafe)),
             UrlDomainSafe
         )
         | where isnotempty(UrlSafe) or isnotempty(UrlDomainSafe)
-        | project EventTime, NetworkMessageId, UrlSafe, UrlDomainSafe, UrlThreatTypes, UrlThreatNames
+        | project EventTime, NetworkMessageId, UrlSafe, UrlDomainSafe, UrlThreatTypesSafe, UrlThreatNamesSafe
     )
 );
 let TargetUrlDomains = toscalar(TargetUrls | where isnotempty(UrlDomainSafe) | summarize make_set(UrlDomainSafe, 100));
-let UrlSummary =
-    TargetUrls
-    | summarize
-        UrlCount=dcount(UrlSafe),
-        UrlDomains=make_set(UrlDomainSafe, 50),
-        Urls=make_set(UrlSafe, 50),
-        UrlThreatTypes=make_set(UrlThreatTypes, 20),
-        UrlThreatNames=make_set(UrlThreatNames, 20)
-        by NetworkMessageId;
-let UrlDomainBaseline =
+let UrlDomainBaseline = materialize(
     union isfuzzy=true
     (
         EmailUrlInfo
@@ -196,16 +204,30 @@ let UrlDomainBaseline =
         | summarize
             UrlDomainSeenCount=count(),
             UrlDomainDaysSeen=dcount(bin(EventTime, 1d)),
-            UrlDomainRecipientsSeen=dcount(RecipientSafe)
+            UrlDomainRecipientsSeen=dcount(RecipientSafe),
+            UrlDomainFirstSeen=min(EventTime),
+            UrlDomainLastSeen=max(EventTime)
             by UrlDomainSafe
-    );
-let UrlDomainBaselineSummary =
-    UrlDomainBaseline
+    )
+);
+let UrlSummary =
+    TargetUrls
+    | join kind=leftouter UrlDomainBaseline on UrlDomainSafe
+    | extend
+        UrlDomainSeenCount=coalesce(UrlDomainSeenCount, 0),
+        UrlDomainDaysSeen=coalesce(UrlDomainDaysSeen, 0),
+        UrlDomainRecipientsSeen=coalesce(UrlDomainRecipientsSeen, 0)
     | summarize
+        UrlCount=dcount(UrlSafe),
+        UrlDomains=make_set(UrlDomainSafe, 50),
+        Urls=make_set(UrlSafe, 50),
         RareUrlDomains=make_set_if(UrlDomainSafe, UrlDomainSeenCount == 0 or UrlDomainDaysSeen <= 1, 50),
+        UrlThreatTypes=make_set_if(UrlThreatTypesSafe, isnotempty(UrlThreatTypesSafe), 20),
+        UrlThreatNames=make_set_if(UrlThreatNamesSafe, isnotempty(UrlThreatNamesSafe), 20),
         UrlDomainSeenCountTotal=sum(UrlDomainSeenCount),
         UrlDomainDaysSeenMax=max(UrlDomainDaysSeen),
-        UrlDomainRecipientsSeenTotal=sum(UrlDomainRecipientsSeen);
+        UrlDomainRecipientsSeenTotal=sum(UrlDomainRecipientsSeen)
+        by NetworkMessageId;
 //
 // ============================================================================
 // Attachment context and attachment prevalence
@@ -219,36 +241,21 @@ let TargetAttachments = materialize(
             column_ifexists("TimeGenerated", datetime(null))
         )
         | where EventTime between (TargetTime - SearchLookback .. TargetTime + 1h)
-        | where NetworkMessageId == TargetNetworkMessageId
+        | where NetworkMessageId == TargetNetworkMessageIdResolved
         | extend
             FileNameSafe = tostring(column_ifexists("FileName", "")),
             SHA256Safe = tostring(column_ifexists("SHA256", "")),
             FileTypeSafe = tolower(tostring(column_ifexists("FileType", ""))),
-            AttachmentThreatTypes = tostring(column_ifexists("ThreatTypes", "")),
-            AttachmentThreatNames = tostring(column_ifexists("ThreatNames", ""))
+            AttachmentThreatTypesSafe = tostring(column_ifexists("ThreatTypes", "")),
+            AttachmentThreatNamesSafe = tostring(column_ifexists("ThreatNames", ""))
         | extend FileExt = tolower(extract(@"\.([^\.\\\/]+)$", 1, FileNameSafe))
         | extend AttachmentType = iff(isnotempty(FileTypeSafe), FileTypeSafe, FileExt)
         | where isnotempty(FileNameSafe) or isnotempty(SHA256Safe)
-        | project EventTime, NetworkMessageId, FileNameSafe, SHA256Safe, AttachmentType, AttachmentThreatTypes, AttachmentThreatNames
+        | project EventTime, NetworkMessageId, FileNameSafe, SHA256Safe, AttachmentType, AttachmentThreatTypesSafe, AttachmentThreatNamesSafe
     )
 );
 let TargetAttachmentHashes = toscalar(TargetAttachments | where isnotempty(SHA256Safe) | summarize make_set(SHA256Safe, 100));
-let AttachmentSummary =
-    TargetAttachments
-    | summarize
-        AttachmentCount=dcount(FileNameSafe),
-        AttachmentNames=make_set(FileNameSafe, 50),
-        AttachmentSHA256s=make_set(SHA256Safe, 50),
-        AttachmentTypes=make_set(AttachmentType, 50),
-        RiskyAttachmentTypes=make_set_if(AttachmentType, AttachmentType in (
-            "html", "htm", "js", "jse", "vbs", "vbe", "wsf", "wsh",
-            "lnk", "iso", "img", "exe", "scr", "dll", "bat", "cmd",
-            "ps1", "zip", "rar", "7z", "one", "docm", "xlsm", "pptm"
-        ), 50),
-        AttachmentThreatTypes=make_set(AttachmentThreatTypes, 20),
-        AttachmentThreatNames=make_set(AttachmentThreatNames, 20)
-        by NetworkMessageId;
-let AttachmentHashBaseline =
+let AttachmentHashBaseline = materialize(
     union isfuzzy=true
     (
         EmailAttachmentInfo
@@ -265,16 +272,37 @@ let AttachmentHashBaseline =
         | summarize
             AttachmentHashSeenCount=count(),
             AttachmentHashDaysSeen=dcount(bin(EventTime, 1d)),
-            AttachmentHashRecipientsSeen=dcount(RecipientSafe)
+            AttachmentHashRecipientsSeen=dcount(RecipientSafe),
+            AttachmentHashFirstSeen=min(EventTime),
+            AttachmentHashLastSeen=max(EventTime)
             by SHA256Safe
-    );
-let AttachmentHashBaselineSummary =
-    AttachmentHashBaseline
+    )
+);
+let AttachmentSummary =
+    TargetAttachments
+    | join kind=leftouter AttachmentHashBaseline on SHA256Safe
+    | extend
+        AttachmentHashSeenCount=coalesce(AttachmentHashSeenCount, 0),
+        AttachmentHashDaysSeen=coalesce(AttachmentHashDaysSeen, 0),
+        AttachmentHashRecipientsSeen=coalesce(AttachmentHashRecipientsSeen, 0)
+    | extend IsRiskyAttachmentType = AttachmentType in (
+        "html", "htm", "js", "jse", "vbs", "vbe", "wsf", "wsh",
+        "lnk", "iso", "img", "exe", "scr", "dll", "bat", "cmd",
+        "ps1", "zip", "rar", "7z", "one", "docm", "xlsm", "pptm"
+    )
     | summarize
-        NewAttachmentHashes=make_set_if(SHA256Safe, AttachmentHashSeenCount == 0 or AttachmentHashDaysSeen <= 1, 50),
+        AttachmentCount=dcount(FileNameSafe),
+        AttachmentNames=make_set(FileNameSafe, 50),
+        AttachmentSHA256s=make_set(SHA256Safe, 50),
+        AttachmentTypes=make_set(AttachmentType, 50),
+        RiskyAttachmentTypes=make_set_if(AttachmentType, IsRiskyAttachmentType, 50),
+        NewOrRareAttachmentHashes=make_set_if(SHA256Safe, isnotempty(SHA256Safe) and (AttachmentHashSeenCount == 0 or AttachmentHashDaysSeen <= 1), 50),
+        AttachmentThreatTypes=make_set_if(AttachmentThreatTypesSafe, isnotempty(AttachmentThreatTypesSafe), 20),
+        AttachmentThreatNames=make_set_if(AttachmentThreatNamesSafe, isnotempty(AttachmentThreatNamesSafe), 20),
         AttachmentHashSeenCountTotal=sum(AttachmentHashSeenCount),
         AttachmentHashDaysSeenMax=max(AttachmentHashDaysSeen),
-        AttachmentHashRecipientsSeenTotal=sum(AttachmentHashRecipientsSeen);
+        AttachmentHashRecipientsSeenTotal=sum(AttachmentHashRecipientsSeen)
+        by NetworkMessageId;
 //
 // ============================================================================
 // Post-delivery remediation and user click context
@@ -288,11 +316,14 @@ let PostDelivery =
             column_ifexists("TimeGenerated", datetime(null))
         )
         | where EventTime between (TargetTime - SearchLookback .. TargetTime + 7d)
-        | where NetworkMessageId == TargetNetworkMessageId
+        | where NetworkMessageId == TargetNetworkMessageIdResolved
+        | extend
+            ActionTypeSafe = tostring(column_ifexists("ActionType", "")),
+            ActionResultSafe = tostring(column_ifexists("ActionResult", ""))
         | summarize
             PostDeliveryEventCount=count(),
-            PostDeliveryActions=make_set(tostring(column_ifexists("ActionType", "")), 20),
-            PostDeliveryResults=make_set(tostring(column_ifexists("ActionResult", "")), 20),
+            PostDeliveryActions=make_set_if(ActionTypeSafe, isnotempty(ActionTypeSafe), 20),
+            PostDeliveryResults=make_set_if(ActionResultSafe, isnotempty(ActionResultSafe), 20),
             LatestPostDeliveryEvent=max(EventTime)
             by NetworkMessageId
     );
@@ -305,11 +336,18 @@ let Clicks =
             column_ifexists("TimeGenerated", datetime(null))
         )
         | where EventTime between (TargetTime - SearchLookback .. TargetTime + 7d)
-        | where NetworkMessageId == TargetNetworkMessageId
+        | where NetworkMessageId == TargetNetworkMessageIdResolved
+        | extend
+            AccountUpnSafe = tolower(tostring(column_ifexists("AccountUpn", ""))),
+            ActionTypeSafe = tostring(column_ifexists("ActionType", "")),
+            UrlSafe = tostring(column_ifexists("Url", ""))
         | summarize
             ClickCount=count(),
-            ClickActions=make_set(tostring(column_ifexists("ActionType", "")), 20),
-            ClickedUrls=make_set(tostring(column_ifexists("Url", "")), 20),
+            ClickUsers=dcount(AccountUpnSafe),
+            ClickUserList=make_set_if(AccountUpnSafe, isnotempty(AccountUpnSafe), 50),
+            ClickActions=make_set_if(ActionTypeSafe, isnotempty(ActionTypeSafe), 20),
+            ClickedUrls=make_set_if(UrlSafe, isnotempty(UrlSafe), 50),
+            FirstClick=min(EventTime),
             LatestClick=max(EventTime)
             by NetworkMessageId
     );
@@ -323,10 +361,7 @@ TargetEmail
 | join kind=leftouter SenderRecipientBaseline on Sender, Recipient
 | join kind=leftouter RecipientSpread on Sender
 | join kind=leftouter UrlSummary on NetworkMessageId
-| extend _joinKey = 1
-| join kind=leftouter (UrlDomainBaselineSummary | extend _joinKey = 1) on _joinKey
 | join kind=leftouter AttachmentSummary on NetworkMessageId
-| join kind=leftouter (AttachmentHashBaselineSummary | extend _joinKey = 1) on _joinKey
 | join kind=leftouter PostDelivery on NetworkMessageId
 | join kind=leftouter Clicks on NetworkMessageId
 | extend
@@ -351,14 +386,19 @@ TargetEmail
     AttachmentHashRecipientsSeenTotal=coalesce(AttachmentHashRecipientsSeenTotal, 0),
     PostDeliveryEventCount=coalesce(PostDeliveryEventCount, 0),
     ClickCount=coalesce(ClickCount, 0),
+    ClickUsers=coalesce(ClickUsers, 0),
     UrlDomains=coalesce(UrlDomains, dynamic([])),
     Urls=coalesce(Urls, dynamic([])),
     RareUrlDomains=coalesce(RareUrlDomains, dynamic([])),
+    UrlThreatTypes=coalesce(UrlThreatTypes, dynamic([])),
+    UrlThreatNames=coalesce(UrlThreatNames, dynamic([])),
     AttachmentNames=coalesce(AttachmentNames, dynamic([])),
     AttachmentSHA256s=coalesce(AttachmentSHA256s, dynamic([])),
     AttachmentTypes=coalesce(AttachmentTypes, dynamic([])),
     RiskyAttachmentTypes=coalesce(RiskyAttachmentTypes, dynamic([])),
-    NewAttachmentHashes=coalesce(NewAttachmentHashes, dynamic([])),
+    NewOrRareAttachmentHashes=coalesce(NewOrRareAttachmentHashes, dynamic([])),
+    AttachmentThreatTypes=coalesce(AttachmentThreatTypes, dynamic([])),
+    AttachmentThreatNames=coalesce(AttachmentThreatNames, dynamic([])),
     PostDeliveryActions=coalesce(PostDeliveryActions, dynamic([])),
     PostDeliveryResults=coalesce(PostDeliveryResults, dynamic([])),
     ClickActions=coalesce(ClickActions, dynamic([])),
@@ -422,9 +462,9 @@ TargetEmail
     IsFirstContact = SenderRecipientSeenCount == 0,
     HasAuthFailure = AuthFailCount > 0,
     HasUrls = UrlCount > 0,
-    HasRareUrlDomain = UrlCount > 0 and (UrlDomainSeenCountTotal == 0 or UrlDomainDaysSeenMax <= 1),
+    HasRareUrlDomain = UrlCount > 0 and array_length(RareUrlDomains) > 0,
     HasAttachments = AttachmentCount > 0,
-    HasNewAttachmentHash = AttachmentCount > 0 and array_length(AttachmentSHA256s) > 0 and (AttachmentHashSeenCountTotal == 0 or AttachmentHashDaysSeenMax <= 1),
+    HasNewAttachmentHash = AttachmentCount > 0 and array_length(NewOrRareAttachmentHashes) > 0,
     HasRiskyAttachmentType = array_length(RiskyAttachmentTypes) > 0,
     HasThreatVerdict = isnotempty(ThreatTypesSafe) or isnotempty(ThreatNamesSafe) or isnotempty(DetectionMethodsSafe),
     HasUrlThreatVerdict = array_length(UrlThreatTypes) > 0 or array_length(UrlThreatNames) > 0,
@@ -558,7 +598,7 @@ TargetEmail
     "- Risky attachment types: ", iff(array_length(RiskyAttachmentTypes) == 0, "none", tostring(RiskyAttachmentTypes)), ".\n",
     "- Threat indicators: ", iff(HasThreatVerdict, strcat("ThreatTypes=", ThreatTypesSafe, "; ThreatNames=", ThreatNamesSafe, "; DetectionMethods=", DetectionMethodsSafe), "none recorded on EmailEvents"), ".\n",
     "- Post-delivery events: ", tostring(PostDeliveryEventCount), " observed; actions: ", iff(array_length(PostDeliveryActions) == 0, "none", tostring(PostDeliveryActions)), ".\n",
-    "- URL clicks: ", tostring(ClickCount), " observed; actions: ", iff(array_length(ClickActions) == 0, "none", tostring(ClickActions)), ".\n",
+    "- URL clicks: ", tostring(ClickCount), " observed; users: ", tostring(ClickUsers), "; actions: ", iff(array_length(ClickActions) == 0, "none", tostring(ClickActions)), ".\n",
     "- Behavioural flags: ", iff(isempty(BehaviouralFlags), "none", BehaviouralFlags), ".\n",
     "- Quick assessment: ", QuickAssessment
 )
@@ -601,10 +641,11 @@ TargetEmail
     AttachmentSHA256s,
     AttachmentTypes,
     RiskyAttachmentTypes,
-    NewAttachmentHashes,
+    NewOrRareAttachmentHashes,
     PostDeliveryEventCount,
     PostDeliveryActions,
     ClickCount,
+    ClickUsers,
     ClickActions,
     ClickedUrls,
     BehaviouralFlags,
