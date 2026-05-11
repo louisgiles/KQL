@@ -14,19 +14,6 @@
 //                    URL and attachment prevalence reviewed; user click exposure reviewed;
 //                    endpoint correlation reviewed where applicable; threat concern and exposure concern separated.
 // output_type:       analysis
-//
-// Design:
-// Email deep-dive is not just a longer quick-dive.
-// It answers:
-// - What was the message?
-// - Did authentication/delivery posture support concern?
-// - Was this sender/domain/recipient relationship normal?
-// - Is this isolated or campaign-like?
-// - What URLs/attachments were involved?
-// - Did anyone click?
-// - Was it remediated?
-// - Is endpoint follow-up needed?
-// - What is the split between threat concern and exposure concern?
 
 let NetworkMessageIdToCheck = "";
 let SenderToCheck = "";
@@ -69,11 +56,7 @@ let CandidateEmails = materialize(
         Sender = tolower(tostring(SenderFromAddress)),
         SenderDomain = tolower(extract(@"@([^@]+)$", 1, tostring(SenderFromAddress))),
         Recipient = tolower(tostring(RecipientEmailAddress)),
-        AuthJson = parse_json(tostring(AuthenticationDetails)),
-        DKIM = tolower(tostring(AuthJson.DKIM)),
-        DMARC = tolower(tostring(AuthJson.DMARC)),
-        SPF = tolower(tostring(AuthJson.SPF)),
-        CompAuth = tolower(tostring(AuthJson.CompAuth)),
+        AuthRaw = tostring(AuthenticationDetails),
         SenderMailFromAddressSafe = tostring(column_ifexists("SenderMailFromAddress", "")),
         SenderMailFromDomain = tolower(extract(@"@([^@]+)$", 1, tostring(column_ifexists("SenderMailFromAddress", "")))),
         SenderIPv4Safe = tostring(column_ifexists("SenderIPv4", "")),
@@ -90,6 +73,32 @@ let CandidateEmails = materialize(
         ConnectorIdSafe = tostring(column_ifexists("ConnectorId", "")),
         PolicySafe = tostring(column_ifexists("Policy", "")),
         PolicyActionSafe = tostring(column_ifexists("PolicyAction", ""))
+    | extend AuthJson = parse_json(AuthRaw)
+    | extend
+        DKIM = tolower(tostring(coalesce(
+            extractjson("$.DKIM", AuthRaw),
+            extractjson("$.dkim", AuthRaw),
+            AuthJson["DKIM"],
+            AuthJson["dkim"]
+        ))),
+        DMARC = tolower(tostring(coalesce(
+            extractjson("$.DMARC", AuthRaw),
+            extractjson("$.dmarc", AuthRaw),
+            AuthJson["DMARC"],
+            AuthJson["dmarc"]
+        ))),
+        SPF = tolower(tostring(coalesce(
+            extractjson("$.SPF", AuthRaw),
+            extractjson("$.spf", AuthRaw),
+            AuthJson["SPF"],
+            AuthJson["spf"]
+        ))),
+        CompAuth = tolower(tostring(coalesce(
+            extractjson("$.CompAuth", AuthRaw),
+            extractjson("$.compauth", AuthRaw),
+            AuthJson["CompAuth"],
+            AuthJson["compauth"]
+        )))
 );
 // Prefer one target message. NetworkMessageId is the preferred input.
 let TargetEmail = materialize(
@@ -574,14 +583,17 @@ let ClickSummary = materialize(
 // ============================================================================
 // Optional endpoint correlation after click
 // ============================================================================
-let ClickUsers = toscalar(ClickEvents | where isnotempty(AccountUpnSafe) | summarize make_set(AccountUpnSafe, 100));
-let ClickUrlDomains = toscalar(ClickEvents | extend ClickUrlDomain = tolower(extract(@"^(?:https?://)?([^/:?#]+)", 1, UrlSafe)) | where isnotempty(ClickUrlDomain) | summarize make_set(ClickUrlDomain, 100));
+let ClickUrlDomains = toscalar(
+    ClickEvents
+    | extend ClickUrlDomain = tolower(extract(@"^(?:https?://)?([^/:?#]+)", 1, UrlSafe))
+    | where isnotempty(ClickUrlDomain)
+    | summarize make_set(ClickUrlDomain, 100)
+);
 let FirstClickTime = toscalar(ClickEvents | summarize min(EventTime));
 let EndpointNetworkCorrelation = materialize(
     DeviceNetworkEvents
     | where RunEndpointCorrelation
     | where Timestamp between (FirstClickTime .. FirstClickTime + EndpointCorrelationWindow)
-    | extend AccountUpn = tolower(strcat(InitiatingProcessAccountDomain, "\\", InitiatingProcessAccountName))
     | extend DestinationHost = tolower(extract(@"^(?:https?://)?([^/:?#]+)", 1, tostring(RemoteUrl)))
     | where DestinationHost in (ClickUrlDomains)
         or RemoteUrl in (TargetUrlsSet)
@@ -686,6 +698,7 @@ let AggregateSignals = materialize(
         SenderIPDaysSeen=coalesce(SenderIPDaysSeen, 0),
         DisplayNameSeenCount=coalesce(DisplayNameSeenCount, 0),
         DisplayNameSendersSeen=coalesce(DisplayNameSendersSeen, 0),
+        DisplayNameDomainsSeen=coalesce(DisplayNameDomainsSeen, 0),
         SimilarMessageEvents=coalesce(SimilarMessageEvents, 0),
         SimilarNetworkMessageIds=coalesce(SimilarNetworkMessageIds, 0),
         SimilarRecipients=coalesce(SimilarRecipients, 0),
