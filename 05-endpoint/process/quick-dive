@@ -1,7 +1,8 @@
 // name:              Process Activity Quick Dive + Narrative
 // purpose:           Fast process triage for Defender process alerts.
-//                    One-row output with process identity, parent/command-line shape,
-//                    prevalence, nearby behaviour counts, cautious flags, and paste-ready note.
+//                    One-row output with process identity, Defender/AMSI alert evidence,
+//                    parent/command-line shape, prevalence, nearby behaviour counts,
+//                    cautious flags, and paste-ready note.
 // required_tables:   DeviceProcessEvents
 // optional_tables:   DeviceNetworkEvents, DeviceFileEvents, DeviceRegistryEvents, DeviceEvents
 // output_type:       quick-triage
@@ -10,6 +11,7 @@
 // Process quick-dive is a decision gate, not a full chain investigation.
 // It answers:
 // - What ran?
+// - Was there Defender/AMSI evidence attached to the process?
 // - Who/what launched it?
 // - Is the process/parent pairing normal?
 // - Is the command line or path suspicious?
@@ -18,6 +20,7 @@
 
 let AlertTime = datetime(2026-01-01T00:00:00Z);
 let TimeToCheck = 10m;
+let ProcessLookupBack = 2h;
 let BaselineWindow = 90d;
 let BaselineLabel = "90d";
 let ForwardWindow = 1h;
@@ -30,11 +33,57 @@ let CommandLineToCheck = "";
 let AccountToCheck = "";
 //
 // ============================================================================
+// Defender / AMSI alert evidence anchor
+// ============================================================================
+let AlertEvidence = materialize(
+    DeviceEvents
+    | where Timestamp between (AlertTime - TimeToCheck .. AlertTime + TimeToCheck)
+    | where isempty(HostToCheck) or DeviceName =~ HostToCheck
+    | extend
+        AdditionalFieldsSafe = tostring(column_ifexists("AdditionalFields", "")),
+        EventFileNameSafe = tostring(column_ifexists("FileName", "")),
+        EventSHA256Safe = tostring(column_ifexists("SHA256", "")),
+        InitSHA256Safe = tostring(column_ifexists("InitiatingProcessSHA256", "")),
+        InitFolderSafe = tostring(column_ifexists("InitiatingProcessFolderPath", "")),
+        InitAccountSafe = tostring(column_ifexists("InitiatingProcessAccountName", "")),
+        InitCommandLineSafe = tostring(column_ifexists("InitiatingProcessCommandLine", "")),
+        InitFileNameSafe = tostring(column_ifexists("InitiatingProcessFileName", ""))
+    | where ActionType has_any (
+        "AntivirusDetection",
+        "AntivirusReport",
+        "AmsiScriptContentScan",
+        "AsrProcessBlocked",
+        "AsrLsassBlocked",
+        "AsrPersistenceThroughWmiBlocked",
+        "ExploitGuardNetworkProtectionBlocked",
+        "SmartScreenAppWarning",
+        "SmartScreenExploitWarning",
+        "TamperingAttempt",
+        "ProcessBlockedByPolicy"
+    )
+        or AdditionalFieldsSafe has_any ("AMSI", "NetConfDisoc", "malware", "Malware")
+    | where isempty(ProcessNameToCheck) or InitFileNameSafe contains ProcessNameToCheck or EventFileNameSafe contains ProcessNameToCheck
+    | where isempty(ProcessSHA256ToCheck) or InitSHA256Safe =~ ProcessSHA256ToCheck or EventSHA256Safe =~ ProcessSHA256ToCheck
+    | where isempty(ProcessIdToCheck) or tostring(InitiatingProcessId) == ProcessIdToCheck
+    | where isempty(CommandLineToCheck) or InitCommandLineSafe contains CommandLineToCheck or AdditionalFieldsSafe contains CommandLineToCheck
+    | where isempty(AccountToCheck) or InitAccountSafe contains AccountToCheck
+    | extend AlertProcKey = strcat(tostring(InitiatingProcessId), "|", tostring(InitiatingProcessCreationTime))
+);
+let AlertProcKeys = toscalar(AlertEvidence | where isnotempty(AlertProcKey) | summarize make_set(AlertProcKey, 100));
+let AlertProcKeyCount = toscalar(AlertEvidence | where isnotempty(AlertProcKey) | summarize dcount(AlertProcKey));
+let AlertEvidenceCount = toscalar(AlertEvidence | count);
+let AlertActions = toscalar(AlertEvidence | summarize make_set(ActionType, 20));
+let TopAlertAction = toscalar(AlertEvidence | top 1 by Timestamp asc | project ActionType);
+let TopAlertDetails = toscalar(AlertEvidence | top 1 by Timestamp asc | project AlertDetails = substring(AdditionalFieldsSafe, 0, 500));
+//
+// ============================================================================
 // Target process event
+// If Defender/AMSI evidence exists, use its process key as the preferred anchor.
+// Otherwise, use the normal tight process-event window.
 // ============================================================================
 let ProcessScope = materialize(
     DeviceProcessEvents
-    | where Timestamp between (AlertTime - TimeToCheck .. AlertTime + TimeToCheck)
+    | where Timestamp between (AlertTime - ProcessLookupBack .. AlertTime + TimeToCheck)
     | where isempty(HostToCheck) or DeviceName =~ HostToCheck
     | where isempty(ProcessNameToCheck) or FileName contains ProcessNameToCheck
     | where isempty(ProcessSHA256ToCheck) or SHA256 =~ ProcessSHA256ToCheck
@@ -46,14 +95,81 @@ let ProcessScope = materialize(
         ParentName = tolower(tostring(InitiatingProcessFileName)),
         ProcKey = strcat(tostring(ProcessId), "|", tostring(ProcessCreationTime)),
         ParentKey = strcat(tostring(InitiatingProcessId), "|", tostring(InitiatingProcessCreationTime))
+    | where
+        (AlertProcKeyCount == 0 and Timestamp between (AlertTime - TimeToCheck .. AlertTime + TimeToCheck))
+        or ProcKey in (AlertProcKeys)
 );
 //
-let TargetRow = materialize(ProcessScope | summarize arg_min(Timestamp, *));
-let TargetProcesses = toscalar(ProcessScope | where isnotempty(FileName) | summarize make_set(FileName, 100));
-let TargetSHA256s = toscalar(ProcessScope | where isnotempty(SHA256) | summarize make_set(SHA256, 100));
-let TargetDevices = toscalar(ProcessScope | where isnotempty(DeviceName) | summarize make_set(DeviceName, 100));
-let TargetAccounts = toscalar(ProcessScope | where isnotempty(AccountName) | summarize make_set(AccountName, 100));
-let TargetProcKeys = toscalar(ProcessScope | where isnotempty(ProcKey) | summarize make_set(ProcKey, 100));
+// ============================================================================
+// Target candidates
+// Prefer real DeviceProcessEvents rows.
+// Fall back to DeviceEvents alert evidence if no matching process-creation event is found.
+// ============================================================================
+let TargetCandidates = materialize(
+    union isfuzzy=true
+    (
+        ProcessScope
+        | extend SourceRank = 1, SourceType = "DeviceProcessEvents"
+        | project
+            SourceRank,
+            SourceType,
+            Timestamp,
+            DeviceName,
+            FileName,
+            FolderPath,
+            SHA256,
+            ProcessCommandLine,
+            AccountName,
+            InitiatingProcessFileName,
+            InitiatingProcessCommandLine,
+            ProcName,
+            ParentName,
+            ProcKey,
+            ParentKey
+    ),
+    (
+        AlertEvidence
+        | extend
+            FallbackFileName = iff(isnotempty(InitFileNameSafe), InitFileNameSafe, EventFileNameSafe),
+            FallbackFolderPath = InitFolderSafe,
+            FallbackSHA256 = iff(isnotempty(InitSHA256Safe), InitSHA256Safe, EventSHA256Safe),
+            FallbackCommandLine = iff(isnotempty(InitCommandLineSafe), InitCommandLineSafe, AdditionalFieldsSafe),
+            FallbackAccount = InitAccountSafe
+        | where isnotempty(FallbackFileName)
+        | extend
+            SourceRank = 2,
+            SourceType = "DeviceEvents alert evidence",
+            ProcName = tolower(tostring(FallbackFileName)),
+            ParentName = "",
+            ProcKey = AlertProcKey,
+            ParentKey = ""
+        | project
+            SourceRank,
+            SourceType,
+            Timestamp,
+            DeviceName,
+            FileName = FallbackFileName,
+            FolderPath = FallbackFolderPath,
+            SHA256 = FallbackSHA256,
+            ProcessCommandLine = FallbackCommandLine,
+            AccountName = FallbackAccount,
+            InitiatingProcessFileName = "",
+            InitiatingProcessCommandLine = "",
+            ProcName,
+            ParentName,
+            ProcKey,
+            ParentKey
+    )
+);
+let TargetRow = materialize(
+    TargetCandidates
+    | top 1 by SourceRank asc, Timestamp asc
+);
+let TargetProcesses = toscalar(TargetRow | where isnotempty(FileName) | summarize make_set(FileName, 100));
+let TargetSHA256s = toscalar(TargetRow | where isnotempty(SHA256) | summarize make_set(SHA256, 100));
+let TargetDevices = toscalar(TargetRow | where isnotempty(DeviceName) | summarize make_set(DeviceName, 100));
+let TargetAccounts = toscalar(TargetRow | where isnotempty(AccountName) | summarize make_set(AccountName, 100));
+let TargetProcKeys = toscalar(TargetRow | where isnotempty(ProcKey) | summarize make_set(ProcKey, 100));
 //
 // ============================================================================
 // Historical baseline
@@ -151,6 +267,7 @@ let NearbyMdeActivity = materialize(
     | where ActionType has_any (
         "AntivirusDetection",
         "AntivirusReport",
+        "AmsiScriptContentScan",
         "AsrProcessBlocked",
         "AsrLsassBlocked",
         "AsrPersistenceThroughWmiBlocked",
@@ -160,6 +277,7 @@ let NearbyMdeActivity = materialize(
         "TamperingAttempt",
         "ProcessBlockedByPolicy"
     )
+        or tostring(column_ifexists("AdditionalFields", "")) has_any ("AMSI", "NetConfDisoc", "malware", "Malware")
     | extend ProcKey = strcat(tostring(InitiatingProcessId), "|", tostring(InitiatingProcessCreationTime))
     | where ProcKey in (TargetProcKeys)
         or SHA256 in (TargetSHA256s)
@@ -198,6 +316,10 @@ TargetRow
 | join kind=leftouter ParentProcessBaseline on InitiatingProcessFileName, FileName
 | join kind=leftouter AccountProcessBaseline on AccountName, FileName
 | extend
+    AlertEvidenceCount = AlertEvidenceCount,
+    AlertActions = AlertActions,
+    TopAlertAction = TopAlertAction,
+    TopAlertDetails = TopAlertDetails,
     TenantProcessCount=coalesce(TenantProcessCount, 0),
     TenantProcessDaysSeen=coalesce(TenantProcessDaysSeen, 0),
     TenantProcessDevicesSeen=coalesce(TenantProcessDevicesSeen, 0),
@@ -215,7 +337,7 @@ TargetRow
         ProcName in~ ("powershell.exe", "pwsh.exe", "cmd.exe", "wscript.exe", "cscript.exe", "mshta.exe", "python.exe", "pythonw.exe"), "Script / shell",
         ProcName in~ ("winword.exe", "excel.exe", "powerpnt.exe", "outlook.exe", "onenote.exe"), "Office",
         ProcName in~ ("rundll32.exe", "regsvr32.exe", "certutil.exe", "bitsadmin.exe", "wmic.exe", "msiexec.exe", "installutil.exe"), "LOLBin / installer",
-        ProcName has_any ("ninja", "screenconnect", "connectwise", "splashtop", "teamviewer", "anydesk", "atera", "datto", "kaseya", "tacticalrmm"), "Admin / RMM",
+        ProcName has_any ("immy", "immybot", "ninja", "screenconnect", "connectwise", "splashtop", "teamviewer", "anydesk", "atera", "datto", "kaseya", "tacticalrmm"), "Admin / RMM",
         "Other"
     ),
     ParentFamily = case(
@@ -223,7 +345,7 @@ TargetRow
         ParentName in~ ("powershell.exe", "pwsh.exe", "cmd.exe", "wscript.exe", "cscript.exe", "mshta.exe", "python.exe", "pythonw.exe"), "Script / shell",
         ParentName in~ ("winword.exe", "excel.exe", "powerpnt.exe", "outlook.exe", "onenote.exe"), "Office",
         ParentName in~ ("rundll32.exe", "regsvr32.exe", "certutil.exe", "bitsadmin.exe", "wmic.exe", "msiexec.exe", "installutil.exe"), "LOLBin / installer",
-        ParentName has_any ("ninja", "screenconnect", "connectwise", "splashtop", "teamviewer", "anydesk", "atera", "datto", "kaseya", "tacticalrmm"), "Admin / RMM",
+        ParentName has_any ("immy", "immybot", "ninja", "screenconnect", "connectwise", "splashtop", "teamviewer", "anydesk", "atera", "datto", "kaseya", "tacticalrmm"), "Admin / RMM",
         "Other"
     )
 | extend
@@ -242,6 +364,8 @@ TargetRow
     )
 | extend
     ProcessShape = case(
+        AlertEvidenceCount > 0 and ProcessFamily == "Script / shell", "Defender/AMSI alert evidence tied to script-host process",
+        AlertEvidenceCount > 0, "Defender/AMSI alert evidence tied to process",
         ParentFamily == "Office" and ProcessFamily == "Script / shell" and HasEncodedCommand, "Office-spawned script-host with encoded command",
         ParentFamily == "Office" and ProcessFamily == "Script / shell", "Office-spawned script-host",
         ParentFamily == "Browser" and ProcessFamily == "Script / shell", "Browser-spawned script-host",
@@ -279,6 +403,7 @@ TargetRow
         "common process for account"
     )
 | extend
+    HasDefenderAmsiEvidence = AlertEvidenceCount > 0,
     IsRareTenantProcess = TenantProcessCount == 0 or TenantProcessDaysSeen <= 1,
     IsNewDeviceProcess = DeviceProcessCount == 0,
     IsNewParentProcessPair = ParentProcessPairCount == 0,
@@ -287,12 +412,15 @@ TargetRow
     IsBrowserSpawnedScript = ParentFamily == "Browser" and ProcessFamily == "Script / shell",
     IsScriptHost = ProcessFamily == "Script / shell",
     IsLolbin = ProcessFamily == "LOLBin / installer",
+    IsAdminRmmContext = ProcessFamily == "Admin / RMM" or ParentFamily == "Admin / RMM",
     HasNearbyNetwork = NearbyNetworkCount > 0,
     HasNearbyFile = NearbyFileCount > 0,
     HasNearbyRegistry = NearbyRegistryCount > 0,
     HasNearbyMde = NearbyMdeCount > 0,
     HasChildren = ChildProcessCount > 0
 | extend BehaviouralFlags = strcat_array(array_concat(
+    iff(HasDefenderAmsiEvidence, pack_array("DEFENDER_OR_AMSI_ALERT_EVIDENCE"), dynamic([])),
+    iff(IsAdminRmmContext, pack_array("ADMIN_OR_RMM_CONTEXT"), dynamic([])),
     iff(IsRareTenantProcess, pack_array("RARE_PROCESS_IN_TENANT"), dynamic([])),
     iff(IsNewDeviceProcess, pack_array("NEW_PROCESS_FOR_DEVICE"), dynamic([])),
     iff(IsNewParentProcessPair, pack_array("NEW_PARENT_PROCESS_PAIR"), dynamic([])),
@@ -315,6 +443,7 @@ TargetRow
 ), " | ")
 | extend QuickScore =
     0
+    + iff(HasDefenderAmsiEvidence, 25, 0)
     + iff(IsRareTenantProcess, 10, 0)
     + iff(IsNewDeviceProcess, 10, 0)
     + iff(IsNewParentProcessPair, 15, 0)
@@ -335,12 +464,20 @@ TargetRow
     + iff(HasNearbyMde, 25, 0)
     + iff(HasChildren, 10, 0)
 | extend QuickAssessment = case(
-    QuickScore >= 80, "High concern - run process deep dive and review full chain",
-    QuickScore >= 45, "Review closely - deep dive recommended if activity is not expected",
-    QuickScore >= 20, "Low concern - validate expected behaviour",
+    HasDefenderAmsiEvidence and IsAdminRmmContext,
+        "Review required - Defender/AMSI evidence observed in admin/RMM context. Validate expected automation and confirm blocked/no follow-on activity.",
+    HasDefenderAmsiEvidence and ProcessFamily == "Script / shell",
+        "High concern - Defender/AMSI evidence tied to script-host activity. Run process deep dive and confirm containment.",
+    QuickScore >= 80,
+        "High concern - run process deep dive and review full chain",
+    QuickScore >= 45,
+        "Review closely - deep dive recommended if activity is not expected",
+    QuickScore >= 20,
+        "Low concern - validate expected behaviour",
     "Limited suspicious signals in scoped telemetry"
 )
 | extend TruncatedCommandLine = iff(strlen(ProcessCommandLine) > 300, strcat(substring(ProcessCommandLine, 0, 300), "..."), ProcessCommandLine)
+| extend TruncatedAlertDetails = iff(strlen(TopAlertDetails) > 300, strcat(substring(TopAlertDetails, 0, 300), "..."), TopAlertDetails)
 | extend NearbyDetail = strcat(
     tostring(NearbyNetworkCount), " network event(s)",
     iff(isnotempty(TopRemote), strcat(" (top remote: ", TopRemote, ")"), ""),
@@ -352,25 +489,36 @@ TargetRow
     ", ", tostring(ChildProcessCount), " child process(es)",
     iff(isnotempty(TopChild), strcat(" (example: ", TopChild, ")"), "")
 )
-| extend Narrative = strcat(
+| extend NarrativePart1 = strcat(
     "- Process quick triage completed for ", DeviceName, ".\n",
+    "- Target source: ", SourceType, ".\n",
     "- Process: ", FileName, "\n",
     "- Parent process: ", iff(isempty(InitiatingProcessFileName), "N/A", InitiatingProcessFileName), "\n",
     "- Account: ", iff(isempty(AccountName), "N/A", AccountName), "\n",
     "- Path: ", iff(isempty(FolderPath), "N/A", FolderPath), "\n",
     "- SHA256: ", iff(isempty(SHA256), "N/A", SHA256), "\n",
-    "- Command line: ", iff(isempty(TruncatedCommandLine), "N/A", TruncatedCommandLine), "\n",
+    "- Command line: ", iff(isempty(TruncatedCommandLine), "N/A", TruncatedCommandLine), "\n"
+)
+| extend NarrativePart2 = strcat(
+    "- Defender/AMSI evidence: ", tostring(AlertEvidenceCount), " event(s)",
+    iff(isnotempty(tostring(AlertActions)), strcat("; actions: ", tostring(AlertActions)), ""),
+    iff(isnotempty(TruncatedAlertDetails), strcat("; example details: ", TruncatedAlertDetails), ""),
+    ".\n",
     "- Process shape: ", ProcessShape, ".\n",
     "- Tenant process prevalence: ", TenantProcessFamiliarity, " - seen on ", tostring(TenantProcessDevicesSeen), " device(s) across ", tostring(TenantProcessDaysSeen), " day(s) in ", BaselineLabel, ".\n",
-    "- Device process prevalence: ", DeviceProcessFamiliarity, " - ", tostring(DeviceProcessCount), " prior event(s) in baseline.\n",
+    "- Device process prevalence: ", DeviceProcessFamiliarity, " - ", tostring(DeviceProcessCount), " prior event(s) in baseline.\n"
+)
+| extend NarrativePart3 = strcat(
     "- Parent-process prevalence: ", ParentProcessPairFamiliarity, " - ", tostring(ParentProcessPairCount), " prior event(s) in baseline.\n",
     "- Account-process prevalence: ", AccountProcessFamiliarity, " - ", tostring(AccountProcessCount), " prior event(s) in baseline.\n",
     "- Nearby behaviour: ", NearbyDetail, ".\n",
     "- Behavioural flags: ", iff(isempty(BehaviouralFlags), "none", BehaviouralFlags), ".\n",
     "- Quick assessment: ", QuickAssessment
 )
+| extend Narrative = strcat(NarrativePart1, NarrativePart2, NarrativePart3)
 | project
     Timestamp,
+    SourceType,
     DeviceName,
     FileName,
     FolderPath,
@@ -382,6 +530,10 @@ TargetRow
     ProcessFamily,
     ParentFamily,
     ProcessShape,
+    AlertEvidenceCount,
+    AlertActions,
+    TopAlertAction,
+    TruncatedAlertDetails,
     TenantProcessFamiliarity,
     TenantProcessCount,
     TenantProcessDaysSeen,
