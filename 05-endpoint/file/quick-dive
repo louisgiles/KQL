@@ -1,28 +1,94 @@
-// File Quick Dive + Narrative Generator
-// Fast file triage with lightweight scoring, spread velocity, and paste-ready notes.
+// name:              File Quick Dive + Narrative
+// purpose:           Fast prevalence-first triage for Defender file alerts.
+//                    One-row-per-device output with file identity, Defender evidence,
+//                    creator-process context, tenant prevalence, environment spread,
+//                    nearby behaviour counts via creator ProcKey, cautious flags,
+//                    score, and paste-ready note.
+// starting_entities: SHA256 (preferred), FileName, DeviceName, FolderPath
+// required_tables:   DeviceFileEvents
+// optional_tables:   DeviceProcessEvents, DeviceNetworkEvents, DeviceRegistryEvents, DeviceEvents
+// output_type:       quick-triage
+//
+// Philosophy:
+// File quick-dive is a decision gate, not a full chain investigation.
+// It answers:
+// - What is the file and where is it?
+// - Was there Defender evidence attached to the file or its hash?
+// - Who/what created it?
+// - Is it rare in the tenant?
+// - Has it spread fast across the environment?
+// - Did the creator process perform nearby network/registry/persistence activity?
+// - Did it run, and did execution spawn anything?
+// - Should I run file deep-dive?
 
-let Lookback = 7d;
+let AlertTime = datetime(2026-01-01T00:00:00Z);
+let TimeToCheck = 10m;
+let ForwardWindow = 1h;
+let BaselineWindow = 90d;
 let SpreadLookback = 90d;
-let TargetDevice = "";      // Optional
-let TargetFileName = "";    // Optional
-let TargetSHA256 = "";      // Preferred
-let TargetFolderPath = "";  // Optional
-
-let FileHits =
-    DeviceFileEvents
-    | where Timestamp >= ago(Lookback)
-    | where isempty(TargetDevice) or DeviceName =~ TargetDevice
-    | where isempty(TargetSHA256) or SHA256 =~ TargetSHA256
-    | where isempty(TargetFileName) or FileName =~ TargetFileName
-    | where isempty(TargetFolderPath) or FolderPath contains TargetFolderPath
-    | extend SuspiciousPath = FolderPath has_any (
-        "\\AppData\\Local\\Temp",
-        "\\AppData\\Roaming",
-        "\\Downloads",
-        "\\ProgramData",
-        "\\Users\\Public",
-        "\\Windows\\Temp"
+let BaselineLabel = "90d";
+//
+let HostToCheck = "";
+let FileNameToCheck = "";
+let SHA256ToCheck = "";
+let FolderPathToCheck = "";
+//
+// ============================================================================
+// Defender / MDE alert evidence anchor
+// ============================================================================
+let AlertEvidence = materialize(
+    DeviceEvents
+    | where Timestamp between (AlertTime - TimeToCheck .. AlertTime + TimeToCheck)
+    | where isempty(HostToCheck) or DeviceName =~ HostToCheck
+    | extend
+        AdditionalFieldsSafe = tostring(column_ifexists("AdditionalFields", "")),
+        EventFileNameSafe = tostring(column_ifexists("FileName", "")),
+        EventSHA256Safe = tostring(column_ifexists("SHA256", "")),
+        EventFolderPathSafe = tostring(column_ifexists("FolderPath", "")),
+        InitSHA256Safe = tostring(column_ifexists("InitiatingProcessSHA256", "")),
+        InitFolderSafe = tostring(column_ifexists("InitiatingProcessFolderPath", "")),
+        InitAccountSafe = tostring(column_ifexists("InitiatingProcessAccountName", "")),
+        InitCommandLineSafe = tostring(column_ifexists("InitiatingProcessCommandLine", "")),
+        InitFileNameSafe = tostring(column_ifexists("InitiatingProcessFileName", ""))
+    | where ActionType has_any (
+        "AntivirusDetection",
+        "AntivirusReport",
+        "AsrProcessBlocked",
+        "AsrLsassBlocked",
+        "AsrPersistenceThroughWmiBlocked",
+        "ExploitGuardNetworkProtectionBlocked",
+        "SmartScreenAppWarning",
+        "SmartScreenExploitWarning",
+        "TamperingAttempt",
+        "ProcessBlockedByPolicy"
     )
+        or AdditionalFieldsSafe has_any ("malware", "Malware")
+    | where isempty(FileNameToCheck) or EventFileNameSafe contains FileNameToCheck or InitFileNameSafe contains FileNameToCheck
+    | where isempty(SHA256ToCheck) or EventSHA256Safe =~ SHA256ToCheck or InitSHA256Safe =~ SHA256ToCheck
+);
+let AlertEvidenceCount = toscalar(AlertEvidence | count);
+let AlertActions = toscalar(AlertEvidence | summarize make_set(ActionType, 20));
+let TopAlertAction = toscalar(AlertEvidence | top 1 by Timestamp asc | project ActionType);
+//
+// ============================================================================
+// Target file event(s)
+// ============================================================================
+let FileScope = materialize(
+    DeviceFileEvents
+    | where Timestamp between (AlertTime - TimeToCheck .. AlertTime + TimeToCheck)
+    | where isempty(HostToCheck) or DeviceName =~ HostToCheck
+    | where isempty(SHA256ToCheck) or SHA256 =~ SHA256ToCheck
+    | where isempty(FileNameToCheck) or FileName =~ FileNameToCheck
+    | where isempty(FolderPathToCheck) or FolderPath contains FolderPathToCheck
+    | extend SuspiciousPath = FolderPath has_any (
+        @"\AppData\Local\Temp",
+        @"\AppData\Roaming",
+        @"\Downloads",
+        @"\ProgramData",
+        @"\Users\Public",
+        @"\Windows\Temp"
+    )
+    | extend CreatorProcKey = strcat(tostring(InitiatingProcessId), "|", tostring(InitiatingProcessCreationTime))
     | summarize
         FirstSeen=min(Timestamp),
         LastSeen=max(Timestamp),
@@ -32,14 +98,74 @@ let FileHits =
         CreatorCommandLine=any(InitiatingProcessCommandLine),
         CreatorSHA256=any(InitiatingProcessSHA256),
         CreatorAccount=any(InitiatingProcessAccountName),
+        CreatorProcKeys=make_set(CreatorProcKey, 50),
         SuspiciousPath=any(SuspiciousPath)
-        by DeviceName, FileName, SHA256;
-
+        by DeviceName, FileName, SHA256
+    | extend SourceRank = 1, SourceType = "DeviceFileEvents"
+);
+//
+// Fallback to alert evidence if no DeviceFileEvents row exists
+let FallbackFromAlert = materialize(
+    AlertEvidence
+    | where isnotempty(EventFileNameSafe) or isnotempty(EventSHA256Safe)
+    | summarize
+        FirstSeen=min(Timestamp),
+        LastSeen=max(Timestamp),
+        FileActions=make_set(ActionType, 10),
+        ExamplePath=any(EventFolderPathSafe),
+        CreatorProcess=any(InitFileNameSafe),
+        CreatorCommandLine=any(InitCommandLineSafe),
+        CreatorSHA256=any(InitSHA256Safe),
+        CreatorAccount=any(InitAccountSafe),
+        CreatorProcKeys=make_set("", 1),
+        SuspiciousPath=tobool(false)
+        by DeviceName, FileName=EventFileNameSafe, SHA256=EventSHA256Safe
+    | extend SourceRank = 2, SourceType = "DeviceEvents alert evidence"
+);
+//
+let TargetCandidates = materialize(
+    union isfuzzy=true FileScope, FallbackFromAlert
+);
+let TargetRow = materialize(
+    TargetCandidates
+    | summarize arg_min(SourceRank, *) by DeviceName, FileName, SHA256
+);
+let TargetSHA256s = toscalar(TargetRow | where isnotempty(SHA256) | summarize make_set(SHA256, 100));
+let TargetFileNames = toscalar(TargetRow | where isnotempty(FileName) | summarize make_set(FileName, 100));
+let TargetProcKeys = toscalar(
+    TargetRow
+    | mv-expand ProcKey = CreatorProcKeys
+    | extend ProcKey = tostring(ProcKey)
+    | where isnotempty(ProcKey) and ProcKey != "|"
+    | summarize make_set(ProcKey, 100)
+);
+//
+// ============================================================================
+// Tenant prevalence baseline
+// ============================================================================
+let HistoricalFile = materialize(
+    DeviceFileEvents
+    | where Timestamp between (AlertTime - BaselineWindow .. AlertTime - TimeToCheck)
+    | where SHA256 in (TargetSHA256s) or FileName in (TargetFileNames)
+);
+//
+let TenantFileBaseline =
+    HistoricalFile
+    | where SHA256 in (TargetSHA256s)
+    | summarize
+        TenantSeenCount=count(),
+        TenantDaysSeen=dcount(bin(Timestamp, 1d)),
+        TenantDevicesSeen=dcount(DeviceName),
+        TenantAccountsSeen=dcount(InitiatingProcessAccountName)
+        by SHA256;
+//
+// ============================================================================
+// Environment spread (preserved from prior version)
+// ============================================================================
 let EnvironmentSpread =
     DeviceFileEvents
     | where Timestamp >= ago(SpreadLookback)
-    | where isempty(TargetSHA256) or SHA256 =~ TargetSHA256
-    | where isempty(TargetFileName) or FileName =~ TargetFileName
+    | where SHA256 in (TargetSHA256s) or FileName in (TargetFileNames)
     | summarize
         DevicesSeen=dcount(DeviceName),
         OrgFirstSeen=min(Timestamp),
@@ -62,176 +188,276 @@ let EnvironmentSpread =
             DevicesSeen <= 3, "Rare file",
             "Moderate distribution"
         );
-
+//
+// ============================================================================
+// Execution check
+// ============================================================================
 let Execution =
     DeviceProcessEvents
-    | where Timestamp >= ago(Lookback)
-    | where isempty(TargetDevice) or DeviceName =~ TargetDevice
-    | where isempty(TargetSHA256) or SHA256 =~ TargetSHA256
-    | where isempty(TargetFileName) or FileName =~ TargetFileName
+    | where Timestamp between (AlertTime - TimeToCheck .. AlertTime + ForwardWindow)
+    | where isempty(HostToCheck) or DeviceName =~ HostToCheck
+    | where SHA256 in (TargetSHA256s) or FileName in (TargetFileNames)
+    | extend ExecProcKey = strcat(tostring(ProcessId), "|", tostring(ProcessCreationTime))
     | summarize
         Executed=count(),
         FirstExecution=min(Timestamp),
         ExecutionCommandLine=any(ProcessCommandLine),
         ExecutionAccount=any(AccountName),
         ParentProcess=any(InitiatingProcessFileName),
-        ParentCommandLine=any(InitiatingProcessCommandLine)
+        ParentCommandLine=any(InitiatingProcessCommandLine),
+        ExecProcKeys=make_set(ExecProcKey, 50)
         by DeviceName, FileName, SHA256;
-
-let Network =
+//
+// ============================================================================
+// Nearby behaviour - scoped by creator ProcKey + alert window
+// ============================================================================
+let NearbyNetwork =
     DeviceNetworkEvents
-    | where Timestamp >= ago(Lookback)
-    | where isempty(TargetDevice) or DeviceName =~ TargetDevice
-    | where isempty(TargetSHA256) or InitiatingProcessSHA256 =~ TargetSHA256
-    | where isempty(TargetFileName) or InitiatingProcessFileName =~ TargetFileName
+    | where Timestamp between (AlertTime - TimeToCheck .. AlertTime + ForwardWindow)
+    | where isempty(HostToCheck) or DeviceName =~ HostToCheck
+    | extend ProcKey = strcat(tostring(InitiatingProcessId), "|", tostring(InitiatingProcessCreationTime))
+    | where ProcKey in (TargetProcKeys)
+    | extend Remote = iff(isnotempty(RemoteUrl), RemoteUrl, strcat(tostring(RemoteIP), ":", tostring(RemotePort)))
     | summarize
-        NetworkEvents=count(),
-        RemoteIPs=make_set(RemoteIP, 10),
-        RemoteUrls=make_set(RemoteUrl, 10)
+        NearbyNetworkCount=count(),
+        TopRemote=any(Remote)
         by DeviceName;
-
-let PersistenceRegistry =
+//
+let NearbyPersistenceRegistry =
     DeviceRegistryEvents
-    | where Timestamp >= ago(Lookback)
-    | where isempty(TargetDevice) or DeviceName =~ TargetDevice
-    | where isempty(TargetSHA256) or InitiatingProcessSHA256 =~ TargetSHA256
-    | where isempty(TargetFileName) or InitiatingProcessFileName =~ TargetFileName
+    | where Timestamp between (AlertTime - TimeToCheck .. AlertTime + ForwardWindow)
+    | where isempty(HostToCheck) or DeviceName =~ HostToCheck
+    | extend ProcKey = strcat(tostring(InitiatingProcessId), "|", tostring(InitiatingProcessCreationTime))
+    | where ProcKey in (TargetProcKeys)
     | where RegistryKey has_any (
-        "\\Run",
-        "\\RunOnce",
-        "\\Services",
-        "\\Winlogon",
-        "\\Policies\\Explorer\\Run"
+        @"\Run",
+        @"\RunOnce",
+        @"\Services",
+        @"\Winlogon",
+        @"\Policies\Explorer\Run"
     )
     | summarize
-        RegistryPersistenceHints=count(),
+        NearbyPersistenceRegistryCount=count(),
         PersistenceKeys=make_set(RegistryKey, 10)
         by DeviceName;
-
-let PersistenceFiles =
+//
+let NearbyPersistenceFiles =
     DeviceFileEvents
-    | where Timestamp >= ago(Lookback)
-    | where isempty(TargetDevice) or DeviceName =~ TargetDevice
-    | where isempty(TargetSHA256) or InitiatingProcessSHA256 =~ TargetSHA256
-    | where isempty(TargetFileName) or InitiatingProcessFileName =~ TargetFileName
+    | where Timestamp between (AlertTime - TimeToCheck .. AlertTime + ForwardWindow)
+    | where isempty(HostToCheck) or DeviceName =~ HostToCheck
+    | extend ProcKey = strcat(tostring(InitiatingProcessId), "|", tostring(InitiatingProcessCreationTime))
+    | where ProcKey in (TargetProcKeys)
     | where FolderPath has_any (
-        "\\Start Menu\\Programs\\Startup",
-        "\\AppData\\Roaming\\Microsoft\\Windows\\Start Menu\\Programs\\Startup"
+        @"\Start Menu\Programs\Startup",
+        @"\AppData\Roaming\Microsoft\Windows\Start Menu\Programs\Startup"
     )
     | summarize
-        FilePersistenceHints=count(),
+        NearbyPersistenceFileCount=count(),
         PersistenceFiles=make_set(FolderPath, 10)
         by DeviceName;
-
-let MDEActions =
+//
+let NearbyMde =
     DeviceEvents
-    | where Timestamp >= ago(Lookback)
-    | where isempty(TargetDevice) or DeviceName =~ TargetDevice
+    | where Timestamp between (AlertTime - TimeToCheck .. AlertTime + ForwardWindow)
+    | where isempty(HostToCheck) or DeviceName =~ HostToCheck
     | where ActionType has_any (
-        "Detected",
-        "Blocked",
-        "Quarantined",
-        "Remediated",
-        "Malware",
-        "Exploit",
-        "Suspicious"
+        "AntivirusDetection",
+        "AntivirusReport",
+        "AsrProcessBlocked",
+        "AsrLsassBlocked",
+        "AsrPersistenceThroughWmiBlocked",
+        "ExploitGuardNetworkProtectionBlocked",
+        "SmartScreenAppWarning",
+        "SmartScreenExploitWarning",
+        "TamperingAttempt",
+        "ProcessBlockedByPolicy"
     )
-    | where isempty(TargetSHA256) or AdditionalFields has TargetSHA256
+    | extend ProcKey = strcat(tostring(InitiatingProcessId), "|", tostring(InitiatingProcessCreationTime))
+    | where ProcKey in (TargetProcKeys) or SHA256 in (TargetSHA256s)
     | summarize
-        MDEActionCount=count(),
-        MDEActions=make_set(ActionType, 10)
+        NearbyMdeCount=count(),
+        NearbyMdeActions=make_set(ActionType, 10)
         by DeviceName;
-
-FileHits
+//
+let ChildProcesses =
+    DeviceProcessEvents
+    | where Timestamp between (AlertTime - TimeToCheck .. AlertTime + ForwardWindow)
+    | where isempty(HostToCheck) or DeviceName =~ HostToCheck
+    | extend ParentProcKey = strcat(tostring(InitiatingProcessId), "|", tostring(InitiatingProcessCreationTime))
+    | where ParentProcKey in (TargetProcKeys)
+    | summarize
+        ChildProcessCount=count(),
+        TopChild=any(FileName)
+        by DeviceName;
+//
+// ============================================================================
+// Final quick-dive output
+// ============================================================================
+TargetRow
+| join kind=leftouter TenantFileBaseline on SHA256
 | join kind=leftouter EnvironmentSpread on FileName, SHA256
 | join kind=leftouter Execution on DeviceName, FileName, SHA256
-| join kind=leftouter Network on DeviceName
-| join kind=leftouter PersistenceRegistry on DeviceName
-| join kind=leftouter PersistenceFiles on DeviceName
-| join kind=leftouter MDEActions on DeviceName
-| extend Executed = coalesce(Executed, 0)
-| extend NetworkEvents = coalesce(NetworkEvents, 0)
-| extend RegistryPersistenceHints = coalesce(RegistryPersistenceHints, 0)
-| extend FilePersistenceHints = coalesce(FilePersistenceHints, 0)
-| extend PersistenceHints = RegistryPersistenceHints + FilePersistenceHints
-| extend MDEActionCount = coalesce(MDEActionCount, 0)
-| extend DevicesSeen = coalesce(DevicesSeen, 1)
-| extend OrgFirstSeen = coalesce(OrgFirstSeen, FirstSeen)
-| extend OrgLastSeen = coalesce(OrgLastSeen, LastSeen)
-| extend SpreadDurationMinutes = coalesce(SpreadDurationMinutes, 0)
-| extend SpreadDurationText = coalesce(SpreadDurationText, "unknown")
-| extend DevicesPerHour = coalesce(DevicesPerHour, 0.0)
-| extend SpreadClassification = coalesce(SpreadClassification, "Unknown spread")
-| extend SuspiciousParent = ParentProcess has_any (
-    "powershell.exe",
-    "cmd.exe",
-    "wscript.exe",
-    "cscript.exe",
-    "mshta.exe",
-    "rundll32.exe",
-    "regsvr32.exe",
-    "wmic.exe",
-    "certutil.exe",
-    "bitsadmin.exe"
-)
-| extend TriageScore =
-    0
-    + iff(Executed > 0, 3, 0)
-    + iff(NetworkEvents > 0, 2, 0)
-    + iff(PersistenceHints > 0, 3, 0)
-    + iff(MDEActionCount > 0, 2, 0)
-    + iff(SuspiciousPath, 1, 0)
-    + iff(SuspiciousParent, 1, 0)
-    + iff(SpreadClassification in ("Rapid multi-device spread", "Fast organisational spread"), 3, 0)
-    + iff(SpreadClassification == "Rare file", 1, 0)
-| extend Verdict =
-    case(
-        TriageScore >= 9, "High concern - escalate or deep dive",
-        TriageScore >= 5, "Medium concern - review closely",
-        TriageScore >= 2, "Low concern - validate context",
-        "Informational - limited suspicious activity observed"
+| join kind=leftouter NearbyNetwork on DeviceName
+| join kind=leftouter NearbyPersistenceRegistry on DeviceName
+| join kind=leftouter NearbyPersistenceFiles on DeviceName
+| join kind=leftouter NearbyMde on DeviceName
+| join kind=leftouter ChildProcesses on DeviceName
+| extend
+    TenantSeenCount=coalesce(TenantSeenCount, 0),
+    TenantDaysSeen=coalesce(TenantDaysSeen, 0),
+    TenantDevicesSeen=coalesce(TenantDevicesSeen, 0),
+    TenantAccountsSeen=coalesce(TenantAccountsSeen, 0),
+    DevicesSeen=coalesce(DevicesSeen, 1),
+    OrgFirstSeen=coalesce(OrgFirstSeen, FirstSeen),
+    OrgLastSeen=coalesce(OrgLastSeen, LastSeen),
+    SpreadDurationMinutes=coalesce(SpreadDurationMinutes, 0),
+    SpreadDurationText=coalesce(SpreadDurationText, "unknown"),
+    DevicesPerHour=coalesce(DevicesPerHour, 0.0),
+    SpreadClassification=coalesce(SpreadClassification, "Unknown spread"),
+    Executed=coalesce(Executed, 0),
+    NearbyNetworkCount=coalesce(NearbyNetworkCount, 0),
+    NearbyPersistenceRegistryCount=coalesce(NearbyPersistenceRegistryCount, 0),
+    NearbyPersistenceFileCount=coalesce(NearbyPersistenceFileCount, 0),
+    NearbyMdeCount=coalesce(NearbyMdeCount, 0),
+    ChildProcessCount=coalesce(ChildProcessCount, 0),
+    AlertEvidenceCount=AlertEvidenceCount,
+    AlertActions=AlertActions,
+    TopAlertAction=TopAlertAction
+| extend NearbyPersistenceCount = NearbyPersistenceRegistryCount + NearbyPersistenceFileCount
+| extend
+    SuspiciousCreatorProcess = tolower(tostring(CreatorProcess)) has_any (
+        "powershell.exe", "pwsh.exe", "cmd.exe", "wscript.exe", "cscript.exe",
+        "mshta.exe", "rundll32.exe", "regsvr32.exe", "wmic.exe",
+        "certutil.exe", "bitsadmin.exe", "msiexec.exe"
+    ),
+    HasDefenderEvidence = AlertEvidenceCount > 0,
+    IsRareInTenant = TenantSeenCount == 0 or TenantDaysSeen <= 1,
+    IsRapidSpread = SpreadClassification in ("Rapid multi-device spread", "Fast organisational spread"),
+    HasExecution = Executed > 0,
+    HasNearbyNetwork = NearbyNetworkCount > 0,
+    HasNearbyPersistence = NearbyPersistenceCount > 0,
+    HasNearbyMde = NearbyMdeCount > 0,
+    HasChildren = ChildProcessCount > 0
+| extend
+    TenantFileFamiliarity = case(
+        TenantSeenCount == 0, "new file in tenant baseline",
+        TenantDaysSeen <= 1, "rare file in tenant",
+        TenantDaysSeen <= 5, "occasional file in tenant",
+        "common file in tenant"
+    ),
+    FileShape = case(
+        HasDefenderEvidence and HasExecution, "Defender evidence on executed file",
+        HasDefenderEvidence, "Defender evidence on file",
+        IsRapidSpread and HasExecution, "Rapidly spreading executed file",
+        IsRapidSpread, "Rapidly spreading file",
+        SuspiciousCreatorProcess and SuspiciousPath, "Script-host dropped file in user-writable path",
+        SuspiciousCreatorProcess, "Script-host created file",
+        SuspiciousPath, "File in user-writable path",
+        "General file activity"
     )
-| extend Narrative = strcat(
+| extend BehaviouralFlags = strcat_array(array_concat(
+    iff(HasDefenderEvidence, pack_array("DEFENDER_EVIDENCE"), dynamic([])),
+    iff(IsRareInTenant, pack_array("RARE_FILE_IN_TENANT"), dynamic([])),
+    iff(IsRapidSpread, pack_array("RAPID_MULTI_DEVICE_SPREAD"), dynamic([])),
+    iff(SuspiciousCreatorProcess, pack_array("SUSPICIOUS_CREATOR_PROCESS"), dynamic([])),
+    iff(SuspiciousPath, pack_array("USER_WRITABLE_PATH"), dynamic([])),
+    iff(HasExecution, pack_array("EXECUTED"), dynamic([])),
+    iff(HasNearbyNetwork, pack_array("NEARBY_NETWORK_ACTIVITY"), dynamic([])),
+    iff(HasNearbyPersistence, pack_array("NEARBY_PERSISTENCE_ACTIVITY"), dynamic([])),
+    iff(HasNearbyMde, pack_array("NEARBY_MDE_ACTION"), dynamic([])),
+    iff(HasChildren, pack_array("CHILD_PROCESS_ACTIVITY"), dynamic([]))
+), " | ")
+| extend QuickScore =
+    0
+    + iff(HasDefenderEvidence, 25, 0)
+    + iff(IsRapidSpread, 20, 0)
+    + iff(IsRareInTenant, 10, 0)
+    + iff(SuspiciousCreatorProcess, 15, 0)
+    + iff(SuspiciousPath, 10, 0)
+    + iff(HasExecution, 15, 0)
+    + iff(HasNearbyNetwork, 10, 0)
+    + iff(HasNearbyPersistence, 20, 0)
+    + iff(HasNearbyMde, 25, 0)
+    + iff(HasChildren, 10, 0)
+| extend QuickAssessment = case(
+    HasDefenderEvidence and IsRapidSpread,
+        "High concern - Defender evidence on rapidly spreading file. Run file deep dive and review containment.",
+    HasDefenderEvidence and HasExecution,
+        "High concern - Defender evidence on executed file. Run file deep dive and confirm containment.",
+    QuickScore >= 60,
+        "High concern - run file deep dive and review chain",
+    QuickScore >= 35,
+        "Review closely - deep dive recommended if activity is not expected",
+    QuickScore >= 15,
+        "Low concern - validate expected behaviour",
+    "Limited suspicious signals in scoped telemetry"
+)
+| extend NarrativePart1 = strcat(
     "- File quick triage completed for ", FileName, " on ", DeviceName, ".\n",
+    "- File shape: ", FileShape, ".\n",
+    "- Target source: ", SourceType, ".\n",
+    "- SHA256: ", iff(isempty(SHA256), "N/A", SHA256), "\n",
+    "- Path: ", iff(isempty(tostring(ExamplePath)), "N/A", tostring(ExamplePath)), "\n",
     "- First seen on device: ", tostring(FirstSeen), "\n",
     "- Last seen on device: ", tostring(LastSeen), "\n",
-    "- SHA256: ", SHA256, "\n",
-    "- Path: ", ExamplePath, "\n",
-    "- Creator process: ", CreatorProcess, " | ", CreatorCommandLine, "\n",
-    "- Execution status: ", iff(Executed > 0, strcat("Executed at ", tostring(FirstExecution), " by ", ExecutionAccount), "No execution observed in scoped telemetry"), "\n",
-    "- Parent process: ", iff(isempty(ParentProcess), "None observed", ParentProcess), "\n",
-    "- Network activity from target process: ", tostring(NetworkEvents), " outbound connection(s) observed\n",
-    "- Persistence indicators: ", tostring(PersistenceHints), " observed\n",
-    "- MDE actions observed: ", iff(MDEActionCount > 0, strcat_array(MDEActions, ", "), "None in scoped telemetry"), "\n",
-    "- Environment spread: Seen on ", tostring(DevicesSeen), " device(s) across ", tostring(SpreadLookback), "\n",
-    "- Organisation first seen: ", tostring(OrgFirstSeen), "\n",
-    "- Organisation last seen: ", tostring(OrgLastSeen), "\n",
-    "- Spread duration: ", SpreadDurationText, "\n",
-    "- Spread velocity: ", tostring(DevicesPerHour), " device(s) per hour\n",
-    "- Spread classification: ", SpreadClassification, "\n",
-    "- Triage score: ", tostring(TriageScore), "\n",
-    "- Assessment: ", Verdict
+    "- Creator process: ", iff(isempty(tostring(CreatorProcess)), "N/A", tostring(CreatorProcess)), "\n",
+    "- Creator command line: ", iff(isempty(tostring(CreatorCommandLine)), "N/A", tostring(CreatorCommandLine)), "\n",
+    "- Creator account: ", iff(isempty(tostring(CreatorAccount)), "N/A", tostring(CreatorAccount)), "\n"
 )
+| extend NarrativePart2 = strcat(
+    "- Defender evidence: ", tostring(AlertEvidenceCount), " event(s)",
+    iff(isnotempty(tostring(AlertActions)), strcat("; actions: ", tostring(AlertActions)), ""), ".\n",
+    "- Tenant prevalence: ", TenantFileFamiliarity, " - ", tostring(TenantSeenCount), " prior event(s) across ", tostring(TenantDevicesSeen), " device(s) in ", BaselineLabel, ".\n",
+    "- Environment spread: ", tostring(DevicesSeen), " device(s) over ", SpreadDurationText, " (", tostring(DevicesPerHour), " device(s)/hr).\n",
+    "- Spread classification: ", SpreadClassification, ".\n"
+)
+| extend NarrativePart3 = strcat(
+    "- Execution: ", iff(HasExecution, strcat("observed at ", tostring(FirstExecution), " by ", iff(isempty(tostring(ExecutionAccount)), "N/A", tostring(ExecutionAccount))), "no execution observed in scoped telemetry"), ".\n",
+    "- Nearby network: ", tostring(NearbyNetworkCount), " event(s)",
+    iff(isnotempty(tostring(TopRemote)), strcat(" (top remote: ", tostring(TopRemote), ")"), ""), ".\n",
+    "- Nearby persistence: ", tostring(NearbyPersistenceCount), " event(s) (", tostring(NearbyPersistenceRegistryCount), " registry, ", tostring(NearbyPersistenceFileCount), " file).\n",
+    "- Nearby MDE actions: ", tostring(NearbyMdeCount), " event(s).\n",
+    "- Child processes from creator: ", tostring(ChildProcessCount), iff(isnotempty(tostring(TopChild)), strcat(" (example: ", tostring(TopChild), ")"), ""), ".\n",
+    "- Behavioural flags: ", iff(isempty(BehaviouralFlags), "none", BehaviouralFlags), ".\n",
+    "- Quick assessment: ", QuickAssessment
+)
+| extend Narrative = strcat(NarrativePart1, NarrativePart2, NarrativePart3)
 | project
+    FirstSeen,
+    LastSeen,
+    SourceType,
     DeviceName,
     FileName,
     SHA256,
     ExamplePath,
-    FirstSeen,
-    LastSeen,
-    Executed,
-    FirstExecution,
-    NetworkEvents,
-    PersistenceHints,
-    MDEActionCount,
+    CreatorProcess,
+    CreatorCommandLine,
+    CreatorAccount,
+    FileShape,
+    AlertEvidenceCount,
+    AlertActions,
+    TopAlertAction,
+    TenantFileFamiliarity,
+    TenantSeenCount,
+    TenantDaysSeen,
+    TenantDevicesSeen,
+    TenantAccountsSeen,
     DevicesSeen,
     OrgFirstSeen,
     OrgLastSeen,
     SpreadDurationText,
     DevicesPerHour,
     SpreadClassification,
+    Executed,
+    FirstExecution,
     SuspiciousPath,
-    SuspiciousParent,
-    TriageScore,
-    Verdict,
+    NearbyNetworkCount,
+    NearbyPersistenceRegistryCount,
+    NearbyPersistenceFileCount,
+    NearbyMdeCount,
+    ChildProcessCount,
+    BehaviouralFlags,
+    QuickScore,
+    QuickAssessment,
     Narrative
+| sort by QuickScore desc, FirstSeen asc
