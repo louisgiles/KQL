@@ -1,0 +1,48 @@
+let win = 4h;
+let actorSid = "<ACTOR_SID_FROM_ALERT>";
+// 1. Local SAM deletions on endpoints
+let DevDels =
+    DeviceEvents
+    | where Timestamp > ago(win)
+    | where ActionType == "UserAccountDeleted"
+    | where InitiatingProcessAccountSid == actorSid
+    | extend Source = "DeviceEvents",
+             ActorName = strcat(InitiatingProcessAccountDomain, @"\", InitiatingProcessAccountName),
+             ProcKey = strcat(tostring(InitiatingProcessId), "|", tostring(InitiatingProcessCreationTime))
+    | project Timestamp, Source, ActorSid = InitiatingProcessAccountSid, ActorName,
+              TargetSid = AccountSid, TargetName = AccountName, TargetDomain = AccountDomain,
+              Host = DeviceName, Tool = InitiatingProcessFileName, CmdLine = InitiatingProcessCommandLine, ProcKey;
+// 2. DC-side AD deletions, actor anchored
+let SecDels =
+    SecurityEvent
+    | where TimeGenerated > ago(win)
+    | where EventID in (4726, 4743)
+    | where SubjectUserSid == actorSid
+    | extend Source = "SecurityEvent"
+    | project Timestamp = TimeGenerated, Source, ActorSid = SubjectUserSid, ActorName = SubjectAccount,
+              TargetSid, TargetName = TargetUserName, TargetDomain = TargetDomainName,
+              Host = Computer, Tool = "", CmdLine = "", ProcKey = "";
+// 3. MDI confirmation pass (no clean actor field; surfaces same-window AD deletions for cross-check)
+let IdDels =
+    IdentityDirectoryEvents
+    | where Timestamp > ago(win)
+    | where ActionType has "deleted" and ActionType has_any ("Account", "User")
+    | extend Source = "IdentityDirectoryEvents"
+    | project Timestamp, Source, ActorSid = "", ActorName = "(cross-ref SecurityEvent)",
+              TargetSid = AccountSid, TargetName = AccountName, TargetDomain = AccountDomain,
+              Host = TargetDeviceName, Tool = "", CmdLine = "", ProcKey = "";
+union DevDels, SecDels, IdDels
+| join kind=leftouter (
+    IdentityInfo
+    | where TimeGenerated > ago(30d)
+    | summarize arg_max(TimeGenerated, IsAccountEnabled, OnPremisesDistinguishedName, AccountUPN) by AccountSID
+) on $left.TargetSid == $right.AccountSID
+| extend ADSynced = isnotempty(OnPremisesDistinguishedName)
+| extend BenignFlag = case(
+    ADSynced and IsAccountEnabled == false, "AD-synced + disabled-in-Entra -> stale cleanup",
+    ADSynced and IsAccountEnabled == true,  "AD-synced + enabled in Entra (atypical)",
+    not(ADSynced) and isnotempty(AccountUPN), "Cloud-only Entra account",
+    "Local/SAM or aged out of IdentityInfo")
+| project Timestamp, Source, ActorSid, ActorName, Host, TargetName, TargetDomain, TargetSid,
+          ADSynced, EntraEnabled = IsAccountEnabled, BenignFlag, Tool, CmdLine, ProcKey, AccountUPN
+| sort by Timestamp asc
