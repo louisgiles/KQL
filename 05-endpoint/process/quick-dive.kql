@@ -166,7 +166,8 @@ let TargetCandidates = materialize(
 );
 let TargetRow = materialize(
     TargetCandidates
-    | top 1 by SourceRank asc, Timestamp asc
+    | sort by SourceRank asc, Timestamp asc
+    | take 1
 );
 let TargetProcesses = toscalar(TargetRow | where isnotempty(FileName) | summarize make_set(FileName, 100));
 let TargetSHA256s = toscalar(TargetRow | where isnotempty(SHA256) | summarize make_set(SHA256, 100));
