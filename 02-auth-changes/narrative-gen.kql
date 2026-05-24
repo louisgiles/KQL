@@ -205,17 +205,12 @@ AuthChanges
 //
 // --- Assemble ---
 | extend InvestigationNarrative = strcat(
-    "=== AUTH-CHANGE INVESTIGATION SUMMARY ===\n",
     "- Generated: ", format_datetime(now(), "yyyy-MM-dd HH:mm"), " UTC\n",
     "- Review period: ", tostring(TimeToCheck), "\n",
-    "\n--- Target ---\n",
     _targetLine, "\n",
-    "\n--- Change Summary ---\n",
     _changeSummary, "\n",
-    "\n--- Actor Sign-In Context (±", tostring(SigninContextWindow), " of change) ---\n",
+    "- Actor sign-in context window: ±", tostring(SigninContextWindow), " of change.\n",
     _signinContext, "\n",
-    "\n--- Determination ---\n",
-    _determination, "\n",
-    "=== END ==="
+    _determination
 )
 | project Target, InvestigationNarrative

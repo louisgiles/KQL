@@ -117,121 +117,78 @@ SigninLogs
             ResultType, ResultDescription)
     by UserPrincipalName
 //
-// --- Build the narrative string ---
+// --- Build the narrative lines (dash-prefixed) ---
 | extend
-    // Sign-in status line
-    _signinLine = case(
+    _line_user = strcat("- User: ", UserPrincipalName),
+    _line_period = strcat("- Review period: ", tostring(TimeToCheck), " | Generated: ", format_datetime(now(), "yyyy-MM-dd HH:mm"), " UTC"),
+    _line_role = strcat("- Role: ", iff(isnotempty(JobTitle), JobTitle, "N/A")),
+    _line_manager = strcat("- Manager: ", iff(isnotempty(Manager), Manager, "N/A")),
+    _line_assigned_roles = strcat("- Assigned roles: ", iff(isnotempty(tostring(AssignedRoles)), tostring(AssignedRoles), "None")),
+    _line_identity_risk = strcat("- Identity risk level: ", iff(isnotempty(RiskLevel), RiskLevel, "N/A")),
+    _line_signin = case(
         FailureCount == 0,
-            strcat(UserPrincipalName, " sign-in logs are clean. ",
-                   tostring(TotalSignins), " successful sign-ins over the review period, 0 failures."),
+            strcat("- Sign-in logs are clean: ", tostring(TotalSignins), " successful sign-ins over the review period, 0 failures."),
         FailureCount > 0 and SuccessCount > 0,
-            strcat(UserPrincipalName, " sign-in logs show ",
-                   tostring(SuccessCount), " successes and ",
-                   tostring(FailureCount), " failures over the review period. Review failure reasons."),
-        strcat(UserPrincipalName, " has ", tostring(FailureCount),
-               " failures and 0 successes — account may be locked or compromised.")
+            strcat("- Sign-in logs show ", tostring(SuccessCount), " successes and ", tostring(FailureCount), " failures over the review period. Review failure reasons."),
+        strcat("- Sign-in logs show ", tostring(FailureCount), " failures and 0 successes — account may be locked or compromised.")
     ),
-    // IP reputation line
-    _ipLine = case(
+    _line_ip_summary = case(
         DaysIpSeenInOrg >= 10 and DaysIpSeenUser >= 5,
-            strcat("All recent sign-ins originate from previously seen high-freq organisational IP addresses.",
-                   "\n  - UsersWIPCount: ", tostring(UsersWIPCount),
-                   "\n  - DaysIPSeenInOrg: ", tostring(DaysIpSeenInOrg),
-                   "\n  - DaysIPSeenUser: ", tostring(DaysIpSeenUser)),
+            "- Source IP: all recent sign-ins originate from previously seen high-freq organisational IP addresses.",
         DaysIpSeenInOrg >= 3,
-            strcat("Most recent IP (", IPAddress, ") has been seen in the org for ",
-                   tostring(DaysIpSeenInOrg), " days but only ",
-                   tostring(DaysIpSeenUser), " days for this user. Moderate familiarity.",
-                   "\n  - UsersWIPCount: ", tostring(UsersWIPCount),
-                   "\n  - DaysIPSeenInOrg: ", tostring(DaysIpSeenInOrg),
-                   "\n  - DaysIPSeenUser: ", tostring(DaysIpSeenUser)),
-        strcat("ALERT: Most recent IP (", IPAddress, ") is NEW to the organisation (",
-               tostring(DaysIpSeenInOrg), " day(s) seen). Requires investigation.",
-               "\n  - UsersWIPCount: ", tostring(UsersWIPCount),
-               "\n  - DaysIPSeenInOrg: ", tostring(DaysIpSeenInOrg),
-               "\n  - DaysIPSeenUser: ", tostring(DaysIpSeenUser))
+            strcat("- Source IP (", IPAddress, ") has been seen in the org for ", tostring(DaysIpSeenInOrg), " days but only ", tostring(DaysIpSeenUser), " days for this user. Moderate familiarity."),
+        strcat("- ALERT: Source IP (", IPAddress, ") is NEW to the organisation (", tostring(DaysIpSeenInOrg), " day(s) seen). Requires investigation.")
     ),
-    // Location line
-    _locationLine = strcat("Sign-in location: ", Location,
-                           ". Distinct locations in review period: ", tostring(DistinctLocations),
-                           " (", tostring(Locations), ")."),
-    // Device posture line
-    _deviceLine = case(
+    _line_ip_users = strcat("- UsersWithIPCount: ", tostring(UsersWIPCount)),
+    _line_ip_org_days = strcat("- DaysIPSeenInOrg: ", tostring(DaysIpSeenInOrg)),
+    _line_ip_user_days = strcat("- DaysIPSeenUser: ", tostring(DaysIpSeenUser)),
+    _line_location = strcat("- Sign-in location: ", Location, ". Distinct locations in review period: ", tostring(DistinctLocations), " (", tostring(Locations), ")."),
+    _line_device = case(
         TrustType == "Azure AD joined" or TrustType == "Hybrid Azure AD joined",
-            strcat("[", toupper(TrustType), "] Device: ", DeviceDisplayName,
-                   " | OS: ", DeviceOS,
-                   " | Managed: ", IsManaged,
-                   " | Compliant: ", IsCompliant),
+            strcat("- Device [", toupper(TrustType), "]: ", DeviceDisplayName, " | OS: ", DeviceOS, " | Managed: ", IsManaged, " | Compliant: ", IsCompliant),
         TrustType == "Azure AD registered",
-            strcat("[AAD REGISTERED] Device: ", DeviceDisplayName,
-                   " | OS: ", DeviceOS,
-                   " | Managed: ", IsManaged,
-                   " | Compliant: ", IsCompliant),
+            strcat("- Device [AAD REGISTERED]: ", DeviceDisplayName, " | OS: ", DeviceOS, " | Managed: ", IsManaged, " | Compliant: ", IsCompliant),
         isnotempty(DeviceDisplayName),
-            strcat("[UNJOINED DEVICE] Device: ", DeviceDisplayName,
-                   " | OS: ", DeviceOS,
-                   " | Managed: ", IsManaged,
-                   " | Compliant: ", IsCompliant,
-                   " -- NOTE: Device not domain/AAD joined."),
-        "No device details recorded for most recent sign-in. Possible non-interactive or browser-only session."
+            strcat("- Device [UNJOINED]: ", DeviceDisplayName, " | OS: ", DeviceOS, " | Managed: ", IsManaged, " | Compliant: ", IsCompliant, " — NOTE: device not domain/AAD joined."),
+        "- No device details recorded for most recent sign-in. Possible non-interactive or browser-only session."
     ),
-    // MFA / Auth method line
-    _mfaLine = case(
+    _line_mfa = case(
         isnotempty(MFAAuthMethod),
-            strcat("MFA satisfied via: ", MFAAuthMethod,
-                   iff(isnotempty(MFAAuthDetail), strcat(" (", MFAAuthDetail, ")"), ""),
-                   ". Primary auth: ", AuthMethod, "."),
+            strcat("- MFA satisfied via: ", MFAAuthMethod, iff(isnotempty(MFAAuthDetail), strcat(" (", MFAAuthDetail, ")"), ""), ". Primary auth: ", AuthMethod, "."),
         AuthMethod has_any ("PhoneAppNotification", "PhoneAppOTP", "FIDO2", "WindowsHelloForBusiness"),
-            strcat("MFA method used: ", AuthMethod,
-                   iff(isnotempty(AuthDetail), strcat(" (", AuthDetail, ")"), ""), "."),
-        strcat("WARNING: No MFA challenge detected. Auth method: ", AuthMethod,
-               iff(isnotempty(AuthDetail), strcat(" (", AuthDetail, ")"), ""),
-               ". CA status: ", ConditionalAccessStatus, ".")
+            strcat("- MFA method used: ", AuthMethod, iff(isnotempty(AuthDetail), strcat(" (", AuthDetail, ")"), ""), "."),
+        strcat("- WARNING: no MFA challenge detected. Auth method: ", AuthMethod, iff(isnotempty(AuthDetail), strcat(" (", AuthDetail, ")"), ""), ". CA status: ", ConditionalAccessStatus, ".")
     ),
-    // MFA audit trail line
-    _mfaAuditLine = case(
+    _line_mfa_audit = case(
         isnotnull(MFAChangeCount) and MFAChangeCount > 0,
-            strcat("ALERT: ", tostring(MFAChangeCount),
-                   " MFA modification(s) in audit logs within last 24h: ",
-                   tostring(MFAChangeOps),
-                   ". Latest change: ", tostring(MFAChangeLatest), ". Investigate immediately."),
-        "No MFA additions, removals, or tampering visible in audit logs within the last 24h for this user."
+            strcat("- ALERT: ", tostring(MFAChangeCount), " MFA modification(s) in audit logs within last 24h: ", tostring(MFAChangeOps), ". Latest change: ", tostring(MFAChangeLatest), ". Investigate immediately."),
+        "- No MFA additions, removals, or tampering visible in audit logs within the last 24h for this user."
     ),
-    // AAD risk line
-    _riskLine = case(
+    _line_aad_risk = case(
         RiskLevelDuringSignIn in ("medium", "high"),
-            strcat("AAD Identity Protection risk: ", RiskLevelDuringSignIn,
-                   ". Detail: ", RiskDetail, ". Events: ", tostring(RiskEventTypes), "."),
+            strcat("- AAD Identity Protection risk: ", RiskLevelDuringSignIn, ". Detail: ", RiskDetail, ". Events: ", tostring(RiskEventTypes), "."),
         RiskDetail != "none" and isnotempty(RiskDetail),
-            strcat("AAD risk detail present: ", RiskDetail, ". Review recommended."),
-        "No elevated AAD Identity Protection risk signals on most recent sign-in."
-    ),
-    // Identity context line
-    _identityLine = strcat("Role: ", iff(isnotempty(JobTitle), JobTitle, "N/A"),
-                           " | Manager: ", iff(isnotempty(Manager), Manager, "N/A"),
-                           " | Assigned Roles: ", iff(isnotempty(tostring(AssignedRoles)), tostring(AssignedRoles), "None"),
-                           " | Identity Risk Level: ", iff(isnotempty(RiskLevel), RiskLevel, "N/A"))
+            strcat("- AAD risk detail present: ", RiskDetail, ". Review recommended."),
+        "- No elevated AAD Identity Protection risk signals on most recent sign-in."
+    )
 //
 // --- Assemble final narrative ---
-| extend InvestigationNarrative = strcat(
-    "=== SIGN-IN INVESTIGATION SUMMARY ===\n",
-    "User: ", UserPrincipalName, "\n",
-    "Review Period: ", tostring(TimeToCheck), " | Generated: ", tostring(now()), "\n",
-    _identityLine, "\n",
-    "\n--- Sign-In Status ---\n",
-    _signinLine, "\n",
-    "\n--- Source IP Reputation ---\n",
-    _ipLine, "\n",
-    "\n--- Location ---\n",
-    _locationLine, "\n",
-    "\n--- Device Posture ---\n",
-    _deviceLine, "\n",
-    "\n--- Authentication & MFA ---\n",
-    _mfaLine, "\n",
-    "\n--- MFA Audit Trail (24h) ---\n",
-    _mfaAuditLine, "\n",
-    "\n--- AAD Risk Signals ---\n",
-    _riskLine, "\n",
-    "=== END ==="
-)
+| extend InvestigationNarrative = strcat_array(pack_array(
+    _line_user,
+    _line_period,
+    _line_role,
+    _line_manager,
+    _line_assigned_roles,
+    _line_identity_risk,
+    _line_signin,
+    _line_ip_summary,
+    _line_ip_users,
+    _line_ip_org_days,
+    _line_ip_user_days,
+    _line_location,
+    _line_device,
+    _line_mfa,
+    _line_mfa_audit,
+    _line_aad_risk
+), "\n")
 | project UserPrincipalName, InvestigationNarrative
