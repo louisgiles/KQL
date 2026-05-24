@@ -4,7 +4,7 @@
 // required_tables:   AuditLogs
 // optional_tables:   IdentityInfo (job title, manager, roles), SigninLogs (actor sign-in posture near change)
 // variables:         TimeToCheck, TargetToCheck, ActorToCheck, SigninContextWindow
-// done_criteria:     Narrative output exists for the target, covering: what changed, who did it, sign-in context, and a determination line.
+// done_criteria:     Verdict-first narrative output exists for the target. Determination is line 1. For non-trivial verdicts an Analyst assessment line is pre-filled; for escalation verdicts an ASK BLOCK section enumerates what is required from the recipient. Output pasted into the investigation ticket.
 // output_type:       narrative
 //
 // Auth-Change Narrative Generator
@@ -12,6 +12,15 @@
 // scope as the deep dive. Does NOT re-score risk — the deep dive does that.
 // This query answers: what happened, who did it, was the actor's session
 // clean at the time, and what's the determination.
+//
+// Output shape: verdict-first. The determination this query computes is
+// line 1. For non-trivial verdicts (review / escalation), an
+// "- Analyst assessment:" line is pre-filled with a draft sentence composed
+// from the query's own fields — the analyst accepts or sharpens it. For
+// escalation verdicts, an "- ASK BLOCK" section follows, enumerating what
+// is required from the ticket recipient. Zero-valued counters are
+// suppressed; deliberate investigative negatives (e.g. "Sign-in risk:
+// None detected.") are kept. Timespans render as plain English.
 //
 // Usage: Populate TargetToCheck (required). Optionally set ActorToCheck to
 // filter to a specific initiator. Output is a single-row text summary.
@@ -22,6 +31,16 @@ let TimeToCheck = 14d;
 let TargetToCheck = "";       // <-- Required: target UPN
 let ActorToCheck = "";        // <-- Optional: filter to specific actor
 let SigninContextWindow = 1h; // Sign-in window either side of each change event
+//
+// --- Render a timespan as plain English ("14 days", "1 hour", "30 minutes"). ---
+let humanTimespan = (t:timespan) {
+    case(
+        t >= 1d, strcat(tostring(toint(t / 1d)), iff(toint(t / 1d) == 1, " day", " days")),
+        t >= 1h, strcat(tostring(toint(t / 1h)), iff(toint(t / 1h) == 1, " hour", " hours")),
+        t >= 1m, strcat(tostring(toint(t / 1m)), iff(toint(t / 1m) == 1, " minute", " minutes")),
+        tostring(t)
+    )
+};
 //
 // --- Operation scope — identical to deep-dive.kql ---
 let AuthChangeOps = dynamic([
@@ -150,14 +169,18 @@ AuthChanges
         "\n- Directory Roles: ", iff(isnotempty(tostring(AssignedRoles)), tostring(AssignedRoles), "None"),
         "\n- Identity Risk: ", iff(isnotempty(RiskLevel), RiskLevel, "N/A")
     ),
+    // Drop zero-valued counters; keep the wording on the non-zero ones.
+    _countersFragment = strcat_array(array_concat(
+        iff(SelfServiceCount > 0, pack_array(strcat("Self-service: ", tostring(SelfServiceCount))), dynamic([])),
+        iff(AdminCount > 0,       pack_array(strcat("Admin-initiated: ", tostring(AdminCount))), dynamic([])),
+        iff(AppCount > 0,         pack_array(strcat("App-initiated: ", tostring(AppCount))), dynamic([]))
+    ), " | "),
     _changeSummary = strcat(
         "- ", tostring(ChangeCount), " auth-change event(s) between ",
         format_datetime(EarliestChange, "yyyy-MM-dd HH:mm"),
         " and ", format_datetime(LatestChange, "yyyy-MM-dd HH:mm"), " UTC.",
         "\n- Operations: ", tostring(OpsObserved),
-        "\n- Self-service: ", tostring(SelfServiceCount),
-        " | Admin-initiated: ", tostring(AdminCount),
-        " | App-initiated: ", tostring(AppCount),
+        iff(isnotempty(_countersFragment), strcat("\n- ", _countersFragment), ""),
         iff(AdminCount > 0 or AppCount > 0,
             strcat("\n- Actors: ", tostring(ActorsObserved)), "")
     ),
@@ -170,7 +193,7 @@ AuthChanges
             case(
                 DaysSeenInOrg >= 10, "high — well-established organisational address.",
                 DaysSeenInOrg >= 3, strcat("moderate (", tostring(DaysSeenInOrg), " days in org)."),
-                strcat("low (", tostring(DaysSeenInOrg), " days in org) — review required.")
+                strcat("low (", tostring(DaysSeenInOrg), iff(DaysSeenInOrg == 1, " day", " days"), " in org) — review required.")
             ),
             "\n- Device trust: ", iff(isnotempty(TrustType), TrustType, "N/A"),
             " | Compliant: ", iff(isnotempty(IsCompliant), IsCompliant, "N/A"),
@@ -203,14 +226,68 @@ AuthChanges
         "- REVIEW REQUIRED — mixed signals or insufficient context for automated determination. Review the deep dive output."
     )
 //
-// --- Assemble ---
-| extend InvestigationNarrative = strcat(
-    "- Generated: ", format_datetime(now(), "yyyy-MM-dd HH:mm"), " UTC\n",
-    "- Review period: ", tostring(TimeToCheck), "\n",
-    _targetLine, "\n",
-    _changeSummary, "\n",
-    "- Actor sign-in context window: ±", tostring(SigninContextWindow), " of change.\n",
-    _signinContext, "\n",
-    _determination
-)
+// --- Verdict-class, Analyst assessment, ASK BLOCK ---
+// Derived in parallel from the same computed signals as _determination —
+// never parsed from the determination text. Branch order mirrors
+// _determination so a signal change updates all branches in lockstep.
+| extend
+    _verdictClass = case(
+        ChangeCount >= 3 and datetime_diff("minute", LatestChange, EarliestChange) <= 30 and DaysSeenInOrg < 3,
+            "escalation",
+        RiskLevelDuringSignIn in ("medium", "high"),
+            "review",
+        AdminCount > 0 and SelfServiceCount == 0,
+            "review",
+        SelfServiceCount == ChangeCount and DaysSeenInOrg >= 10
+            and (isempty(RiskLevelDuringSignIn) or RiskLevelDuringSignIn == "none"),
+            "benign",
+        SelfServiceCount == ChangeCount and DaysSeenInOrg >= 3,
+            "benign",
+        "review"
+    ),
+    _analystAssessment = case(
+        ChangeCount >= 3 and datetime_diff("minute", LatestChange, EarliestChange) <= 30 and DaysSeenInOrg < 3,
+            strcat("- Analyst assessment: multiple auth changes in a short window from an unfamiliar IP. Likely indicative of session-takeover tampering — confirm whether ", Target, " initiated these themselves and verify source IP ", iff(isnotempty(IPAddress), IPAddress, "(not recorded)"), " against their known location."),
+        RiskLevelDuringSignIn in ("medium", "high"),
+            strcat("- Analyst assessment: actor sign-in flagged as ", RiskLevelDuringSignIn, " risk at the time of the change. Correlate against Identity Protection alerts and confirm whether the session was recognised by ", Target, "."),
+        AdminCount > 0 and SelfServiceCount == 0,
+            strcat("- Analyst assessment: all changes performed by ", tostring(ActorsObserved), " against ", Target, ". Confirm an authorised change request or helpdesk ticket exists for each operation."),
+        SelfServiceCount == ChangeCount and DaysSeenInOrg >= 10
+            and (isempty(RiskLevelDuringSignIn) or RiskLevelDuringSignIn == "none"),
+            "",
+        SelfServiceCount == ChangeCount and DaysSeenInOrg >= 3,
+            "",
+        strcat("- Analyst assessment: automated heuristics returned mixed signals for ", Target, ". Examine the deep-dive output and decide based on actor reputation, target sensitivity, and timing of surrounding events.")
+    ),
+    _askBlock = case(
+        _verdictClass == "escalation",
+            strcat(
+                "- ASK BLOCK — required from recipient:",
+                "\n- Confirm with ", Target, " that they initiated these auth changes themselves.",
+                "\n- Confirm whether ", Target, " recognises sign-in source IP ", iff(isnotempty(IPAddress), IPAddress, "(not recorded)"),
+                    iff(isnotempty(Location), strcat(" (", Location, ")"), ""), ".",
+                "\n- If the changes are unauthorised: reset credentials, revoke active sessions, and engage incident response."
+            ),
+        ""
+    )
+//
+// --- Assemble (verdict-first, with optional Analyst assessment and ASK BLOCK) ---
+// Sign-in context-window line is a query-parameter line, not a finding —
+// suppressed on benign verdicts, kept on review / escalation where the
+// forensic scope precision is useful.
+| extend InvestigationNarrative = strcat_array(array_concat(
+    pack_array(_determination),
+    iff(isnotempty(_analystAssessment), pack_array(_analystAssessment), dynamic([])),
+    iff(isnotempty(_askBlock),          pack_array(_askBlock),          dynamic([])),
+    pack_array(
+        strcat("- Generated: ", format_datetime(now(), "yyyy-MM-dd HH:mm"), " UTC"),
+        strcat("- Review period: ", humanTimespan(TimeToCheck)),
+        _targetLine,
+        _changeSummary
+    ),
+    iff(_verdictClass != "benign",
+        pack_array(strcat("- Actor sign-in context window: ±", humanTimespan(SigninContextWindow), " of change.")),
+        dynamic([])),
+    pack_array(_signinContext)
+), "\n")
 | project Target, InvestigationNarrative
