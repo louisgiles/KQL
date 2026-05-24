@@ -213,7 +213,6 @@ OfficeOps
 | summarize
     OpCount = count(),
     Operations = make_set(Operation, 20),
-    OpCounts = make_bag(bag_pack(Operation, 1)),
     ActionLines = make_list(ActionTranslation, 50),
     Targets = make_set(Target, 20),
     Delegees = make_set(iff(isnotempty(Delegee), Delegee, ""), 20),
