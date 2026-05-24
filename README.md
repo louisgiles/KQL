@@ -11,24 +11,37 @@ These queries are written against the following philosophies:
 4. Humility. Arrogance kills agility. Danger lies outside of awareness. Always assume the answer is outside of understanding.
 5. Concision. Queries are intentionally lean and organised by category. Do more with less.
 
-## Structure 
-(current as of 29/03/2026. Further additions to come.)
+## Structure
 
-### Identity:
+Organised into six numbered investigation families plus two supporting
+top-level folders. Each family is self-contained — its own queries,
+its own `notes.md`, its own done criteria.
 
-- sign-in-abnormality
-- failed-auth-pattern
-- mfa-bypass
-- anomalous-token-replay
-- privileged-account-activity
-- service-principal-auth-tracker
-- sign-in-investigation-narrative-gen
-- sign-in-triage-plus-risk-scoring-engine
+| Folder | Family |
+|---|---|
+| `01-sign-in/` | Sign-in triage. Anomalous logins, risky sign-ins, IP / device / location familiarity, MFA posture. |
+| `02-auth-changes/` | Authentication-change triage. Password resets, MFA registrations / removals, security-info changes, role assignments. |
+| `03-office-ops/` | Office / M365 operations triage. Mailbox permissions, inbox rules, forwarding, transport rules, delegation. |
+| `04-azure-activity/` | Azure control-plane triage. Resource creation / deletion, RBAC changes, Key Vault, NSG edits. |
+| `05-endpoint/` | Endpoint triage. Three sub-families: `process/`, `file/`, `network/`. |
+| `06-email/` | Email triage. Phishing, malicious attachment / URL delivery, post-delivery actions, click exposure. |
+| `cross-family/` | Reference patterns for multi-family pivots (Email→SignIn, SignIn→AuthChanges, etc.). |
+| `scratchpad/` | One-off tool queries that do not recur often enough to be a family. Exempt from the family contract. |
 
+Every family ships at minimum a `deep-dive.kql`, a `narrative-gen.kql`,
+and a `notes.md`. Optional `quick-dive.kql` per family or sub-family.
+The endpoint family is the contract exception — three sub-families
+each shipping the full contract — see `05-endpoint/notes.md`.
 
-### Usage:
-Each file is a standalone query to be used within your sentinel logs blade. Some queries reference specific tables.
-Comments at the top of each file for the pre-requisites and table dependencies.
+The authoritative rule-set lives in `repo-contract.md`.
+
+### Usage
+
+Each query is standalone — paste into the Sentinel logs blade (or
+Defender Advanced Hunting for endpoint / email) and populate the
+`let`-block variables at the top. Required and optional tables are
+declared in each query's header block and summarised in the family's
+`notes.md`.
 
 ### Note:
 This is a personal reference library, not an open-source project. All work is my own.

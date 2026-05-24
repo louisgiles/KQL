@@ -15,7 +15,7 @@ Every `.kql` file must declare these fields in a comment block at the top:
 // optional_tables:   Enrichment tables — graceful failure if absent
 // variables:         let-block variables the analyst populates
 // done_criteria:     What "finished investigating" looks like
-// output_type:       analysis | narrative
+// output_type:       analysis | narrative | quick-triage
 ```
 
 ## Parameterisation
