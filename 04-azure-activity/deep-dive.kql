@@ -4,8 +4,9 @@
 //                    suspicious resource deletion.
 // starting_entities: AlertTime, Caller, CallerIpAddress, OperationName, ResourceId, SubscriptionId
 // required_tables:   AzureActivity
-// optional_tables:   SigninLogs
-// variables:         AlertTime, AlertTitle, CallerToCheck, CallerIpToCheck, OperationToCheck, ResourceIdToCheck, SubscriptionIdToCheck
+// optional_tables:   SigninLogs (actor sign-in context within SigninWindow of AlertTime)
+// variables:         AlertTime, AlertTitle, CallerToCheck, CallerIpToCheck, OperationToCheck, ResourceIdToCheck, SubscriptionIdToCheck, EventWindow, BaselineWindow, SigninWindow, Run* section toggles
+// done_criteria:     Every event in scope has been classified against actor history, tenant history, and related activity; risk signals reviewed; actor sign-in context near AlertTime reviewed where applicable; each finding mapped to one of the four closure buckets (benign / precautionary benign / review required / suspicious-escalate).
 // output_type:       analysis
 //
 // Philosophy:

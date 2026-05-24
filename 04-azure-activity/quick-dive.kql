@@ -4,7 +4,9 @@
 //                    suspicious resource deletion.
 // starting_entities: AlertTime, Caller, CallerIpAddress, OperationName, ResourceId, SubscriptionId
 // required_tables:   AzureActivity
-// optional_tables:   SigninLogs
+// optional_tables:   SigninLogs (actor sign-in context near AlertTime)
+// variables:         AlertTime, AlertTitle, CallerToCheck, CallerIpToCheck, OperationToCheck, ResourceIdToCheck, SubscriptionIdToCheck, EventWindow, BaselineWindow
+// done_criteria:     Decision-gate output answers: what happened, is it normal for the actor, is it normal for the tenant, what is weird, does this require the deep-dive. Analyst either closes from this output or escalates to 04-azure-activity/deep-dive.kql.
 // output_type:       quick-triage
 //
 // Philosophy:

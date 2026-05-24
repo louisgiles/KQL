@@ -2,10 +2,13 @@
 // purpose:           Dash-prefixed, paste-ready investigation note for recurring Azure Activity alerts:
 //                    suspicious azure activity, suspicious resource deployment,
 //                    suspicious resource deletion.
-// companions:        azure-activity/quick-dive, azure-activity/deep-dive
+// starting_entities: AlertTime, Caller, CallerIpAddress, OperationName, ResourceId, SubscriptionId
 // required_tables:   AzureActivity
-// optional_tables:   SigninLogs, AuditLogs
+// optional_tables:   SigninLogs (actor sign-in context near AlertTime), AuditLogs (correlated directory activity)
+// variables:         AlertTime, AlertTitle, CallerToCheck, CallerIpToCheck, OperationToCheck, ResourceIdToCheck, SubscriptionIdToCheck, EventWindow, BaselineWindow, BaselineLabel, IdentityContextWindow
+// done_criteria:     Narrative output exists covering: what happened, actor identity classification, actor prevalence for this operation, tenant prevalence, related activity in the window, and a determination line. Output pasted into the investigation ticket.
 // output_type:       narrative
+// companions:        04-azure-activity/quick-dive.kql, 04-azure-activity/deep-dive.kql
 //
 // Philosophy:
 // Azure Activity benignity is often prevalence-based.
