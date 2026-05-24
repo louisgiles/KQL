@@ -115,9 +115,14 @@ kql/
 ├── 04-azure-activity/
 ├── 05-endpoint/
 ├── 06-email/
-├── cross-family/
 └── scratchpad/
 ```
+
+Cross-family pivots (multi-family investigation paths like Email → SignIn,
+SignIn → AuthChanges, Endpoint → Network → SignIn) are deliberately out of
+scope for v1 and parked for a future addition. A skeleton lives at
+`cross-family/pivot-patterns.md` but is not part of the contract — it is
+not validated, not required, and not counted as drift.
 
 Current folders in this repo use slightly different names (`identity/`,
 `authentication/`, `office-activity/`, `azure-activity/`, `endpoint/`,
