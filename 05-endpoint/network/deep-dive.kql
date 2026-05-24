@@ -4,10 +4,11 @@
 //                    lightweight process-chain context, nearby behaviour, and cautious traffic-shape signals.
 // starting_entities: AlertTime, DeviceName, RemoteUrl, RemoteIP, RemotePort, InitiatingProcessFileName, InitiatingProcessSHA256, InitiatingProcessId
 // required_tables:   DeviceNetworkEvents
-// optional_tables:   DeviceProcessEvents, DeviceFileEvents, DeviceRegistryEvents, DeviceEvents
-// variables:         AlertTime, AnchorMode, TimeToCheck, BaselineWindow, HostToCheck, RemoteUrlToCheck,
+// optional_tables:   DeviceProcessEvents (process-chain context, initiating-process metadata), DeviceFileEvents (nearby file activity), DeviceRegistryEvents (nearby registry activity), DeviceEvents (MDE actions, persistence)
+// variables:         AlertTime, AnchorMode, TimeToCheck, BaselineWindow, ForwardWindow, AncestryLookback, Run* section toggles, HostToCheck, RemoteUrlToCheck,
 //                    RemoteIPToCheck, RemotePortToCheck, ProcessNameToCheck, ProcessSHA256ToCheck,
 //                    ProcessIdToCheck, CommandLineToCheck
+// done_criteria:     Target network event(s) located; destination prevalence checked; process-destination relationship classified; initiating process chain reviewed; related network activity in the window walked; nearby file/registry/MDE behaviour reviewed; traffic-shape signals reviewed; each finding mapped to one of the four closure buckets.
 // output_type:       analysis
 
 let AlertTime = datetime(2026-01-01T00:00:00Z);

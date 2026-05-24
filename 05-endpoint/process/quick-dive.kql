@@ -3,8 +3,11 @@
 //                    One-row output with process identity, Defender/AMSI alert evidence,
 //                    parent/command-line shape, prevalence, nearby behaviour counts,
 //                    cautious flags, and paste-ready note.
+// starting_entities: AlertTime, DeviceName, ProcessName, SHA256, ProcessId, CommandLine substring, Account (any combination)
 // required_tables:   DeviceProcessEvents
-// optional_tables:   DeviceNetworkEvents, DeviceFileEvents, DeviceRegistryEvents, DeviceEvents
+// optional_tables:   DeviceNetworkEvents (nearby network counts), DeviceFileEvents (nearby file counts), DeviceRegistryEvents (nearby registry counts), DeviceEvents (Defender/AMSI alert evidence, MDE actions)
+// variables:         AlertTime, TimeToCheck, ProcessLookupBack, BaselineWindow, BaselineLabel, ForwardWindow, HostToCheck, ProcessNameToCheck, ProcessSHA256ToCheck, ProcessIdToCheck, CommandLineToCheck, AccountToCheck
+// done_criteria:     Decision-gate output answers: what ran, was there Defender/AMSI evidence, parent/command-line shape, tenant prevalence, nearby behaviour. Analyst either closes from this output or escalates to 05-endpoint/process/deep-dive.kql.
 // output_type:       quick-triage
 //
 // Philosophy:

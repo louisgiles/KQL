@@ -1,50 +1,66 @@
 # 05-endpoint
 
-Endpoint triage family. Contract exception: ships three parallel deep
-dives (process, file, network) instead of a single `deep-dive.kql`.
+Endpoint investigation family. Contract exception: ships **three
+parallel sub-families** (process, file, network) instead of a single
+`deep-dive.kql` / `narrative-gen.kql` pair at the family root.
 
-## Queries
+## Sub-families
 
-| File | Output type | Purpose |
-|---|---|---|
-| `process-events.kql` | analysis | "What executed?" — process chain around an alert timestamp. |
-| `file-events.kql` | analysis | "What appeared or changed?" — file creation/modification around an alert. |
-| `network-events.kql` | analysis | "Where did it connect?" — outbound/inbound network around an alert. |
-| `narrative-gen.kql` | narrative | TODO — not yet authored. |
+| Sub-family | Primary table | When to use | Notes |
+|---|---|---|---|
+| [`process/`](process/notes.md) | `DeviceProcessEvents` | Alert is on something that ran (process name, command line, SHA256 of an executed image). | [process/notes.md](process/notes.md) |
+| [`file/`](file/notes.md) | `DeviceFileEvents` | Alert is on something that appeared on disk (FileCreated, FileRenamed, FileModified, FileDeleted). | [file/notes.md](file/notes.md) |
+| [`network/`](network/notes.md) | `DeviceNetworkEvents` | Alert is on a connection (RemoteUrl, RemoteIP, RemotePort, periodic-beacon match). | [network/notes.md](network/notes.md) |
 
-## Starting entities
+Each sub-family ships the full contract: `deep-dive.kql` +
+`narrative-gen.kql` + `notes.md`, plus an optional `quick-dive.kql`.
 
-- Device name (primary)
-- Entity — process name, command fragment, filename, SHA256, URL,
-  domain, or IP
-- Alert timestamp (ISO 8601)
+## Cross-cutting design
 
-## Required tables
+All three sub-families share three architectural conventions. The
+details live in each sub-family's `notes.md`; the headlines are:
 
-- `DeviceProcessEvents` — **required** by `process-events.kql`.
-- `DeviceFileEvents` — **required** by `file-events.kql`.
-- `DeviceNetworkEvents` — **required** by `network-events.kql`.
+- **Anchor model.** `AnchorMode = "alert"` centres on `AlertTime`.
+  Each sub-family also offers an origin mode
+  (`process_origin` / `file_origin` / `network_origin`) for alerts
+  that fire on downstream events well after the actual lifecycle.
+- **Composite `(ProcessId, ProcessCreationTime)` keying.** Every
+  cross-table join uses the composite key, never bare `ProcessId`.
+  Defends against PID reuse across the 24h forward window.
+- **Togglable sections.** Each `deep-dive.kql` ships per-section
+  boolean toggles so the analyst can narrow output to the section
+  that matters for the alert.
 
-## Optional tables
+## Starting entities (family-wide)
 
-- TODO. Candidates for future enrichment (`DeviceEvents`,
-  `DeviceImageLoadEvents`, `DeviceRegistryEvents`) would currently be
-  tagged **avoid as hard dependency** — coverage varies by onboarding
-  profile.
+Every sub-family takes `AlertTime` + `DeviceName` plus at least one
+table-specific entity. See the per-sub-family notes for the full
+list.
 
-## Done criteria
+## Required tables (family-wide)
 
-- TODO. Every non-BenignFlag row across the three deep dives is
-  classified or escalated; initiating process chain walked back to a
-  user or service; file writes accounted for (origin URL, IP, hash);
-  network destinations classified.
+- `DeviceProcessEvents` — required by `process/`.
+- `DeviceFileEvents` — required by `file/`.
+- `DeviceNetworkEvents` — required by `network/`.
+
+## Done criteria (family-wide)
+
+Each sub-family carries its own done criteria. A typical endpoint
+investigation closes when:
+
+1. The right sub-family has been selected for the alert shape.
+2. The alert's chain has been walked end-to-end across whichever
+   process / file / network surfaces are relevant.
+3. Each finding has been mapped to one of the four closure buckets
+   (**benign**, **precautionary benign**, **review required**,
+   **suspicious / escalate**).
+4. The sub-family's `narrative-gen.kql` output has been pasted into
+   the ticket.
 
 ## Validation — test cases
 
-1. **Known benign — TODO.** Defender definition update window on a
-   healthy endpoint — all rows BenignFlag to the bottom.
-2. **Ambiguous — TODO.** Developer ad-hoc PowerShell against a public
-   API from a managed laptop during working hours.
-3. **Known bad / clearly suspicious — TODO.** LOLBin chain
-   (`mshta.exe` or `rundll32.exe` spawning `cmd.exe`) followed by a
-   write to `\Users\Public\` and an outbound to a non-Microsoft IP.
+Test cases live in the per-sub-family `notes.md` files:
+
+- [process/notes.md — Validation](process/notes.md#validation--test-cases)
+- [file/notes.md — Validation](file/notes.md#validation--test-cases)
+- [network/notes.md — Validation](network/notes.md#validation--test-cases)

@@ -4,9 +4,11 @@
 //                    creator-process context, tenant prevalence, environment spread,
 //                    nearby behaviour counts via creator ProcKey, cautious flags,
 //                    score, and paste-ready note.
-// starting_entities: SHA256 (preferred), FileName, DeviceName, FolderPath
+// starting_entities: AlertTime, SHA256 (preferred), FileName, DeviceName, FolderPath
 // required_tables:   DeviceFileEvents
-// optional_tables:   DeviceProcessEvents, DeviceNetworkEvents, DeviceRegistryEvents, DeviceEvents
+// optional_tables:   DeviceProcessEvents (creator-process context, execution status), DeviceNetworkEvents (nearby network via creator ProcKey), DeviceRegistryEvents (nearby registry via creator ProcKey), DeviceEvents (Defender evidence, MDE actions, persistence)
+// variables:         AlertTime, TimeToCheck, ForwardWindow, BaselineWindow, SpreadLookback, BaselineLabel, HostToCheck, FileNameToCheck, SHA256ToCheck, FolderPathToCheck
+// done_criteria:     Decision-gate output answers: what is the file and where, Defender evidence, creator, tenant rarity, environment spread, nearby creator activity, execution status. Analyst either closes from this output or escalates to 05-endpoint/file/deep-dive.kql.
 // output_type:       quick-triage
 //
 // Philosophy:
