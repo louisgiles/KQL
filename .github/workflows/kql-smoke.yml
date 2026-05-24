@@ -1,0 +1,35 @@
+name: KQL smoke test
+
+on:
+  pull_request:
+    paths:
+      - '**/*.kql'
+      - 'tests/kql-smoke/**'
+      - 'scripts/test-kql.ps1'
+      - '.github/workflows/kql-smoke.yml'
+  push:
+    branches: [main]
+    paths:
+      - '**/*.kql'
+      - 'tests/kql-smoke/**'
+      - 'scripts/test-kql.ps1'
+      - '.github/workflows/kql-smoke.yml'
+  workflow_dispatch: {}
+
+jobs:
+  smoke:
+    name: Parse every .kql
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Restore + build
+        run: dotnet build tests/kql-smoke --configuration Release --nologo
+
+      - name: Run harness
+        run: dotnet run --project tests/kql-smoke --configuration Release --no-build --no-restore -- "${{ github.workspace }}"
