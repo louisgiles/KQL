@@ -5,14 +5,23 @@
 // required_tables:   EmailEvents
 // optional_tables:   EmailAttachmentInfo, EmailUrlInfo, EmailPostDeliveryEvents, UrlClickEvents
 // variables:         TargetNetworkMessageId, SearchLookback, BaselineWindow
-// done_criteria:     Sender/auth posture, prevalence, URLs, attachments, delivery/remediation,
-//                    clicks, threat concern and exposure concern summarised for ticket notes.
+// done_criteria:     Verdict-first narrative output. Determination is line 1. For non-trivial verdicts an Analyst assessment line is pre-filled; for escalation verdicts a branch-aware ASK BLOCK enumerates what is required from the recipient. Literal entity values (recipient, sender, NetworkMessageId, sender IP, URL domains, attachment file names / hashes, subject) stay in the projected non-narrative columns — the narrative body refers to them by role label only. Output pasted into the investigation ticket.
 // output_type:       narrative
 
 let TargetNetworkMessageId = "";
 let SearchLookback = 30d;
 let BaselineWindow = 90d;
 let BaselineLabel = "90d";
+//
+// --- Render a timespan as plain English ("30 days", "7 days", "1 hour"). ---
+let humanTimespan = (t:timespan) {
+    case(
+        t >= 1d, strcat(tostring(toint(t / 1d)), iff(toint(t / 1d) == 1, " day", " days")),
+        t >= 1h, strcat(tostring(toint(t / 1h)), iff(toint(t / 1h) == 1, " hour", " hours")),
+        t >= 1m, strcat(tostring(toint(t / 1m)), iff(toint(t / 1m) == 1, " minute", " minutes")),
+        tostring(t)
+    )
+};
 //
 // ============================================================================
 // Target message
@@ -513,7 +522,7 @@ TargetEmail
         ExposureScore >= 10, "Low",
         "Limited"
     )
-| extend Determination = case(
+| extend _determination = strcat("- Determination: ", case(
     HasClick and ThreatConcern in ("High", "Medium"),
         "user interaction observed with suspicious email context. Deep dive/user impact review recommended.",
     ThreatConcern == "High" and ExposureConcern in ("Medium", "High"),
@@ -527,41 +536,117 @@ TargetEmail
     ThreatConcern == "Low",
         "low concern. Validate expected sender/message context.",
     "limited suspicious signals in scoped telemetry."
-)
-| extend NarrativePart1 = strcat(
-    "- Email activity reviewed.\n",
-    "- Email shape: ", EmailShape, ".\n",
-    "- Threat concern: ", ThreatConcern, ".\n",
-    "- Exposure concern: ", ExposureConcern, ".\n",
-    "- TimeGenerated: ", tostring(EventTime), "\n",
-    "- NetworkMessageId: ", NetworkMessageId, "\n",
-    "- Recipient: ", RecipientEmailAddress, "\n",
-    "- Sender: ", SenderFromAddress, "\n",
-    "- Sender mail-from: ", iff(isempty(SenderMailFromAddressSafe), "N/A", SenderMailFromAddressSafe), "\n",
-    "- Sender IP: ", iff(isempty(SenderIPv4Safe), "N/A", SenderIPv4Safe), "\n",
-    "- Sender display name: ", SenderDisplayName, "\n",
-    "- Subject: ", Subject, "\n"
-)
-| extend NarrativePart2 = strcat(
-    "- Direction: ", iff(isempty(EmailDirectionSafe), "N/A", EmailDirectionSafe), "\n",
-    "- Delivery action/location: ", iff(isempty(DeliveryActionSafe), "N/A", DeliveryActionSafe), " / ", iff(isempty(DeliveryLocationSafe), "N/A", DeliveryLocationSafe), "\n",
-    "- Auth summary: ", AuthSummary, "\n",
-    "- Sender prevalence: ", SenderFamiliarity, "; ", tostring(SenderSeenCount), " prior event(s) across ", tostring(SenderDaysSeen), " day(s) in ", BaselineLabel, ".\n",
-    "- Sender domain prevalence: ", SenderDomainFamiliarity, "; ", tostring(SenderDomainSeenCount), " prior event(s) across ", tostring(SenderDomainDaysSeen), " day(s) in ", BaselineLabel, ".\n",
-    "- Sender-recipient relationship: ", SenderRecipientFamiliarity, "; ", tostring(SenderRecipientSeenCount), " prior event(s) in baseline.\n"
-)
-| extend NarrativePart3 = strcat(
-    "- Similar message spread: ", tostring(SimilarRecipients), " recipient(s), ", tostring(SimilarNetworkMessageIds), " NetworkMessageId(s), ", tostring(SimilarEvents), " event(s) in lookback.\n",
-    "- URLs: ", tostring(UrlCount), " observed; URL domain familiarity: ", UrlDomainFamiliarity, "; domains: ", iff(array_length(UrlDomains) == 0, "none", tostring(UrlDomains)), ".\n",
-    "- Attachments: ", tostring(AttachmentCount), " observed; attachment hash familiarity: ", AttachmentHashFamiliarity, "; files: ", iff(array_length(AttachmentNames) == 0, "none", tostring(AttachmentNames)), ".\n",
-    "- Risky attachment types: ", iff(array_length(RiskyAttachmentTypes) == 0, "none", tostring(RiskyAttachmentTypes)), ".\n"
-)
-| extend NarrativePart4 = strcat(
-    "- Threat indicators: ", iff(HasThreatVerdict, strcat("ThreatTypes=", ThreatTypesSafe, "; ThreatNames=", ThreatNamesSafe, "; DetectionMethods=", DetectionMethodsSafe), "none recorded on EmailEvents"), ".\n",
-    "- Post-delivery events: ", tostring(PostDeliveryEventCount), " observed; actions: ", iff(array_length(PostDeliveryActions) == 0, "none", tostring(PostDeliveryActions)), ".\n",
-    "- URL clicks: ", tostring(ClickCount), " observed; users: ", tostring(ClickUsers), "; actions: ", iff(array_length(ClickActions) == 0, "none", tostring(ClickActions)), ".\n",
-    "- Behavioural flags: ", iff(isempty(BehaviouralFlags), "none", BehaviouralFlags), ".\n",
-    "- Determination: ", Determination
-)
-| extend InvestigationNarrative = strcat(NarrativePart1, NarrativePart2, NarrativePart3, NarrativePart4)
+))
+//
+// --- Verdict-class, Analyst assessment, ASK BLOCK ---
+// Derived in parallel from the same computed signals as _determination —
+// never parsed from the determination text. Branch order mirrors
+// _determination so a signal change updates all branches in lockstep.
+// ASK BLOCK is branch-aware: the user-clicked + suspicious-context branch
+// and the high-threat + meaningful-exposure branch each get their own
+// action items.
+| extend
+    _verdictClass = case(
+        HasClick and ThreatConcern in ("High", "Medium"),
+            "escalation",
+        ThreatConcern == "High" and ExposureConcern in ("Medium", "High"),
+            "escalation",
+        ThreatConcern == "High" and ExposureConcern in ("Low", "Limited"),
+            "review",
+        ThreatConcern == "Medium" and ExposureConcern in ("Medium", "High"),
+            "review",
+        ThreatConcern == "Medium",
+            "review",
+        ThreatConcern == "Low",
+            "benign",
+        "benign"
+    ),
+    _analystAssessment = case(
+        HasClick and ThreatConcern in ("High", "Medium"),
+            "- Analyst assessment: user interaction observed with suspicious email content. Confirm whether any clicker entered credentials, opened an attachment, or otherwise interacted with the message, and review their downstream account posture for signs of follow-on compromise.",
+        ThreatConcern == "High" and ExposureConcern in ("Medium", "High"),
+            "- Analyst assessment: high threat indicators with meaningful user exposure. Confirm quarantine, soft-delete and remediation state across every recipient in the campaign before closing.",
+        ThreatConcern == "High" and ExposureConcern in ("Low", "Limited"),
+            "- Analyst assessment: high threat indicators but exposure appears limited. Verify the message was quarantined or removed and that no recipient interacted with it.",
+        ThreatConcern == "Medium" and ExposureConcern in ("Medium", "High"),
+            "- Analyst assessment: medium threat with meaningful user exposure. Validate sender legitimacy, URL/attachment context, delivery state and whether any user interaction occurred.",
+        ThreatConcern == "Medium",
+            "- Analyst assessment: medium threat with limited exposure. Validate expected sender/message context and confirm the message was contained.",
+        ThreatConcern == "Low",
+            "",
+        ""
+    ),
+    _askBlock = case(
+        HasClick and ThreatConcern in ("High", "Medium"),
+            strcat(
+                "- ASK BLOCK — required from recipient:",
+                "\n- Confirm whether the recipient or any other clicker entered credentials, opened an attachment, or otherwise interacted with the message contents after the click.",
+                "\n- Confirm the downstream account posture of every clicker — sign-ins, MFA changes, mailbox-rule creations, OAuth grants — for signs of follow-on compromise.",
+                "\n- If account compromise is suspected: reset credentials, revoke active sessions, apply mailbox containment if exfiltration indicators are present, and engage incident response."
+            ),
+        ThreatConcern == "High" and ExposureConcern in ("Medium", "High"),
+            strcat(
+                "- ASK BLOCK — required from recipient:",
+                "\n- Confirm whether the message has been quarantined, soft-deleted, or otherwise removed from every recipient mailbox in the campaign.",
+                "\n- Confirm the full recipient scope by reviewing similar-message spread in the deep-dive output, and ensure remediation covers every recipient.",
+                "\n- Confirm whether any recipient interacted with the message (click, attachment open, reply) and trigger user-impact review if so."
+            ),
+        ""
+    )
+// --- Assemble (verdict-first; literal entities replaced with role labels; zero counters suppressed) ---
+| extend InvestigationNarrative = strcat_array(array_concat(
+    pack_array(_determination),
+    iff(isnotempty(_analystAssessment), pack_array(_analystAssessment), dynamic([])),
+    iff(isnotempty(_askBlock),          pack_array(_askBlock),          dynamic([])),
+    pack_array(
+        strcat("- Generated: ", format_datetime(now(), "yyyy-MM-dd HH:mm"), " UTC"),
+        strcat("- Search lookback: ", humanTimespan(SearchLookback), " | Baseline: ", BaselineLabel),
+        "- Email activity reviewed.",
+        strcat("- Email shape: ", EmailShape, "."),
+        strcat("- Threat concern: ", ThreatConcern, " | Exposure concern: ", ExposureConcern, "."),
+        strcat("- TimeGenerated: ", tostring(EventTime), "."),
+        "- Target message id, recipient, sender, sender mail-from, sender display name and subject captured in the Entities block.",
+        "- Sender IP captured in the Entities block.",
+        strcat("- Direction: ", iff(isempty(EmailDirectionSafe), "N/A", EmailDirectionSafe), "."),
+        strcat("- Delivery action/location: ", iff(isempty(DeliveryActionSafe), "N/A", DeliveryActionSafe), " / ", iff(isempty(DeliveryLocationSafe), "N/A", DeliveryLocationSafe), "."),
+        strcat("- Auth summary: ", AuthSummary, "."),
+        strcat("- Sender prevalence: ", SenderFamiliarity,
+            iff(SenderSeenCount > 0,
+                strcat("; ", tostring(SenderSeenCount), " prior event(s) across ", tostring(SenderDaysSeen), " day(s) in ", BaselineLabel),
+                ""),
+            "."),
+        strcat("- Sender domain prevalence: ", SenderDomainFamiliarity,
+            iff(SenderDomainSeenCount > 0,
+                strcat("; ", tostring(SenderDomainSeenCount), " prior event(s) across ", tostring(SenderDomainDaysSeen), " day(s) in ", BaselineLabel),
+                ""),
+            "."),
+        strcat("- Sender-recipient relationship: ", SenderRecipientFamiliarity,
+            iff(SenderRecipientSeenCount > 0,
+                strcat("; ", tostring(SenderRecipientSeenCount), " prior event(s) in baseline"),
+                ""),
+            "."),
+        iff(SimilarEvents == 0,
+            "- Similar message spread: none observed in lookback.",
+            strcat("- Similar message spread: ", tostring(SimilarRecipients), " recipient(s), ", tostring(SimilarNetworkMessageIds), " message id(s), ", tostring(SimilarEvents), " event(s) in lookback.")),
+        iff(UrlCount == 0,
+            "- URLs: none observed.",
+            strcat("- URLs: ", tostring(UrlCount), " observed; URL domain familiarity: ", UrlDomainFamiliarity, "; URL domains captured in the Entities block.")),
+        iff(AttachmentCount == 0,
+            "- Attachments: none observed.",
+            strcat("- Attachments: ", tostring(AttachmentCount), " observed; attachment hash familiarity: ", AttachmentHashFamiliarity, "; file names and hashes captured in the Entities block.")),
+        iff(array_length(RiskyAttachmentTypes) == 0,
+            "- Risky attachment types: none observed.",
+            strcat("- Risky attachment types: ", tostring(RiskyAttachmentTypes), ".")),
+        iff(HasThreatVerdict,
+            strcat("- Threat indicators: ThreatTypes=", ThreatTypesSafe, "; ThreatNames=", ThreatNamesSafe, "; DetectionMethods=", DetectionMethodsSafe, "."),
+            "- Threat indicators: none recorded on EmailEvents."),
+        iff(PostDeliveryEventCount == 0,
+            "- Post-delivery events: none observed.",
+            strcat("- Post-delivery events: ", tostring(PostDeliveryEventCount), " observed; actions: ", tostring(PostDeliveryActions), ".")),
+        iff(ClickCount == 0,
+            "- URL clicks: none observed.",
+            strcat("- URL clicks: ", tostring(ClickCount), " observed across ", tostring(ClickUsers), " user(s); actions: ", tostring(ClickActions), "; clicker identifiers and clicked URLs captured in the Entities block.")),
+        strcat("- Behavioural flags: ", iff(isempty(BehaviouralFlags), "none", BehaviouralFlags), ".")
+    )
+), "\n")
 | project InvestigationNarrative
