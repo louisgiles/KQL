@@ -33,14 +33,45 @@ let targetIP = "";
 
 Every investigation family contains:
 
-| File | Purpose |
-|---|---|
-| `deep-dive.kql` | Evidence engine — structured analytical output |
-| `narrative-gen.kql` | Closure-ready note generation |
-| `notes.md` | Use case, starting entities, done criteria, data dependencies |
+| File | Status | Purpose |
+|---|---|---|
+| `deep-dive.kql` | Required | Evidence engine — structured analytical output |
+| `narrative-gen.kql` | Required | Closure-ready note generation |
+| `notes.md` | Required | Use case, starting entities, done criteria, data dependencies |
+| `quick-dive.kql` | Optional | Fast decision-gate triage — one-row-ish output that tells the analyst whether the deep-dive is worth running |
 
 Endpoint is the exception — it uses three deep dives (process, file, network)
-instead of one.
+instead of one. Each endpoint sub-family follows the same file contract:
+required `deep-dive.kql` + `narrative-gen.kql` + `notes.md`, optional
+`quick-dive.kql`.
+
+### `quick-dive.kql` (optional)
+
+A family or sub-family may ship zero or one `quick-dive.kql`. Its job is fast
+prevalence-first triage: enough signal to decide whether to escalate to the
+deep-dive, not a full investigation. It must carry the full contract header
+block with `output_type: quick-triage`. Absence of a `quick-dive.kql` is not
+drift — it just means the family hasn't needed one.
+
+## Scratchpad
+
+`scratchpad/` is a top-level folder for precise one-off tool queries that
+do not recur often enough to belong to a family. Examples: a single
+investigation's bespoke join, an ad-hoc check tied to a specific alert
+shape, a query written for one ticket and kept for reference.
+
+Scratchpad queries are **explicitly exempt from the family contract**:
+
+- No mandatory header block.
+- No companion `narrative-gen.kql`.
+- No `notes.md`.
+- No `.kql` extension policing (recommended but not required).
+- They are never counted as a family and never re-flagged as drift or as
+  an incomplete family in audits.
+
+If a scratchpad query starts being reached for repeatedly, promote it
+into a family (or a sub-family under an existing family) and apply the
+full contract at that point.
 
 ## Data dependency tags
 
@@ -84,7 +115,8 @@ kql/
 ├── 04-azure-activity/
 ├── 05-endpoint/
 ├── 06-email/
-└── cross-family/
+├── cross-family/
+└── scratchpad/
 ```
 
 Current folders in this repo use slightly different names (`identity/`,
