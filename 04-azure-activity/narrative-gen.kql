@@ -6,7 +6,7 @@
 // required_tables:   AzureActivity
 // optional_tables:   SigninLogs (actor sign-in context near AlertTime), AuditLogs (correlated directory activity)
 // variables:         AlertTime, AlertTitle, CallerToCheck, CallerIpToCheck, OperationToCheck, ResourceIdToCheck, SubscriptionIdToCheck, EventWindow, BaselineWindow, BaselineLabel, IdentityContextWindow
-// done_criteria:     Narrative output exists covering: what happened, actor identity classification, actor prevalence for this operation, tenant prevalence, related activity in the window, and a determination line. Output pasted into the investigation ticket.
+// done_criteria:     Verdict-first narrative output. Determination is line 1. For non-trivial verdicts an Analyst assessment line is pre-filled; for escalation verdicts a branch-aware ASK BLOCK enumerates what is required from the recipient. Literal entity values (UPN, IP, resource id, subscription id) stay in the projected non-narrative columns — the narrative body refers to them by role label only. Output pasted into the investigation ticket.
 // output_type:       narrative
 // companions:        04-azure-activity/quick-dive.kql, 04-azure-activity/deep-dive.kql
 //
@@ -28,6 +28,16 @@ let EventWindow = 1h;
 let BaselineWindow = 90d;
 let BaselineLabel = "90d";
 let IdentityContextWindow = 24h;
+//
+// --- Render a timespan as plain English ("30 days", "1 hour", "30 minutes"). ---
+let humanTimespan = (t:timespan) {
+    case(
+        t >= 1d, strcat(tostring(toint(t / 1d)), iff(toint(t / 1d) == 1, " day", " days")),
+        t >= 1h, strcat(tostring(toint(t / 1h)), iff(toint(t / 1h) == 1, " hour", " hours")),
+        t >= 1m, strcat(tostring(toint(t / 1m)), iff(toint(t / 1m) == 1, " minute", " minutes")),
+        tostring(t)
+    )
+};
 //
 // ============================================================================
 // Alert scope
@@ -385,7 +395,7 @@ TargetRow
     iff(RecentSpCredentialChange, pack_array("RECENT_SP_CREDENTIAL_OR_APP_CHANGE"), dynamic([])),
     iff(RecentSpRoleChange, pack_array("RECENT_SP_ROLE_OR_PERMISSION_CHANGE"), dynamic([]))
 ), " | ")
-| extend Determination = case(
+| extend _determination = strcat("- Determination: ", case(
     ActorType in ("Service Principal / AppId", "Managed Identity")
         and RecentSpCredentialChange and IsSensitiveCategory,
             "suspicious service principal context. Recent app/credential change observed near sensitive Azure control-plane activity. Deep-dive recommended.",
@@ -401,13 +411,74 @@ TargetRow
     RelatedBurst,
             "review required. High surrounding Azure activity observed near the alert.",
     "review required. Mixed or insufficient context for confident closure from narrative alone."
-)
+))
+//
+// --- Verdict-class, Analyst assessment, ASK BLOCK ---
+// Derived in parallel from the same computed signals as _determination —
+// never parsed from the determination text. Branch order mirrors
+// _determination so a signal change updates all branches in lockstep.
+// ASK BLOCK is branch-aware: the SP/MI suspicious-context branch and the
+// new+rare operation branch each get their own action items.
+| extend
+    _verdictClass = case(
+        ActorType in ("Service Principal / AppId", "Managed Identity")
+            and RecentSpCredentialChange and IsSensitiveCategory,
+                "escalation",
+        ActorType in ("Service Principal / AppId", "Managed Identity")
+            and ActorOperationCount > 20 and ActorSubscriptionDaysSeen > 10 and ActorResourceTypeDaysSeen > 10 and SpChangeCount == 0 and SpRoleChangeCount == 0,
+                "benign",
+        ActorType == "User" and RiskySignin,
+                "review",
+        NewActorOperation and RareTenantOperation,
+                "escalation",
+        ActorOperationCount > 20 and ActorSubscriptionDaysSeen > 10 and ActorResourceTypeDaysSeen > 10,
+                "benign",
+        RelatedBurst,
+                "review",
+        "review"
+    ),
+    _analystAssessment = case(
+        ActorType in ("Service Principal / AppId", "Managed Identity")
+            and RecentSpCredentialChange and IsSensitiveCategory,
+                "- Analyst assessment: the actor is a service principal or managed identity that performed sensitive control-plane activity close to a recent app or credential change. Confirm whether the credential change was authorised and whether the subsequent activity matches the change's documented purpose.",
+        ActorType in ("Service Principal / AppId", "Managed Identity")
+            and ActorOperationCount > 20 and ActorSubscriptionDaysSeen > 10 and ActorResourceTypeDaysSeen > 10 and SpChangeCount == 0 and SpRoleChangeCount == 0,
+                "",
+        ActorType == "User" and RiskySignin,
+                "- Analyst assessment: the user actor's sign-in context shows elevated risk signals near the Azure activity. Correlate against Identity Protection alerts and confirm whether the session was recognised by the actor.",
+        NewActorOperation and RareTenantOperation,
+                "- Analyst assessment: the operation is new for the actor and rare in the tenant baseline. Confirm whether the operation was authorised and expected for the actor's role.",
+        ActorOperationCount > 20 and ActorSubscriptionDaysSeen > 10 and ActorResourceTypeDaysSeen > 10,
+                "",
+        RelatedBurst,
+                "- Analyst assessment: a high volume of surrounding Azure activity was observed near the alert. Determine whether the burst is a planned change or unexpected automation.",
+        "- Analyst assessment: automated heuristics returned mixed signals. Examine the deep-dive output and decide based on actor reputation, operation sensitivity, and timing of surrounding events."
+    ),
+    _askBlock = case(
+        ActorType in ("Service Principal / AppId", "Managed Identity")
+            and RecentSpCredentialChange and IsSensitiveCategory,
+                strcat(
+                    "- ASK BLOCK — required from recipient:",
+                    "\n- Confirm whether the recent app or credential change on the actor service principal was authorised, and identify the owner who made the change.",
+                    "\n- Confirm whether any consent grants or app role assignments were added to the actor service principal in the same window.",
+                    "\n- Confirm whether the sensitive Azure control-plane activity that followed matches the documented purpose of the credential change.",
+                    "\n- If the credential change was not authorised: rotate or remove the credential, audit recent activity attributable to the actor, and engage incident response."
+                ),
+        NewActorOperation and RareTenantOperation,
+                strcat(
+                    "- ASK BLOCK — required from recipient:",
+                    "\n- Confirm whether the actor's operation was authorised and expected for their role.",
+                    "\n- Confirm whether a change request, runbook, or maintenance window covers this operation.",
+                    "\n- If the operation was not expected: review the actor's recent activity for additional unfamiliar operations and engage incident response."
+                ),
+        ""
+    )
 | extend IdentityContextLine = case(
     ActorType == "User" and isnotempty(SigninTime),
         strcat(
             "- User sign-in context: ", tostring(SigninTime),
-            " from ", iff(isempty(SigninLocation), "N/A", SigninLocation),
-            " using IP ", iff(isempty(SigninIP), "N/A", SigninIP),
+            " from ", iff(isempty(SigninLocation), "an unrecorded location", SigninLocation),
+            "; sign-in source IP captured in the Entities block",
             "; trust type: ", iff(isempty(SigninTrustType), "N/A", SigninTrustType),
             "; managed: ", iff(isempty(SigninIsManaged), "N/A", SigninIsManaged),
             "; compliant: ", iff(isempty(SigninIsCompliant), "N/A", SigninIsCompliant),
@@ -415,36 +486,62 @@ TargetRow
         ),
     ActorType == "User",
         "- User sign-in context: no matching sign-in found in scoped window.",
-    ActorType in ("Service Principal / AppId", "Managed Identity"),
+    ActorType in ("Service Principal / AppId", "Managed Identity") and (SpChangeCount > 0 or SpRoleChangeCount > 0),
         strcat(
             "- App/SP context: ", tostring(SpChangeCount), " app or credential change(s), ",
             tostring(SpRoleChangeCount), " role/permission change(s) observed within ±",
-            tostring(IdentityContextWindow), "."
+            humanTimespan(IdentityContextWindow), "."
         ),
+    ActorType in ("Service Principal / AppId", "Managed Identity"),
+        strcat("- App/SP context: no app/credential or role/permission changes observed within ±", humanTimespan(IdentityContextWindow), "."),
     "- Identity context: actor type unclear; review actor manually."
 )
-| extend InvestigationNarrative = strcat(
-    "- Azure activity reviewed for ", iff(isempty(AlertTitle), "Azure Activity alert", AlertTitle), ".\n",
-    "- TimeGenerated: ", tostring(TimeGenerated), "\n",
-    "- Activity category: ", ActivityCategory, "\n",
-    "- Actor: ", Actor, "\n",
-    "- Actor type: ", ActorType, "\n",
-    "- Source IP: ", iff(isempty(ActorIP), "N/A", ActorIP), "\n",
-    "- Operation: ", Operation, "\n",
-    "- Status: ", Status, "\n",
-    "- Subscription: ", Subscription, "\n",
-    "- Resource group: ", iff(isempty(ResourceGroup), "N/A", ResourceGroup), "\n",
-    "- Resource type: ", iff(isempty(ResourceType), "N/A", ResourceType), "\n",
-    "- Resource name: ", iff(isempty(ResourceName), "N/A", ResourceName), "\n",
-    "- Resource: ", Resource, "\n",
-    "- Actor operation history: ", ActorOperationFamiliarity, "; ", tostring(ActorOperationCount), " prior event(s) across ", tostring(ActorOperationDaysSeen), " day(s) in ", BaselineLabel, ".\n",
-    "- Actor IP familiarity: ", ActorIpFamiliarity, "; ", tostring(ActorIpCount), " prior event(s) across ", tostring(ActorIpDaysSeen), " day(s) in ", BaselineLabel, ".\n",
-    "- Actor subscription familiarity: ", ActorSubscriptionFamiliarity, "; ", tostring(ActorSubscriptionCount), " prior event(s) across ", tostring(ActorSubscriptionDaysSeen), " day(s) in ", BaselineLabel, ".\n",
-    "- Actor resource-type familiarity: ", ActorResourceTypeFamiliarity, "; ", tostring(ActorResourceTypeCount), " prior event(s) across ", tostring(ActorResourceTypeDaysSeen), " day(s) in ", BaselineLabel, ".\n",
-    "- Tenant operation familiarity: ", TenantOperationFamiliarity, "; ", tostring(TenantOperationCount), " prior event(s) across ", tostring(TenantOperationActors), " actor(s) in ", BaselineLabel, ".\n",
-    "- Related activity: ", tostring(RelatedOps), " related Azure operation(s) within ±", tostring(EventWindow), "; ", tostring(RelatedSuccess), " success(es), ", tostring(RelatedFailures), " failure(s), ", tostring(RelatedResources), " resource(s).\n",
-    IdentityContextLine, "\n",
-    "- Behavioural flags: ", iff(isempty(BehaviouralFlags), "none", BehaviouralFlags), ".\n",
-    "- Determination: ", Determination
-)
+// --- Assemble (verdict-first; literal entities replaced with role labels; zero counters suppressed) ---
+| extend InvestigationNarrative = strcat_array(array_concat(
+    pack_array(_determination),
+    iff(isnotempty(_analystAssessment), pack_array(_analystAssessment), dynamic([])),
+    iff(isnotempty(_askBlock),          pack_array(_askBlock),          dynamic([])),
+    pack_array(
+        strcat("- Generated: ", format_datetime(now(), "yyyy-MM-dd HH:mm"), " UTC"),
+        strcat("- Azure activity reviewed for ", iff(isempty(AlertTitle), "Azure Activity alert", AlertTitle), "."),
+        strcat("- TimeGenerated: ", tostring(TimeGenerated), "."),
+        strcat("- Activity category: ", ActivityCategory, "."),
+        strcat("- Actor type: ", ActorType, "; actor identifier captured in the Entities block."),
+        "- Source IP captured in the Entities block.",
+        strcat("- Operation: ", Operation, "; status: ", Status, "."),
+        strcat("- Target resource of type ", iff(isempty(ResourceType), "N/A", ResourceType), "; subscription scope, resource group and full resource id captured in the Entities block."),
+        strcat("- Actor operation history: ", ActorOperationFamiliarity,
+            iff(ActorOperationCount > 0,
+                strcat("; ", tostring(ActorOperationCount), " prior event(s) across ", tostring(ActorOperationDaysSeen), " day(s) in ", BaselineLabel),
+                ""),
+            "."),
+        strcat("- Actor IP familiarity: ", ActorIpFamiliarity,
+            iff(ActorIpCount > 0,
+                strcat("; ", tostring(ActorIpCount), " prior event(s) across ", tostring(ActorIpDaysSeen), " day(s) in ", BaselineLabel),
+                ""),
+            "."),
+        strcat("- Actor subscription familiarity: ", ActorSubscriptionFamiliarity,
+            iff(ActorSubscriptionCount > 0,
+                strcat("; ", tostring(ActorSubscriptionCount), " prior event(s) across ", tostring(ActorSubscriptionDaysSeen), " day(s) in ", BaselineLabel),
+                ""),
+            "."),
+        strcat("- Actor resource-type familiarity: ", ActorResourceTypeFamiliarity,
+            iff(ActorResourceTypeCount > 0,
+                strcat("; ", tostring(ActorResourceTypeCount), " prior event(s) across ", tostring(ActorResourceTypeDaysSeen), " day(s) in ", BaselineLabel),
+                ""),
+            "."),
+        strcat("- Tenant operation familiarity: ", TenantOperationFamiliarity,
+            iff(TenantOperationCount > 0,
+                strcat("; ", tostring(TenantOperationCount), " prior event(s) across ", tostring(TenantOperationActors), " actor(s) in ", BaselineLabel),
+                ""),
+            "."),
+        iff(RelatedOps == 0,
+            strcat("- Related activity: none observed within ±", humanTimespan(EventWindow), "."),
+            strcat("- Related activity: ", tostring(RelatedOps), " related Azure operation(s) within ±", humanTimespan(EventWindow), "; ",
+                tostring(RelatedSuccess), " success(es), ", tostring(RelatedFailures), " failure(s), ",
+                tostring(RelatedResources), " resource(s).")),
+        IdentityContextLine,
+        strcat("- Behavioural flags: ", iff(isempty(BehaviouralFlags), "none", BehaviouralFlags), ".")
+    )
+), "\n")
 | project InvestigationNarrative
