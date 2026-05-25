@@ -4,7 +4,7 @@
 // required_tables:   AuditLogs
 // optional_tables:   IdentityInfo (job title, manager, roles), SigninLogs (actor sign-in posture near change)
 // variables:         TimeToCheck, TargetToCheck, ActorToCheck, SigninContextWindow
-// done_criteria:     Verdict-first narrative output exists for the target. Determination is line 1. For non-trivial verdicts an Analyst assessment line is pre-filled; for escalation verdicts an ASK BLOCK section enumerates what is required from the recipient. Output pasted into the investigation ticket.
+// done_criteria:     Closure-only narrative output. Architecture: narrative-gen produces the Actions-taken body for a closure note; it is not an escalation generator. Benign verdicts open with the determination, carry the body, and end with a fixed insignia line. Escalation verdicts open with a single "--- ESCALATE ---" header followed by the determination, pre-filled Analyst assessment, and the body — no ASK BLOCK, no Incident Summary, no Remediation. Review verdicts carry the determination, pre-filled Analyst assessment, and the body. Body lines are ordered by verdict-bearing (verdict-driving first, corroborating posture next, meta last). Output pasted into the investigation ticket.
 // output_type:       narrative
 //
 // Auth-Change Narrative Generator
@@ -159,60 +159,12 @@ AuthChanges
         JobTitle, Manager, AssignedRoles, RiskLevel)
     by Target, TargetDisplayName
 //
-// --- Narrative building blocks ---
+// --- Per-line narrative builders ---
+// Each output line is a standalone computed column so the assembler
+// can order them by verdict-bearing without restructuring multi-line
+// strings. Branch text preserved verbatim from the prior multi-line
+// builders; only the splitting and the per-line emission is new.
 | extend
-    _targetLine = strcat(
-        "- Target role: ", iff(isnotempty(JobTitle), JobTitle, "N/A"),
-        " | Manager on record: ", iff(isnotempty(Manager), "present in directory", "absent from directory"),
-        "\n- Directory Roles: ", iff(isnotempty(tostring(AssignedRoles)), tostring(AssignedRoles), "None"),
-        "\n- Identity Risk: ", iff(isnotempty(RiskLevel), RiskLevel, "N/A")
-    ),
-    // Drop zero-valued counters; keep the wording on the non-zero ones.
-    _countersFragment = strcat_array(array_concat(
-        iff(SelfServiceCount > 0, pack_array(strcat("Self-service: ", tostring(SelfServiceCount))), dynamic([])),
-        iff(AdminCount > 0,       pack_array(strcat("Admin-initiated: ", tostring(AdminCount))), dynamic([])),
-        iff(AppCount > 0,         pack_array(strcat("App-initiated: ", tostring(AppCount))), dynamic([]))
-    ), " | "),
-    _changeSummary = strcat(
-        "- ", tostring(ChangeCount), " auth-change event(s) between ",
-        format_datetime(EarliestChange, "yyyy-MM-dd HH:mm"),
-        " and ", format_datetime(LatestChange, "yyyy-MM-dd HH:mm"), " UTC.",
-        "\n- Operations: ", tostring(OpsObserved),
-        iff(isnotempty(_countersFragment), strcat("\n- ", _countersFragment), ""),
-        iff(AdminCount > 0 or AppCount > 0,
-            strcat("\n- ", tostring(array_length(ActorsObserved)),
-                iff(array_length(ActorsObserved) == 1,
-                    " distinct actor involved (see Entities block).",
-                    " distinct actors involved (see Entities block)."
-                )), "")
-    ),
-    _signinContext = case(
-        isempty(IPAddress),
-            "- No actor sign-in found within the context window. Change may have been background/system-initiated.",
-        strcat(
-            "- Actor sign-in observed near the change event. Source location and source IP captured in the Entities block.",
-            "\n- IP org familiarity: ",
-            case(
-                DaysSeenInOrg >= 10, "high — well-established organisational address.",
-                DaysSeenInOrg >= 3, strcat("moderate (", tostring(DaysSeenInOrg), " days in org)."),
-                strcat("low (", tostring(DaysSeenInOrg), iff(DaysSeenInOrg == 1, " day", " days"), " in org) — review required.")
-            ),
-            "\n- Device trust: ", iff(isnotempty(TrustType), TrustType, "N/A"),
-            " | Compliant: ", iff(isnotempty(IsCompliant), IsCompliant, "N/A"),
-            " | Managed: ", iff(isnotempty(IsManaged), IsManaged, "N/A"),
-            " | OS: ", iff(isnotempty(DeviceOS), DeviceOS, "N/A"),
-            "\n- Auth requirement: ", iff(isnotempty(AuthenticationRequirement), AuthenticationRequirement, "N/A"),
-            " | Client: ", iff(isnotempty(ClientAppUsed), ClientAppUsed, "N/A"),
-            "\n- Sign-in risk: ",
-            case(
-                RiskLevelDuringSignIn in ("medium", "high"),
-                    strcat("ELEVATED (", RiskLevelDuringSignIn, ") — ", coalesce(RiskDetail, "no detail")),
-                isnotempty(RiskLevelDuringSignIn) and RiskLevelDuringSignIn != "none",
-                    strcat(RiskLevelDuringSignIn, " — ", coalesce(RiskDetail, "no detail")),
-                "None detected."
-            )
-        )
-    ),
     _determination = case(
         ChangeCount >= 3 and datetime_diff("minute", LatestChange, EarliestChange) <= 30 and DaysSeenInOrg < 3,
             "- SUSPICIOUS — multiple auth changes in a short window from an unfamiliar IP. Escalate.",
@@ -226,12 +178,102 @@ AuthChanges
         SelfServiceCount == ChangeCount and DaysSeenInOrg >= 3,
             "- LIKELY BENIGN — self-service auth change from a moderately familiar IP. No immediate concern; monitor if pattern repeats.",
         "- REVIEW REQUIRED — mixed signals or insufficient context for automated determination. Review the deep dive output."
-    )
+    ),
+    // Tier A — verdict-driving
+    _line_changeShape = strcat(
+        "- ", tostring(ChangeCount), " auth-change event(s) between ",
+        format_datetime(EarliestChange, "yyyy-MM-dd HH:mm"),
+        " and ", format_datetime(LatestChange, "yyyy-MM-dd HH:mm"), " UTC."
+    ),
+    _line_operations = strcat("- Operations: ", tostring(OpsObserved)),
+    _countersFragment = strcat_array(array_concat(
+        iff(SelfServiceCount > 0, pack_array(strcat("Self-service: ", tostring(SelfServiceCount))), dynamic([])),
+        iff(AdminCount > 0,       pack_array(strcat("Admin-initiated: ", tostring(AdminCount))), dynamic([])),
+        iff(AppCount > 0,         pack_array(strcat("App-initiated: ", tostring(AppCount))), dynamic([]))
+    ), " | "),
+    _line_counters = iff(isnotempty(_countersFragment), strcat("- ", _countersFragment), ""),
+    _line_actorsInvolved = iff(AdminCount > 0 or AppCount > 0,
+        strcat("- ", tostring(array_length(ActorsObserved)),
+            iff(array_length(ActorsObserved) == 1,
+                " distinct actor involved (see Entities block).",
+                " distinct actors involved (see Entities block)."
+            )),
+        ""),
+    _line_signinRisk = iff(isempty(IPAddress), "",
+        strcat("- Sign-in risk: ",
+            case(
+                RiskLevelDuringSignIn in ("medium", "high"),
+                    strcat("ELEVATED (", RiskLevelDuringSignIn, ") — ", coalesce(RiskDetail, "no detail")),
+                isnotempty(RiskLevelDuringSignIn) and RiskLevelDuringSignIn != "none",
+                    strcat(RiskLevelDuringSignIn, " — ", coalesce(RiskDetail, "no detail")),
+                "None detected."
+            )
+        )
+    ),
+    _line_ipOrgFamiliarity = iff(isempty(IPAddress), "",
+        strcat("- IP org familiarity: ",
+            case(
+                DaysSeenInOrg >= 10, "high — well-established organisational address.",
+                DaysSeenInOrg >= 3, strcat("moderate (", tostring(DaysSeenInOrg), " days in org)."),
+                strcat("low (", tostring(DaysSeenInOrg), iff(DaysSeenInOrg == 1, " day", " days"), " in org) — review required.")
+            )
+        )
+    ),
+    _line_signinPresence = case(
+        isempty(IPAddress),
+            "- No actor sign-in found within the context window. Change may have been background/system-initiated.",
+        isnotempty(Location),
+            strcat("- Actor sign-in observed near the change event. Source location: ", Location, ". Source IP captured in the Entities block."),
+        "- Actor sign-in observed near the change event. Source IP captured in the Entities block."
+    ),
+    // Tier B — corroborating posture
+    // Device trust / Auth requirement lines: suppress N/A-valued fields per
+    // rule 4 (empty-value suppression). When the "header" field (TrustType /
+    // AuthenticationRequirement) is suppressed, the line relabels so the
+    // surviving field isn't preceded by a doubled label. The line itself
+    // stays when a sign-in is present — a session with no device posture is
+    // itself a signal.
+    _line_deviceTrust = iff(isempty(IPAddress), "",
+        case(
+            isempty(TrustType) and isempty(IsCompliant) and isempty(IsManaged) and isempty(DeviceOS),
+                "- Device trust: unregistered / no posture data.",
+            isnotempty(TrustType),
+                strcat("- Device trust: ", strcat_array(array_concat(
+                    pack_array(TrustType),
+                    iff(isnotempty(IsCompliant), pack_array(strcat("Compliant: ", IsCompliant)), dynamic([])),
+                    iff(isnotempty(IsManaged),   pack_array(strcat("Managed: ", IsManaged)), dynamic([])),
+                    iff(isnotempty(DeviceOS),    pack_array(strcat("OS: ", DeviceOS)), dynamic([]))
+                ), " | ")),
+            strcat("- Device ", strcat_array(array_concat(
+                iff(isnotempty(IsCompliant), pack_array(strcat("Compliant: ", IsCompliant)), dynamic([])),
+                iff(isnotempty(IsManaged),   pack_array(strcat("Managed: ", IsManaged)), dynamic([])),
+                iff(isnotempty(DeviceOS),    pack_array(strcat("OS: ", DeviceOS)), dynamic([]))
+            ), " | "))
+        )
+    ),
+    _line_authRequirement = iff(isempty(IPAddress), "",
+        case(
+            isempty(AuthenticationRequirement) and isempty(ClientAppUsed),
+                "- Auth requirement: no auth posture data.",
+            isnotempty(AuthenticationRequirement),
+                strcat("- Auth requirement: ", AuthenticationRequirement,
+                    iff(isnotempty(ClientAppUsed), strcat(" | Client: ", ClientAppUsed), "")),
+            strcat("- Client app: ", ClientAppUsed)
+        )
+    ),
+    _line_identityRisk = strcat("- Identity Risk: ", iff(isnotempty(RiskLevel), RiskLevel, "N/A")),
+    _line_directoryRoles = strcat("- Directory Roles: ", iff(isnotempty(tostring(AssignedRoles)), tostring(AssignedRoles), "None")),
+    _line_targetRole = strcat("- Target role: ", iff(isnotempty(JobTitle), JobTitle, "N/A")),
+    // Tier M — meta / query-scope
+    _line_signinContextWindow = strcat("- Actor sign-in context window: ±", humanTimespan(SigninContextWindow), " of change."),
+    _line_reviewPeriod = strcat("- Review period: ", humanTimespan(TimeToCheck)),
+    _line_generated = strcat("- Generated: ", format_datetime(now(), "yyyy-MM-dd HH:mm"), " UTC")
 //
-// --- Verdict-class, Analyst assessment, ASK BLOCK ---
+// --- Verdict-class + Analyst assessment ---
 // Derived in parallel from the same computed signals as _determination —
 // never parsed from the determination text. Branch order mirrors
-// _determination so a signal change updates all branches in lockstep.
+// _determination so a signal change updates both case-expressions in
+// lockstep.
 | extend
     _verdictClass = case(
         ChangeCount >= 3 and datetime_diff("minute", LatestChange, EarliestChange) <= 30 and DaysSeenInOrg < 3,
@@ -260,35 +302,35 @@ AuthChanges
         SelfServiceCount == ChangeCount and DaysSeenInOrg >= 3,
             "",
         "- Analyst assessment: automated heuristics returned mixed signals for the target. Examine the deep-dive output and decide based on actor reputation, target sensitivity, and timing of surrounding events."
-    ),
-    _askBlock = case(
-        _verdictClass == "escalation",
-            strcat(
-                "- ASK BLOCK — required from recipient:",
-                "\n- Confirm with the target that they initiated these auth changes themselves.",
-                "\n- Confirm whether the target recognises the source IP and its recorded geolocation.",
-                "\n- If the changes are unauthorised: reset credentials, revoke active sessions, and engage incident response."
-            ),
-        ""
     )
 //
-// --- Assemble (verdict-first, with optional Analyst assessment and ASK BLOCK) ---
-// Sign-in context-window line is a query-parameter line, not a finding —
-// suppressed on benign verdicts, kept on review / escalation where the
-// forensic scope precision is useful.
+// --- Assemble (closure-only; verdict-first; verdict-bearing tiers) ---
+// Architecture: narrative-gen produces the Actions-taken body only.
+// Escalation verdicts prepend the literal header
+//     --- ESCALATE ---
+// Benign verdicts append the fixed closure insignia line, character
+// for character. Review verdicts get neither.
 | extend InvestigationNarrative = strcat_array(array_concat(
+    iff(_verdictClass == "escalation", pack_array("--- ESCALATE ---"), dynamic([])),
     pack_array(_determination),
     iff(isnotempty(_analystAssessment), pack_array(_analystAssessment), dynamic([])),
-    iff(isnotempty(_askBlock),          pack_array(_askBlock),          dynamic([])),
-    pack_array(
-        strcat("- Generated: ", format_datetime(now(), "yyyy-MM-dd HH:mm"), " UTC"),
-        strcat("- Review period: ", humanTimespan(TimeToCheck)),
-        _targetLine,
-        _changeSummary
-    ),
-    iff(_verdictClass != "benign",
-        pack_array(strcat("- Actor sign-in context window: ±", humanTimespan(SigninContextWindow), " of change.")),
-        dynamic([])),
-    pack_array(_signinContext)
+    // Tier A — verdict-driving
+    pack_array(_line_changeShape, _line_operations),
+    iff(isnotempty(_line_counters),        pack_array(_line_counters),        dynamic([])),
+    iff(isnotempty(_line_actorsInvolved),  pack_array(_line_actorsInvolved),  dynamic([])),
+    iff(isnotempty(_line_signinRisk),      pack_array(_line_signinRisk),      dynamic([])),
+    iff(isnotempty(_line_ipOrgFamiliarity),pack_array(_line_ipOrgFamiliarity),dynamic([])),
+    pack_array(_line_signinPresence),
+    // Tier B — corroborating posture (Target role kept adjacent to Directory Roles)
+    iff(isnotempty(_line_deviceTrust),     pack_array(_line_deviceTrust),     dynamic([])),
+    iff(isnotempty(_line_authRequirement), pack_array(_line_authRequirement), dynamic([])),
+    pack_array(_line_identityRisk, _line_directoryRoles, _line_targetRole),
+    // Tier M — meta / query-scope
+    iff(_verdictClass != "benign", pack_array(_line_signinContextWindow), dynamic([])),
+    pack_array(_line_reviewPeriod, _line_generated),
+    // Closure insignia — benign only, hardcoded literal
+    iff(_verdictClass == "benign",
+        pack_array("Totality of context facilitates no further investigation, converges benign. Closing as such."),
+        dynamic([]))
 ), "\n")
 | project Target, InvestigationNarrative
