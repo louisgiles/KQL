@@ -6,7 +6,7 @@
 // required_tables:   AzureActivity
 // optional_tables:   SigninLogs (actor sign-in context near AlertTime), AuditLogs (correlated directory activity)
 // variables:         AlertTime, AlertTitle, CallerToCheck, CallerIpToCheck, OperationToCheck, ResourceIdToCheck, SubscriptionIdToCheck, EventWindow, BaselineWindow, BaselineLabel, IdentityContextWindow
-// done_criteria:     Verdict-first narrative output. Determination is line 1. For non-trivial verdicts an Analyst assessment line is pre-filled; for escalation verdicts a branch-aware ASK BLOCK enumerates what is required from the recipient. Literal entity values (UPN, IP, resource id, subscription id) stay in the projected non-narrative columns — the narrative body refers to them by role label only. Output pasted into the investigation ticket.
+// done_criteria:     Closure-only narrative output. Architecture: narrative-gen produces the Actions-taken body for a closure note; it is not an escalation generator. Benign verdicts open with the determination, carry the body, and end with a fixed insignia line. Escalation verdicts open with a single "--- ESCALATE ---" header followed by the determination, pre-filled branch-aware Analyst assessment, and the body — no ASK BLOCK, no Incident Summary, no Remediation. Review verdicts carry the determination, pre-filled Analyst assessment, and the body. Body lines are ordered by verdict-bearing (verdict-driving first, corroborating posture next, meta last). Literal entity values (UPN, IP, resource id, subscription id) stay in the projected non-narrative columns — the body refers to them by role label. Output pasted into the investigation ticket.
 // output_type:       narrative
 // companions:        04-azure-activity/quick-dive.kql, 04-azure-activity/deep-dive.kql
 //
@@ -395,30 +395,152 @@ TargetRow
     iff(RecentSpCredentialChange, pack_array("RECENT_SP_CREDENTIAL_OR_APP_CHANGE"), dynamic([])),
     iff(RecentSpRoleChange, pack_array("RECENT_SP_ROLE_OR_PERMISSION_CHANGE"), dynamic([]))
 ), " | ")
-| extend _determination = strcat("- Determination: ", case(
-    ActorType in ("Service Principal / AppId", "Managed Identity")
-        and RecentSpCredentialChange and IsSensitiveCategory,
-            "suspicious service principal context. Recent app/credential change observed near sensitive Azure control-plane activity. Deep-dive recommended.",
-    ActorType in ("Service Principal / AppId", "Managed Identity")
-        and ActorOperationCount > 20 and ActorSubscriptionDaysSeen > 10 and ActorResourceTypeDaysSeen > 10 and SpChangeCount == 0 and SpRoleChangeCount == 0,
-            "likely benign service principal or managed identity behaviour based on legacy frequency and absence of recent app/credential or role-change context.",
-    ActorType == "User" and RiskySignin,
-            "review required. User sign-in context contains elevated risk signals near the Azure activity.",
-    NewActorOperation and RareTenantOperation,
-            "potentially suspicious. Operation is new for actor and rare in tenant baseline. Deep-dive recommended.",
-    ActorOperationCount > 20 and ActorSubscriptionDaysSeen > 10 and ActorResourceTypeDaysSeen > 10,
-            "likely benign based on legacy frequency. Validate change context if required.",
-    RelatedBurst,
-            "review required. High surrounding Azure activity observed near the alert.",
-    "review required. Mixed or insufficient context for confident closure from narrative alone."
-))
+| extend
+    _determination = strcat("- Determination: ", case(
+        ActorType in ("Service Principal / AppId", "Managed Identity")
+            and RecentSpCredentialChange and IsSensitiveCategory,
+                "suspicious service principal context. Recent app/credential change observed near sensitive Azure control-plane activity. Deep-dive recommended.",
+        ActorType in ("Service Principal / AppId", "Managed Identity")
+            and ActorOperationCount > 20 and ActorSubscriptionDaysSeen > 10 and ActorResourceTypeDaysSeen > 10 and SpChangeCount == 0 and SpRoleChangeCount == 0,
+                "likely benign service principal or managed identity behaviour based on legacy frequency and absence of recent app/credential or role-change context.",
+        ActorType == "User" and RiskySignin,
+                "review required. User sign-in context contains elevated risk signals near the Azure activity.",
+        NewActorOperation and RareTenantOperation,
+                "potentially suspicious. Operation is new for actor and rare in tenant baseline. Deep-dive recommended.",
+        ActorOperationCount > 20 and ActorSubscriptionDaysSeen > 10 and ActorResourceTypeDaysSeen > 10,
+                "likely benign based on legacy frequency. Validate change context if required.",
+        RelatedBurst,
+                "review required. High surrounding Azure activity observed near the alert.",
+        "review required. Mixed or insufficient context for confident closure from narrative alone."
+    )),
+    // --- Per-line narrative builders ---
+    // Each output line is a standalone computed column so the assembler
+    // can order them by verdict-bearing. Branch text preserved verbatim
+    // from the prior multi-line / single-line builders; only the splitting
+    // and the per-line emission is new. Baseline window stated once at the
+    // meta tier rather than repeated on every familiarity line.
+    // Tier A — verdict-driving
+    _line_actorType = strcat("- Actor type: ", ActorType, "; actor identifier captured in the Entities block."),
+    _line_activityCategory = strcat("- Activity category: ", ActivityCategory, "."),
+    _line_operationStatus = iff(isnotempty(Status),
+        strcat("- Operation: ", Operation, "; status: ", Status, "."),
+        strcat("- Operation: ", Operation, ".")
+    ),
+    _line_actorOpHistory = strcat("- Actor operation history: ", ActorOperationFamiliarity,
+        iff(ActorOperationCount > 0,
+            strcat("; ", tostring(ActorOperationCount), " prior event(s) across ", tostring(ActorOperationDaysSeen), " day(s)"),
+            ""),
+        "."),
+    _line_tenantOpFamiliarity = strcat("- Tenant operation familiarity: ", TenantOperationFamiliarity,
+        iff(TenantOperationCount > 0,
+            strcat("; ", tostring(TenantOperationCount), " prior event(s) across ", tostring(TenantOperationActors), " actor(s)"),
+            ""),
+        "."),
+    _line_actorSubFamiliarity = strcat("- Actor subscription familiarity: ", ActorSubscriptionFamiliarity,
+        iff(ActorSubscriptionCount > 0,
+            strcat("; ", tostring(ActorSubscriptionCount), " prior event(s) across ", tostring(ActorSubscriptionDaysSeen), " day(s)"),
+            ""),
+        "."),
+    _line_actorRtFamiliarity = strcat("- Actor resource-type familiarity: ", ActorResourceTypeFamiliarity,
+        iff(ActorResourceTypeCount > 0,
+            strcat("; ", tostring(ActorResourceTypeCount), " prior event(s) across ", tostring(ActorResourceTypeDaysSeen), " day(s)"),
+            ""),
+        "."),
+    _line_signinRisk = iff(ActorType == "User" and isnotempty(SigninTime),
+        strcat("- Sign-in risk: ",
+            case(
+                SigninRiskLevel in ("medium", "high"),
+                    strcat("ELEVATED (", SigninRiskLevel, ")",
+                        iff(isnotempty(SigninRiskDetail), strcat(" — ", SigninRiskDetail), "")),
+                isnotempty(SigninRiskLevel) and SigninRiskLevel != "none",
+                    strcat(SigninRiskLevel,
+                        iff(isnotempty(SigninRiskDetail), strcat(" — ", SigninRiskDetail), "")),
+                "None detected."
+            )
+        ),
+        ""
+    ),
+    _line_signinPresence = case(
+        ActorType != "User", "",
+        isnotempty(SigninTime) and isnotempty(SigninLocation),
+            strcat("- User sign-in observed at ", tostring(SigninTime), " from ", SigninLocation, ". Sign-in source IP captured in the Entities block."),
+        isnotempty(SigninTime),
+            strcat("- User sign-in observed at ", tostring(SigninTime), ". Sign-in source IP captured in the Entities block."),
+        "- No matching user sign-in found within the scoped window."
+    ),
+    _line_spAppContext = case(
+        ActorType !in ("Service Principal / AppId", "Managed Identity"), "",
+        SpChangeCount > 0 or SpRoleChangeCount > 0,
+            strcat("- App/SP context: ", tostring(SpChangeCount), " credential change(s), ",
+                tostring(SpRoleChangeCount), " role/permission change(s) observed within ±",
+                humanTimespan(IdentityContextWindow), "."),
+        strcat("- App/SP context: no credential or role/permission changes observed within ±",
+            humanTimespan(IdentityContextWindow), ".")
+    ),
+    _line_identityFallback = iff(ActorType !in ("User", "Service Principal / AppId", "Managed Identity"),
+        "- Identity context: actor type unclear; review actor manually.",
+        ""),
+    _line_relatedActivity = iff(RelatedOps == 0,
+        strcat("- Related activity: none observed within ±", humanTimespan(EventWindow), "."),
+        strcat("- Related activity: ", tostring(RelatedOps), " related Azure operation(s) within ±", humanTimespan(EventWindow), "; ",
+            tostring(RelatedSuccess), " success(es), ", tostring(RelatedFailures), " failure(s), ",
+            tostring(RelatedResources), " resource(s).")
+    ),
+    // Tier B — corroborating posture
+    // Sign-in device: empty-field suppression per rule 4. When the header
+    // field (SigninTrustType) is suppressed, the line relabels to lead
+    // with the first surviving field instead of producing a doubled
+    // label. The line itself stays when a sign-in match is present — an
+    // unregistered session is itself a signal.
+    _line_actorIpFamiliarity = strcat("- Actor IP familiarity: ", ActorIpFamiliarity,
+        iff(ActorIpCount > 0,
+            strcat("; ", tostring(ActorIpCount), " prior event(s) across ", tostring(ActorIpDaysSeen), " day(s)"),
+            ""),
+        "."),
+    _line_signinDevice = iff(ActorType != "User" or isempty(SigninTime), "",
+        case(
+            isempty(SigninTrustType) and isempty(SigninIsCompliant) and isempty(SigninIsManaged) and isempty(SigninDeviceOS),
+                "- Sign-in device: unregistered / no posture data.",
+            isnotempty(SigninTrustType),
+                strcat("- Sign-in device: ", strcat_array(array_concat(
+                    pack_array(SigninTrustType),
+                    iff(isnotempty(SigninIsCompliant), pack_array(strcat("Compliant: ", SigninIsCompliant)), dynamic([])),
+                    iff(isnotempty(SigninIsManaged),   pack_array(strcat("Managed: ", SigninIsManaged)), dynamic([])),
+                    iff(isnotempty(SigninDeviceOS),    pack_array(strcat("OS: ", SigninDeviceOS)), dynamic([]))
+                ), " | ")),
+            strcat("- Sign-in device ", strcat_array(array_concat(
+                iff(isnotempty(SigninIsCompliant), pack_array(strcat("Compliant: ", SigninIsCompliant)), dynamic([])),
+                iff(isnotempty(SigninIsManaged),   pack_array(strcat("Managed: ", SigninIsManaged)), dynamic([])),
+                iff(isnotempty(SigninDeviceOS),    pack_array(strcat("OS: ", SigninDeviceOS)), dynamic([]))
+            ), " | "))
+        )
+    ),
+    _line_targetResource = iff(isnotempty(ResourceType),
+        strcat("- Target resource of type ", ResourceType, "; subscription, resource group and full resource id captured in the Entities block."),
+        "- Target resource scope and identifiers captured in the Entities block."
+    ),
+    _line_callerIp = iff(isnotempty(ActorIP),
+        "- Caller IP captured in the Entities block.",
+        ""),
+    // Tier M — meta / query-scope
+    // Behavioural flags is a recap of signals already expressed in the
+    // verdict-driving lines above (sensitivity, new-operation, risky-
+    // signin, etc.); it sits in the meta tier as a one-line summary,
+    // not as a verdict driver.
+    _line_alertTitle = strcat("- Azure activity reviewed for ", iff(isempty(AlertTitle), "Azure Activity alert", AlertTitle), "."),
+    _line_alertEventTime = strcat("- Alert event time: ", tostring(TimeGenerated), "."),
+    _line_baselineWindow = strcat("- Baseline window: ", BaselineLabel, "."),
+    _line_behaviouralFlags = strcat("- Behavioural flags: ", iff(isempty(BehaviouralFlags), "none", BehaviouralFlags), "."),
+    _line_generated = strcat("- Generated: ", format_datetime(now(), "yyyy-MM-dd HH:mm"), " UTC")
 //
-// --- Verdict-class, Analyst assessment, ASK BLOCK ---
+// --- Verdict-class + Analyst assessment ---
 // Derived in parallel from the same computed signals as _determination —
 // never parsed from the determination text. Branch order mirrors
-// _determination so a signal change updates all branches in lockstep.
-// ASK BLOCK is branch-aware: the SP/MI suspicious-context branch and the
-// new+rare operation branch each get their own action items.
+// _determination so a signal change updates both case-expressions in
+// lockstep. Analyst assessment is branch-aware: the SP/MI suspicious-
+// context branch and the new+rare-operation branch each get their own
+// sentence; the User-RiskySignin and RelatedBurst review branches keep
+// theirs; benign branches stay empty.
 | extend
     _verdictClass = case(
         ActorType in ("Service Principal / AppId", "Managed Identity")
@@ -453,95 +575,38 @@ TargetRow
         RelatedBurst,
                 "- Analyst assessment: a high volume of surrounding Azure activity was observed near the alert. Determine whether the burst is a planned change or unexpected automation.",
         "- Analyst assessment: automated heuristics returned mixed signals. Examine the deep-dive output and decide based on actor reputation, operation sensitivity, and timing of surrounding events."
-    ),
-    _askBlock = case(
-        ActorType in ("Service Principal / AppId", "Managed Identity")
-            and RecentSpCredentialChange and IsSensitiveCategory,
-                strcat(
-                    "- ASK BLOCK — required from recipient:",
-                    "\n- Confirm whether the recent app or credential change on the actor service principal was authorised, and identify the owner who made the change.",
-                    "\n- Confirm whether any consent grants or app role assignments were added to the actor service principal in the same window.",
-                    "\n- Confirm whether the sensitive Azure control-plane activity that followed matches the documented purpose of the credential change.",
-                    "\n- If the credential change was not authorised: rotate or remove the credential, audit recent activity attributable to the actor, and engage incident response."
-                ),
-        NewActorOperation and RareTenantOperation,
-                strcat(
-                    "- ASK BLOCK — required from recipient:",
-                    "\n- Confirm whether the actor's operation was authorised and expected for their role.",
-                    "\n- Confirm whether a change request, runbook, or maintenance window covers this operation.",
-                    "\n- If the operation was not expected: review the actor's recent activity for additional unfamiliar operations and engage incident response."
-                ),
-        ""
     )
-| extend IdentityContextLine = case(
-    ActorType == "User" and isnotempty(SigninTime),
-        strcat(
-            "- User sign-in context: ", tostring(SigninTime),
-            " from ", iff(isempty(SigninLocation), "an unrecorded location", SigninLocation),
-            "; sign-in source IP captured in the Entities block",
-            "; trust type: ", iff(isempty(SigninTrustType), "N/A", SigninTrustType),
-            "; managed: ", iff(isempty(SigninIsManaged), "N/A", SigninIsManaged),
-            "; compliant: ", iff(isempty(SigninIsCompliant), "N/A", SigninIsCompliant),
-            "; risk: ", iff(isempty(SigninRiskLevel), "none/unknown", SigninRiskLevel), "."
-        ),
-    ActorType == "User",
-        "- User sign-in context: no matching sign-in found in scoped window.",
-    ActorType in ("Service Principal / AppId", "Managed Identity") and (SpChangeCount > 0 or SpRoleChangeCount > 0),
-        strcat(
-            "- App/SP context: ", tostring(SpChangeCount), " app or credential change(s), ",
-            tostring(SpRoleChangeCount), " role/permission change(s) observed within ±",
-            humanTimespan(IdentityContextWindow), "."
-        ),
-    ActorType in ("Service Principal / AppId", "Managed Identity"),
-        strcat("- App/SP context: no app/credential or role/permission changes observed within ±", humanTimespan(IdentityContextWindow), "."),
-    "- Identity context: actor type unclear; review actor manually."
-)
-// --- Assemble (verdict-first; literal entities replaced with role labels; zero counters suppressed) ---
+//
+// --- Assemble (closure-only; verdict-first; verdict-bearing tiers) ---
+// Architecture: narrative-gen produces the Actions-taken body only.
+// Escalation verdicts prepend the literal header
+//     --- ESCALATE ---
+// Benign verdicts append the fixed closure insignia line, character
+// for character. Review verdicts get neither.
 | extend InvestigationNarrative = strcat_array(array_concat(
+    iff(_verdictClass == "escalation", pack_array("--- ESCALATE ---"), dynamic([])),
     pack_array(_determination),
     iff(isnotempty(_analystAssessment), pack_array(_analystAssessment), dynamic([])),
-    iff(isnotempty(_askBlock),          pack_array(_askBlock),          dynamic([])),
-    pack_array(
-        strcat("- Generated: ", format_datetime(now(), "yyyy-MM-dd HH:mm"), " UTC"),
-        strcat("- Azure activity reviewed for ", iff(isempty(AlertTitle), "Azure Activity alert", AlertTitle), "."),
-        strcat("- TimeGenerated: ", tostring(TimeGenerated), "."),
-        strcat("- Activity category: ", ActivityCategory, "."),
-        strcat("- Actor type: ", ActorType, "; actor identifier captured in the Entities block."),
-        "- Source IP captured in the Entities block.",
-        strcat("- Operation: ", Operation, "; status: ", Status, "."),
-        strcat("- Target resource of type ", iff(isempty(ResourceType), "N/A", ResourceType), "; subscription scope, resource group and full resource id captured in the Entities block."),
-        strcat("- Actor operation history: ", ActorOperationFamiliarity,
-            iff(ActorOperationCount > 0,
-                strcat("; ", tostring(ActorOperationCount), " prior event(s) across ", tostring(ActorOperationDaysSeen), " day(s) in ", BaselineLabel),
-                ""),
-            "."),
-        strcat("- Actor IP familiarity: ", ActorIpFamiliarity,
-            iff(ActorIpCount > 0,
-                strcat("; ", tostring(ActorIpCount), " prior event(s) across ", tostring(ActorIpDaysSeen), " day(s) in ", BaselineLabel),
-                ""),
-            "."),
-        strcat("- Actor subscription familiarity: ", ActorSubscriptionFamiliarity,
-            iff(ActorSubscriptionCount > 0,
-                strcat("; ", tostring(ActorSubscriptionCount), " prior event(s) across ", tostring(ActorSubscriptionDaysSeen), " day(s) in ", BaselineLabel),
-                ""),
-            "."),
-        strcat("- Actor resource-type familiarity: ", ActorResourceTypeFamiliarity,
-            iff(ActorResourceTypeCount > 0,
-                strcat("; ", tostring(ActorResourceTypeCount), " prior event(s) across ", tostring(ActorResourceTypeDaysSeen), " day(s) in ", BaselineLabel),
-                ""),
-            "."),
-        strcat("- Tenant operation familiarity: ", TenantOperationFamiliarity,
-            iff(TenantOperationCount > 0,
-                strcat("; ", tostring(TenantOperationCount), " prior event(s) across ", tostring(TenantOperationActors), " actor(s) in ", BaselineLabel),
-                ""),
-            "."),
-        iff(RelatedOps == 0,
-            strcat("- Related activity: none observed within ±", humanTimespan(EventWindow), "."),
-            strcat("- Related activity: ", tostring(RelatedOps), " related Azure operation(s) within ±", humanTimespan(EventWindow), "; ",
-                tostring(RelatedSuccess), " success(es), ", tostring(RelatedFailures), " failure(s), ",
-                tostring(RelatedResources), " resource(s).")),
-        IdentityContextLine,
-        strcat("- Behavioural flags: ", iff(isempty(BehaviouralFlags), "none", BehaviouralFlags), ".")
-    )
+    // Tier A — verdict-driving
+    pack_array(_line_actorType, _line_activityCategory, _line_operationStatus,
+               _line_actorOpHistory, _line_tenantOpFamiliarity,
+               _line_actorSubFamiliarity, _line_actorRtFamiliarity),
+    iff(isnotempty(_line_signinRisk),       pack_array(_line_signinRisk),       dynamic([])),
+    iff(isnotempty(_line_signinPresence),   pack_array(_line_signinPresence),   dynamic([])),
+    iff(isnotempty(_line_spAppContext),     pack_array(_line_spAppContext),     dynamic([])),
+    iff(isnotempty(_line_identityFallback), pack_array(_line_identityFallback), dynamic([])),
+    pack_array(_line_relatedActivity),
+    // Tier B — corroborating posture
+    pack_array(_line_actorIpFamiliarity),
+    iff(isnotempty(_line_signinDevice), pack_array(_line_signinDevice), dynamic([])),
+    pack_array(_line_targetResource),
+    iff(isnotempty(_line_callerIp), pack_array(_line_callerIp), dynamic([])),
+    // Tier M — meta / query-scope
+    pack_array(_line_alertTitle, _line_alertEventTime, _line_baselineWindow,
+               _line_behaviouralFlags, _line_generated),
+    // Closure insignia — benign only, hardcoded literal
+    iff(_verdictClass == "benign",
+        pack_array("Totality of context facilitates no further investigation, converges benign. Closing as such."),
+        dynamic([]))
 ), "\n")
 | project InvestigationNarrative

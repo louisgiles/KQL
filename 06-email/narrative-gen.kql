@@ -5,7 +5,7 @@
 // required_tables:   EmailEvents
 // optional_tables:   EmailAttachmentInfo, EmailUrlInfo, EmailPostDeliveryEvents, UrlClickEvents
 // variables:         TargetNetworkMessageId, SearchLookback, BaselineWindow
-// done_criteria:     Verdict-first narrative output. Determination is line 1. For non-trivial verdicts an Analyst assessment line is pre-filled; for escalation verdicts a branch-aware ASK BLOCK enumerates what is required from the recipient. Literal entity values (recipient, sender, NetworkMessageId, sender IP, URL domains, attachment file names / hashes, subject) stay in the projected non-narrative columns — the narrative body refers to them by role label only. Output pasted into the investigation ticket.
+// done_criteria:     Closure-only narrative output. Architecture: narrative-gen produces the Actions-taken body for a closure note; it is not an escalation generator. Benign verdicts open with the determination, carry the body, and end with a fixed insignia line. Escalation verdicts open with a single "--- ESCALATE ---" header followed by the determination, pre-filled branch-aware Analyst assessment, and the body — no ASK BLOCK, no Incident Summary, no Remediation. Review verdicts carry the determination, pre-filled Analyst assessment, and the body. Body lines are ordered by verdict-bearing (verdict-driving first, corroborating posture next, meta last). Literal entity values (recipient, sender, NetworkMessageId, sender IP, URL domains, attachment file names / hashes, subject) stay in the projected non-narrative columns — the body refers to them by role label. Output pasted into the investigation ticket.
 // output_type:       narrative
 
 let TargetNetworkMessageId = "";
@@ -522,29 +522,130 @@ TargetEmail
         ExposureScore >= 10, "Low",
         "Limited"
     )
-| extend _determination = strcat("- Determination: ", case(
-    HasClick and ThreatConcern in ("High", "Medium"),
-        "user interaction observed with suspicious email context. Deep dive/user impact review recommended.",
-    ThreatConcern == "High" and ExposureConcern in ("Medium", "High"),
-        "high threat concern with meaningful user exposure. Deep dive/remediation review recommended.",
-    ThreatConcern == "High" and ExposureConcern in ("Low", "Limited"),
-        "high threat concern but exposure appears limited. Validate quarantine/remediation state.",
-    ThreatConcern == "Medium" and ExposureConcern in ("Medium", "High"),
-        "review required. Validate sender legitimacy, URLs/attachments, delivery state and user interaction.",
-    ThreatConcern == "Medium",
-        "medium threat concern. Validate expected sender/message context and remediation state.",
-    ThreatConcern == "Low",
-        "low concern. Validate expected sender/message context.",
-    "limited suspicious signals in scoped telemetry."
-))
+| extend
+    _determination = strcat("- Determination: ", case(
+        HasClick and ThreatConcern in ("High", "Medium"),
+            "user interaction observed with suspicious email context. Deep dive/user impact review recommended.",
+        ThreatConcern == "High" and ExposureConcern in ("Medium", "High"),
+            "high threat concern with meaningful user exposure. Deep dive/remediation review recommended.",
+        ThreatConcern == "High" and ExposureConcern in ("Low", "Limited"),
+            "high threat concern but exposure appears limited. Validate quarantine/remediation state.",
+        ThreatConcern == "Medium" and ExposureConcern in ("Medium", "High"),
+            "review required. Validate sender legitimacy, URLs/attachments, delivery state and user interaction.",
+        ThreatConcern == "Medium",
+            "medium threat concern. Validate expected sender/message context and remediation state.",
+        ThreatConcern == "Low",
+            "low concern. Validate expected sender/message context.",
+        "limited suspicious signals in scoped telemetry."
+    )),
+    // --- Per-line narrative builders ---
+    // Each output line is a standalone computed column so the assembler
+    // can order them by verdict-bearing. Branch text preserved verbatim
+    // from the prior single-line builders; only the splitting and the
+    // per-line emission is new. "in baseline" suffix dropped from
+    // familiarity lines — baseline window stated once at the meta tier.
+    // Tier A — verdict-driving
+    _line_emailShape = strcat("- Email shape: ", EmailShape, "."),
+    _line_threatExposure = strcat("- Threat concern: ", ThreatConcern, " | Exposure concern: ", ExposureConcern, "."),
+    _line_urlClicks = iff(ClickCount == 0,
+        "- URL clicks: none observed.",
+        strcat("- URL clicks: ", tostring(ClickCount), " observed across ", tostring(ClickUsers), " user(s); actions: ", tostring(ClickActions), "; clicker identifiers and clicked URLs captured in the Entities block.")
+    ),
+    // Threat indicators: empty-field suppression per rule 4 on the populated
+    // branch; deliberate-negative phrasing kept when no verdict recorded.
+    _line_threatIndicators = iff(HasThreatVerdict,
+        strcat("- Threat indicators: ", strcat_array(array_concat(
+            iff(isnotempty(ThreatTypesSafe),      pack_array(strcat("ThreatTypes=", ThreatTypesSafe)), dynamic([])),
+            iff(isnotempty(ThreatNamesSafe),      pack_array(strcat("ThreatNames=", ThreatNamesSafe)), dynamic([])),
+            iff(isnotempty(DetectionMethodsSafe), pack_array(strcat("DetectionMethods=", DetectionMethodsSafe)), dynamic([]))
+        ), "; "), "."),
+        "- Threat indicators: none recorded on EmailEvents."
+    ),
+    // Auth summary: empty-field suppression per rule 4 — replaces the
+    // prior "unknown" filler tokens. Named fallback when all four empty.
+    _line_authSummary = case(
+        isempty(DKIM) and isempty(DMARC) and isempty(SPF) and isempty(CompAuth),
+            "- Auth summary: no auth verdicts recorded.",
+        strcat("- Auth summary: ", strcat_array(array_concat(
+            iff(isnotempty(DKIM),     pack_array(strcat("DKIM=", DKIM)),         dynamic([])),
+            iff(isnotempty(DMARC),    pack_array(strcat("DMARC=", DMARC)),       dynamic([])),
+            iff(isnotempty(SPF),      pack_array(strcat("SPF=", SPF)),           dynamic([])),
+            iff(isnotempty(CompAuth), pack_array(strcat("CompAuth=", CompAuth)), dynamic([]))
+        ), "; "), ".")
+    ),
+    _line_riskyAttachmentTypes = iff(array_length(RiskyAttachmentTypes) == 0,
+        "- Risky attachment types: none observed.",
+        strcat("- Risky attachment types: ", tostring(RiskyAttachmentTypes), ".")
+    ),
+    // Delivery posture: empty-field suppression per rule 4. Two-field
+    // both-populated case uses Field=Value pairs parallel to Auth summary
+    // above; single-survivor cases relabel the line header. Named
+    // fallback when both empty.
+    _line_deliveryPosture = case(
+        isempty(DeliveryActionSafe) and isempty(DeliveryLocationSafe),
+            "- Delivery posture: not recorded.",
+        isnotempty(DeliveryActionSafe) and isnotempty(DeliveryLocationSafe),
+            strcat("- Delivery posture: action=", DeliveryActionSafe, "; location=", DeliveryLocationSafe, "."),
+        isnotempty(DeliveryActionSafe),
+            strcat("- Delivery action: ", DeliveryActionSafe, "."),
+        strcat("- Delivery location: ", DeliveryLocationSafe, ".")
+    ),
+    // Tier B — corroborating
+    _line_senderPrev = strcat("- Sender prevalence: ", SenderFamiliarity,
+        iff(SenderSeenCount > 0,
+            strcat("; ", tostring(SenderSeenCount), " prior event(s) across ", tostring(SenderDaysSeen), " day(s)"),
+            ""),
+        "."),
+    _line_senderDomainPrev = strcat("- Sender domain prevalence: ", SenderDomainFamiliarity,
+        iff(SenderDomainSeenCount > 0,
+            strcat("; ", tostring(SenderDomainSeenCount), " prior event(s) across ", tostring(SenderDomainDaysSeen), " day(s)"),
+            ""),
+        "."),
+    _line_senderRecipRel = strcat("- Sender-recipient relationship: ", SenderRecipientFamiliarity,
+        iff(SenderRecipientSeenCount > 0,
+            strcat("; ", tostring(SenderRecipientSeenCount), " prior event(s)"),
+            ""),
+        "."),
+    _line_urls = iff(UrlCount == 0,
+        "- URLs: none observed.",
+        strcat("- URLs: ", tostring(UrlCount), " observed; URL domain familiarity: ", UrlDomainFamiliarity, "; URL domains captured in the Entities block.")
+    ),
+    _line_attachments = iff(AttachmentCount == 0,
+        "- Attachments: none observed.",
+        strcat("- Attachments: ", tostring(AttachmentCount), " observed; attachment hash familiarity: ", AttachmentHashFamiliarity, "; file names and hashes captured in the Entities block.")
+    ),
+    _line_similarSpread = iff(SimilarEvents == 0,
+        "- Similar message spread: none observed in lookback.",
+        strcat("- Similar message spread: ", tostring(SimilarRecipients), " recipient(s), ", tostring(SimilarNetworkMessageIds), " message id(s), ", tostring(SimilarEvents), " event(s) in lookback.")
+    ),
+    _line_postDelivery = iff(PostDeliveryEventCount == 0,
+        "- Post-delivery events: none observed.",
+        strcat("- Post-delivery events: ", tostring(PostDeliveryEventCount), " observed; actions: ", tostring(PostDeliveryActions), ".")
+    ),
+    _line_direction = iff(isnotempty(EmailDirectionSafe),
+        strcat("- Direction: ", EmailDirectionSafe, "."),
+        ""),
+    _line_entityPointerEnvelope = "- Target message id, recipient, sender, sender mail-from, sender display name and subject captured in the Entities block.",
+    _line_entityPointerSenderIp = "- Sender IP captured in the Entities block.",
+    // Tier M — meta / query-scope
+    // Behavioural flags is a recap of signals already expressed in the
+    // verdict-driving lines above (threat verdict, auth failure, risky
+    // attachment, etc.); it sits in the meta tier as a one-line summary,
+    // not as a verdict driver.
+    _line_reviewedHeader = "- Email activity reviewed.",
+    _line_emailEventTime = strcat("- Email event time: ", tostring(EventTime), "."),
+    _line_searchLookback = strcat("- Search lookback: ", humanTimespan(SearchLookback), "."),
+    _line_baselineWindow = strcat("- Baseline window: ", BaselineLabel, "."),
+    _line_behaviouralFlags = strcat("- Behavioural flags: ", iff(isempty(BehaviouralFlags), "none", BehaviouralFlags), "."),
+    _line_generated = strcat("- Generated: ", format_datetime(now(), "yyyy-MM-dd HH:mm"), " UTC")
 //
-// --- Verdict-class, Analyst assessment, ASK BLOCK ---
+// --- Verdict-class + Analyst assessment ---
 // Derived in parallel from the same computed signals as _determination —
 // never parsed from the determination text. Branch order mirrors
-// _determination so a signal change updates all branches in lockstep.
-// ASK BLOCK is branch-aware: the user-clicked + suspicious-context branch
+// _determination so a signal change updates both case-expressions in
+// lockstep. Analyst assessment is branch-aware: the user-click branch
 // and the high-threat + meaningful-exposure branch each get their own
-// action items.
+// sentence; the review branches keep theirs; benign branches stay empty.
 | extend
     _verdictClass = case(
         HasClick and ThreatConcern in ("High", "Medium"),
@@ -575,78 +676,34 @@ TargetEmail
         ThreatConcern == "Low",
             "",
         ""
-    ),
-    _askBlock = case(
-        HasClick and ThreatConcern in ("High", "Medium"),
-            strcat(
-                "- ASK BLOCK — required from recipient:",
-                "\n- Confirm whether the recipient or any other clicker entered credentials, opened an attachment, or otherwise interacted with the message contents after the click.",
-                "\n- Confirm the downstream account posture of every clicker — sign-ins, MFA changes, mailbox-rule creations, OAuth grants — for signs of follow-on compromise.",
-                "\n- If account compromise is suspected: reset credentials, revoke active sessions, apply mailbox containment if exfiltration indicators are present, and engage incident response."
-            ),
-        ThreatConcern == "High" and ExposureConcern in ("Medium", "High"),
-            strcat(
-                "- ASK BLOCK — required from recipient:",
-                "\n- Confirm whether the message has been quarantined, soft-deleted, or otherwise removed from every recipient mailbox in the campaign.",
-                "\n- Confirm the full recipient scope by reviewing similar-message spread in the deep-dive output, and ensure remediation covers every recipient.",
-                "\n- Confirm whether any recipient interacted with the message (click, attachment open, reply) and trigger user-impact review if so."
-            ),
-        ""
     )
-// --- Assemble (verdict-first; literal entities replaced with role labels; zero counters suppressed) ---
+//
+// --- Assemble (closure-only; verdict-first; verdict-bearing tiers) ---
+// Architecture: narrative-gen produces the Actions-taken body only.
+// Escalation verdicts prepend the literal header
+//     --- ESCALATE ---
+// Benign verdicts append the fixed closure insignia line, character
+// for character. Review verdicts get neither.
 | extend InvestigationNarrative = strcat_array(array_concat(
+    iff(_verdictClass == "escalation", pack_array("--- ESCALATE ---"), dynamic([])),
     pack_array(_determination),
     iff(isnotempty(_analystAssessment), pack_array(_analystAssessment), dynamic([])),
-    iff(isnotempty(_askBlock),          pack_array(_askBlock),          dynamic([])),
-    pack_array(
-        strcat("- Generated: ", format_datetime(now(), "yyyy-MM-dd HH:mm"), " UTC"),
-        strcat("- Search lookback: ", humanTimespan(SearchLookback), " | Baseline: ", BaselineLabel),
-        "- Email activity reviewed.",
-        strcat("- Email shape: ", EmailShape, "."),
-        strcat("- Threat concern: ", ThreatConcern, " | Exposure concern: ", ExposureConcern, "."),
-        strcat("- TimeGenerated: ", tostring(EventTime), "."),
-        "- Target message id, recipient, sender, sender mail-from, sender display name and subject captured in the Entities block.",
-        "- Sender IP captured in the Entities block.",
-        strcat("- Direction: ", iff(isempty(EmailDirectionSafe), "N/A", EmailDirectionSafe), "."),
-        strcat("- Delivery action/location: ", iff(isempty(DeliveryActionSafe), "N/A", DeliveryActionSafe), " / ", iff(isempty(DeliveryLocationSafe), "N/A", DeliveryLocationSafe), "."),
-        strcat("- Auth summary: ", AuthSummary, "."),
-        strcat("- Sender prevalence: ", SenderFamiliarity,
-            iff(SenderSeenCount > 0,
-                strcat("; ", tostring(SenderSeenCount), " prior event(s) across ", tostring(SenderDaysSeen), " day(s) in ", BaselineLabel),
-                ""),
-            "."),
-        strcat("- Sender domain prevalence: ", SenderDomainFamiliarity,
-            iff(SenderDomainSeenCount > 0,
-                strcat("; ", tostring(SenderDomainSeenCount), " prior event(s) across ", tostring(SenderDomainDaysSeen), " day(s) in ", BaselineLabel),
-                ""),
-            "."),
-        strcat("- Sender-recipient relationship: ", SenderRecipientFamiliarity,
-            iff(SenderRecipientSeenCount > 0,
-                strcat("; ", tostring(SenderRecipientSeenCount), " prior event(s) in baseline"),
-                ""),
-            "."),
-        iff(SimilarEvents == 0,
-            "- Similar message spread: none observed in lookback.",
-            strcat("- Similar message spread: ", tostring(SimilarRecipients), " recipient(s), ", tostring(SimilarNetworkMessageIds), " message id(s), ", tostring(SimilarEvents), " event(s) in lookback.")),
-        iff(UrlCount == 0,
-            "- URLs: none observed.",
-            strcat("- URLs: ", tostring(UrlCount), " observed; URL domain familiarity: ", UrlDomainFamiliarity, "; URL domains captured in the Entities block.")),
-        iff(AttachmentCount == 0,
-            "- Attachments: none observed.",
-            strcat("- Attachments: ", tostring(AttachmentCount), " observed; attachment hash familiarity: ", AttachmentHashFamiliarity, "; file names and hashes captured in the Entities block.")),
-        iff(array_length(RiskyAttachmentTypes) == 0,
-            "- Risky attachment types: none observed.",
-            strcat("- Risky attachment types: ", tostring(RiskyAttachmentTypes), ".")),
-        iff(HasThreatVerdict,
-            strcat("- Threat indicators: ThreatTypes=", ThreatTypesSafe, "; ThreatNames=", ThreatNamesSafe, "; DetectionMethods=", DetectionMethodsSafe, "."),
-            "- Threat indicators: none recorded on EmailEvents."),
-        iff(PostDeliveryEventCount == 0,
-            "- Post-delivery events: none observed.",
-            strcat("- Post-delivery events: ", tostring(PostDeliveryEventCount), " observed; actions: ", tostring(PostDeliveryActions), ".")),
-        iff(ClickCount == 0,
-            "- URL clicks: none observed.",
-            strcat("- URL clicks: ", tostring(ClickCount), " observed across ", tostring(ClickUsers), " user(s); actions: ", tostring(ClickActions), "; clicker identifiers and clicked URLs captured in the Entities block.")),
-        strcat("- Behavioural flags: ", iff(isempty(BehaviouralFlags), "none", BehaviouralFlags), ".")
-    )
+    // Tier A — verdict-driving
+    pack_array(_line_emailShape, _line_threatExposure, _line_urlClicks,
+               _line_threatIndicators, _line_authSummary,
+               _line_riskyAttachmentTypes, _line_deliveryPosture),
+    // Tier B — corroborating posture
+    pack_array(_line_senderPrev, _line_senderDomainPrev, _line_senderRecipRel,
+               _line_urls, _line_attachments, _line_similarSpread, _line_postDelivery),
+    iff(isnotempty(_line_direction), pack_array(_line_direction), dynamic([])),
+    pack_array(_line_entityPointerEnvelope, _line_entityPointerSenderIp),
+    // Tier M — meta / query-scope
+    pack_array(_line_reviewedHeader, _line_emailEventTime,
+               _line_searchLookback, _line_baselineWindow,
+               _line_behaviouralFlags, _line_generated),
+    // Closure insignia — benign only, hardcoded literal
+    iff(_verdictClass == "benign",
+        pack_array("Totality of context facilitates no further investigation, converges benign. Closing as such."),
+        dynamic([]))
 ), "\n")
 | project InvestigationNarrative
