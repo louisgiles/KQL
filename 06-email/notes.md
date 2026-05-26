@@ -128,3 +128,17 @@ recipient actually clicked or downloaded.
    *Expected:* deep-dive shows campaign spread + click exposure +
    endpoint correlation (if enabled); narrative-gen flags high
    threat concern and high exposure concern; pivot to 01-sign-in.
+
+## Known issues / backlog
+
+- **EmailShape case ordering** (`narrative-gen.kql`): the
+  `EmailShape` case-expression checks URL-based shapes (e.g.
+  "first-contact sender with URL and auth failure") before
+  attachment-based shapes, so a message carrying both a URL and a
+  malicious attachment is currently labelled by its URL shape.
+  Worked example surfaced during the closure-only rollout: an
+  Emotet `.docm` attachment that also contained one URL was
+  labelled `first-contact sender with URL and auth failure`.
+  Revisit case ordering — likely promote the attachment-with-
+  auth-failure shape above the URL-with-auth-failure shape, or
+  add a combined "URL + attachment" shape.
