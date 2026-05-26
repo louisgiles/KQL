@@ -203,9 +203,11 @@ AuthChanges
         strcat("- Sign-in risk: ",
             case(
                 RiskLevelDuringSignIn in ("medium", "high"),
-                    strcat("ELEVATED (", RiskLevelDuringSignIn, ") — ", coalesce(RiskDetail, "no detail")),
+                    strcat("ELEVATED (", RiskLevelDuringSignIn, ")",
+                        iff(isnotempty(RiskDetail), strcat(" — ", RiskDetail), "")),
                 isnotempty(RiskLevelDuringSignIn) and RiskLevelDuringSignIn != "none",
-                    strcat(RiskLevelDuringSignIn, " — ", coalesce(RiskDetail, "no detail")),
+                    strcat(RiskLevelDuringSignIn,
+                        iff(isnotempty(RiskDetail), strcat(" — ", RiskDetail), "")),
                 "None detected."
             )
         )
