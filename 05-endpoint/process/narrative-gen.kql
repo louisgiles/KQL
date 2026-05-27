@@ -219,12 +219,16 @@ let _chainNotes = materialize(
     | extend ArrowDepth = ChainLevel - _topLevel
     | extend ArrowPrefix = iff(ArrowDepth <= 0, "", strcat_array(repeat("→ ", ArrowDepth), ""))
     | extend Note = iff(ArrowDepth == 0,
-        strcat("- Chain top: ", coalesce(FileName, "<unknown>"),
-               " (PID ", tostring(ProcessId),
-               ", user ", coalesce(AccountName, "<unknown>"),
-               ") at ", tostring(Timestamp)),
-        strcat("- ", ArrowPrefix, coalesce(FileName, "<unknown>"),
-               " ", TruncatedCmd,
+        case(
+            isnotempty(FileName),
+                strcat("- Chain top: ", FileName,
+                       " (PID ", tostring(ProcessId), "), launched under Account, at ", tostring(Timestamp)),
+            strcat("- Chain top: process at PID ", tostring(ProcessId),
+                   ", launched under Account, at ", tostring(Timestamp))
+        ),
+        strcat("- ", ArrowPrefix,
+               iff(isnotempty(FileName), FileName, strcat("process at PID ", tostring(ProcessId))),
+               iff(isnotempty(TruncatedCmd), strcat(" ", TruncatedCmd), ""),
                " — at ", tostring(Timestamp),
                iff(isnotempty(SignalLine), strcat(", ", SignalLine), "")))
 );
@@ -309,17 +313,32 @@ union
     | extend BlockIdx = row_number() - 1
     | extend BlockArr = pack_array(
         iff(BlockIdx > 0, "- ", ""),
-        strcat("- Host: ", coalesce(DeviceName, "")),
-        strcat("- Process: ", coalesce(FileName, "")),
-        strcat("- Path: ", coalesce(FolderPath, "")),
-        strcat("- SHA256: ", coalesce(SHA256, "")),
-        strcat("- Command line: ", coalesce(ProcessCommandLine, "")),
-        strcat("- Account: ", coalesce(AccountName, ""), " (", coalesce(AccountDomain, ""), ")"),
-        strcat("- Started: ", tostring(Timestamp),
-               " by ", coalesce(InitiatingProcessFileName, "<unknown>"),
-               " (PID ", tostring(InitiatingProcessId), ")"),
-        strcat("- Parent token: ", coalesce(InitiatingProcessIntegrityLevel, "<unknown>"),
-               ", elevation ", coalesce(InitiatingProcessTokenElevation, "<unknown>"))
+        "- Host",
+        iff(isnotempty(FileName), strcat("- Process: ", FileName), ""),
+        "- Path",
+        iff(isnotempty(SHA256), strcat("- SHA256: ", SHA256), ""),
+        iff(isnotempty(ProcessCommandLine), strcat("- Command line: ", ProcessCommandLine), ""),
+        "- Account",
+        case(
+            isnotempty(InitiatingProcessFileName) and isnotnull(InitiatingProcessId) and InitiatingProcessId != 0,
+                strcat("- Started: ", tostring(Timestamp), " by ", InitiatingProcessFileName,
+                       " (PID ", tostring(InitiatingProcessId), ")"),
+            isnotnull(InitiatingProcessId) and InitiatingProcessId != 0,
+                strcat("- Started: ", tostring(Timestamp), " by initiating process (PID ", tostring(InitiatingProcessId), ")"),
+            isnotempty(InitiatingProcessFileName),
+                strcat("- Started: ", tostring(Timestamp), " by ", InitiatingProcessFileName),
+            strcat("- Started: ", tostring(Timestamp))
+        ),
+        case(
+            isnotempty(InitiatingProcessIntegrityLevel) and isnotempty(InitiatingProcessTokenElevation),
+                strcat("- Parent token: ", InitiatingProcessIntegrityLevel,
+                       ", elevation ", InitiatingProcessTokenElevation),
+            isnotempty(InitiatingProcessIntegrityLevel),
+                strcat("- Parent token: ", InitiatingProcessIntegrityLevel),
+            isnotempty(InitiatingProcessTokenElevation),
+                strcat("- Parent token elevation: ", InitiatingProcessTokenElevation),
+            ""
+        )
     )
     | mv-expand with_itemindex=LineIdx Line = BlockArr to typeof(string)
     | where Line != ""
@@ -344,9 +363,15 @@ union
     | where _isSingleNode
     | extend Order = 200
     | extend TsSort = Timestamp
-    | extend Note = strcat("- Chain: ", coalesce(FileName, "<unknown>"),
-                           " (PID ", tostring(ProcessId), ") at ", tostring(Timestamp),
-                           " — single process, no chain activity in window")
+    | extend Note = case(
+        isnotempty(FileName),
+            strcat("- Chain: ", FileName,
+                   " (PID ", tostring(ProcessId), ") at ", tostring(Timestamp),
+                   " — single process, no chain activity in window"),
+        strcat("- Chain: process at PID ", tostring(ProcessId),
+               " at ", tostring(Timestamp),
+               " — single process, no chain activity in window")
+    )
     | project Order, TsSort, Note
 ),
 //
