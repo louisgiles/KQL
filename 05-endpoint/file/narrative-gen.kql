@@ -336,27 +336,45 @@ union
 // --- Operation banner ---
 (print Order = 0,  Note = strcat("- Operation: ", _operation)),
 // --- Shared file-identity header (every arm) ---
-(print Order = 1,  Note = strcat("- File: ", coalesce(_fileName, ""))),
-(print Order = 2,  Note = strcat("- Path: ", coalesce(_folderPath, ""))),
-(print Order = 3,  Note = strcat("- SHA256: ", coalesce(_sha256, ""))),
-(print Order = 4,  Note = strcat("- Path category: ", _pathCategory)),
-(print Order = 5,  Note = strcat("- Signed: ", _signedLine)),
+(print Order = 1,  Note = strcat("- File: ", _fileName)
+    | where isnotempty(_fileName)),
+(print Order = 2,  Note = "- Path"),
+(print Order = 3,  Note = strcat("- SHA256: ", _sha256)
+    | where isnotempty(_sha256)),
+(print Order = 4,  Note = "- Account"),
+(print Order = 5,  Note = strcat("- Path category: ", _pathCategory)),
+(print Order = 6,  Note = strcat("- Signed: ", _signedLine)),
 // --- executed_payload arm ---
-(print Order = 10, Note = strcat("- Origin: ", coalesce(_origin, "<not recorded>"),
-                                 " (referrer: ", coalesce(_referrer, "<none>"), ")")
+(print Order = 10, Note = case(
+                              isnotempty(_origin) and isnotempty(_referrer),
+                                  strcat("- Origin: ", _origin, " (referrer: ", _referrer, ")"),
+                              isnotempty(_origin),
+                                  strcat("- Origin: ", _origin),
+                              "")
+    | where _operation == "executed_payload" and Note != ""),
+(print Order = 11, Note = case(
+                              isnotempty(_initiatorImage) and isnotnull(_initiatorPid) and _initiatorPid != 0,
+                                  strcat("- Created: ", tostring(_primaryTs), " by ", _initiatorImage,
+                                         " (PID ", tostring(_initiatorPid), ")"),
+                              isnotempty(_initiatorImage),
+                                  strcat("- Created: ", tostring(_primaryTs), " by ", _initiatorImage),
+                              isnotnull(_initiatorPid) and _initiatorPid != 0,
+                                  strcat("- Created: ", tostring(_primaryTs),
+                                         " by initiating process (PID ", tostring(_initiatorPid), ")"),
+                              isnotnull(_primaryTs),
+                                  strcat("- Created: ", tostring(_primaryTs)),
+                              "")
+    | where _operation == "executed_payload" and Note != ""),
+(print Order = 12, Note = iff(isnotempty(_execDelta),
+                              strcat("- Executed: yes, +", _execDelta, "s"),
+                              "- Executed: yes")
     | where _operation == "executed_payload"),
-(print Order = 11, Note = strcat("- Created: ", tostring(_primaryTs),
-                                 " by ", coalesce(_initiatorImage, "<unknown>"),
-                                 " (PID ", tostring(_initiatorPid),
-                                 ", user: ", coalesce(_initiatorAccount, "<unknown>"), ")")
-    | where _operation == "executed_payload"),
-(print Order = 12, Note = strcat("- Executed: yes, +", _execDelta, "s")
-    | where _operation == "executed_payload"),
-(print Order = 13, Note = strcat("- Execution chain: ", coalesce(_execChain, "<not recorded>"))
-    | where _operation == "executed_payload"),
-(print Order = 14, Note = strcat("- Network: ", tostring(_netCount),
-                                 " outbound from chain (top remote: ",
-                                 iff(isempty(_topRemote), "n/a", _topRemote), ")")
+(print Order = 13, Note = strcat("- Execution chain: ", _execChain)
+    | where _operation == "executed_payload" and isnotempty(_execChain)),
+(print Order = 14, Note = strcat("- Network: ", tostring(_netCount), " outbound from chain",
+                                 iff(isnotempty(_topRemote),
+                                     strcat(" (top remote: ", _topRemote, ")"),
+                                     ""))
     | where _operation == "executed_payload"),
 (print Order = 15, Note = strcat("- Registry: ", tostring(_regCount),
                                  " writes (persistence keys: ", tostring(_regPersistCount), ")")
@@ -370,28 +388,44 @@ union
 (print Order = 19, Note = strcat("- Preceding context: ", _precedingLine)
     | where _operation == "executed_payload"),
 // --- blocked_at_write arm ---
-(print Order = 20, Note = strcat("- Origin: ", coalesce(_origin, "<not recorded>"))
-    | where _operation == "blocked_at_write"),
-(print Order = 21, Note = strcat("- Created: ", tostring(_primaryTs),
-                                 " by ", coalesce(_initiatorImage, "<unknown>"))
-    | where _operation == "blocked_at_write"),
-(print Order = 22, Note = strcat("- MDE action: ", coalesce(_mdeAction, "<unknown>"),
-                                 " at ", tostring(_mdeTs),
-                                 " (+", _mdeDelta, "s after create)")
-    | where _operation == "blocked_at_write"),
-(print Order = 23, Note = strcat("- Detection source: ", coalesce(_detectionSource, "<unknown>"))
-    | where _operation == "blocked_at_write"),
+(print Order = 20, Note = strcat("- Origin: ", _origin)
+    | where _operation == "blocked_at_write" and isnotempty(_origin)),
+(print Order = 21, Note = case(
+                              isnotempty(_initiatorImage),
+                                  strcat("- Created: ", tostring(_primaryTs), " by ", _initiatorImage),
+                              isnotnull(_primaryTs),
+                                  strcat("- Created: ", tostring(_primaryTs)),
+                              "")
+    | where _operation == "blocked_at_write" and Note != ""),
+(print Order = 22, Note = case(
+                              isnotempty(_mdeAction) and isnotnull(_mdeTs) and isnotempty(_mdeDelta),
+                                  strcat("- MDE action: ", _mdeAction, " at ", tostring(_mdeTs),
+                                         " (+", _mdeDelta, "s after create)"),
+                              isnotempty(_mdeAction) and isnotnull(_mdeTs),
+                                  strcat("- MDE action: ", _mdeAction, " at ", tostring(_mdeTs)),
+                              isnotempty(_mdeAction),
+                                  strcat("- MDE action: ", _mdeAction),
+                              isnotnull(_mdeTs),
+                                  strcat("- MDE action at ", tostring(_mdeTs)),
+                              "")
+    | where _operation == "blocked_at_write" and Note != ""),
+(print Order = 23, Note = strcat("- Detection source: ", _detectionSource)
+    | where _operation == "blocked_at_write" and isnotempty(_detectionSource)),
 (print Order = 24, Note = strcat("- Executed: ", iff(_hasExecution, "yes", "no"),
                                  " — block can precede or follow execution attempt")
     | where _operation == "blocked_at_write"),
 (print Order = 25, Note = strcat("- Sibling files: ", tostring(_siblingCount))
     | where _operation == "blocked_at_write"),
 // --- staged_inert arm ---
-(print Order = 30, Note = strcat("- Origin: ", coalesce(_origin, "<not recorded>"))
-    | where _operation == "staged_inert"),
-(print Order = 31, Note = strcat("- Created: ", tostring(_primaryTs),
-                                 " by ", coalesce(_initiatorImage, "<unknown>"))
-    | where _operation == "staged_inert"),
+(print Order = 30, Note = strcat("- Origin: ", _origin)
+    | where _operation == "staged_inert" and isnotempty(_origin)),
+(print Order = 31, Note = case(
+                              isnotempty(_initiatorImage),
+                                  strcat("- Created: ", tostring(_primaryTs), " by ", _initiatorImage),
+                              isnotnull(_primaryTs),
+                                  strcat("- Created: ", tostring(_primaryTs)),
+                              "")
+    | where _operation == "staged_inert" and Note != ""),
 (print Order = 32, Note = "- Executed: no"
     | where _operation == "staged_inert"),
 (print Order = 33, Note = strcat("- Network from creator: ",
@@ -402,9 +436,13 @@ union
 (print Order = 35, Note = "- Note: file written and dormant within window"
     | where _operation == "staged_inert"),
 // --- modified arm ---
-(print Order = 40, Note = strcat("- Modified: ", tostring(_primaryTs),
-                                 " by ", coalesce(_initiatorImage, "<unknown>"))
-    | where _operation == "modified"),
+(print Order = 40, Note = case(
+                              isnotempty(_initiatorImage),
+                                  strcat("- Modified: ", tostring(_primaryTs), " by ", _initiatorImage),
+                              isnotnull(_primaryTs),
+                                  strcat("- Modified: ", tostring(_primaryTs)),
+                              "")
+    | where _operation == "modified" and Note != ""),
 (print Order = 41, Note = "- Previous SHA256 unknown (modify events do not carry prior hash)"
     | where _operation == "modified"),
 (print Order = 42, Note = strcat("- Executed by current chain: ", iff(_hasExecution, "yes", "no"))
@@ -412,23 +450,29 @@ union
 (print Order = 43, Note = strcat("- Sibling modifications by same process: ", tostring(_siblingCount))
     | where _operation == "modified"),
 // --- renamed arm ---
-(print Order = 50, Note = strcat("- Renamed: ",
-                                 coalesce(_previousFolderPath, "<unknown>"), @"\", coalesce(_previousFileName, "<unknown>"),
-                                 " → ",
-                                 coalesce(_folderPath, "<unknown>"), @"\", coalesce(_fileName, "<unknown>"))
-    | where _operation == "renamed"),
-(print Order = 51, Note = strcat("- Renamed by: ", coalesce(_initiatorImage, "<unknown>"),
-                                 " (user: ", coalesce(_initiatorAccount, "<unknown>"), ")")
-    | where _operation == "renamed"),
+(print Order = 50, Note = case(
+                              isnotempty(_previousFolderPath) and isnotempty(_folderPath),
+                                  strcat("- Renamed: ", _previousFolderPath, @"\", _previousFileName,
+                                         " → ", _folderPath, @"\", _fileName),
+                              isnotempty(_previousFileName) and isnotempty(_fileName),
+                                  strcat("- Renamed: ", _previousFileName, " → ", _fileName),
+                              "")
+    | where _operation == "renamed" and Note != ""),
+(print Order = 51, Note = strcat("- Renamed by: ", _initiatorImage)
+    | where _operation == "renamed" and isnotempty(_initiatorImage)),
 (print Order = 52, Note = strcat("- Path category change: ", _prevPathCategory, " → ", _pathCategory)
     | where _operation == "renamed"),
 (print Order = 53, Note = strcat("- Cross-category rename: ",
                                  iff(_prevPathCategory != _pathCategory, "yes", "no"))
     | where _operation == "renamed"),
 // --- deleted arm ---
-(print Order = 60, Note = strcat("- Deleted: ", tostring(_primaryTs),
-                                 " by ", coalesce(_initiatorImage, "<unknown>"))
-    | where _operation == "deleted"),
+(print Order = 60, Note = case(
+                              isnotempty(_initiatorImage),
+                                  strcat("- Deleted: ", tostring(_primaryTs), " by ", _initiatorImage),
+                              isnotnull(_primaryTs),
+                                  strcat("- Deleted: ", tostring(_primaryTs)),
+                              "")
+    | where _operation == "deleted" and Note != ""),
 (print Order = 61, Note = strcat("- Deletion source: ",
                                  case(
                                      _initiatorImage =~ "MsMpEng.exe" or _initiatorImage =~ "MpDefenderCoreService.exe", "MDE quarantine",

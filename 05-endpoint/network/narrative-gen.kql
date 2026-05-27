@@ -272,23 +272,95 @@ TargetRow
     tostring(NearbyMdeCount), " MDE action(s)",
     iff(isnotempty(TopMdeAction), strcat(" (example: ", TopMdeAction, ")"), "")
 )
-| extend InvestigationNarrative = strcat(
-    "- Network activity reviewed on ", DeviceName, ".\n",
-    "- TimeGenerated: ", tostring(Timestamp), "\n",
-    "- Process: ", InitiatingProcessFileName, "\n",
-    "- Account: ", iff(isempty(InitiatingProcessAccountName), "N/A", InitiatingProcessAccountName), "\n",
-    "- Command line: ", iff(isempty(InitiatingProcessCommandLine), "N/A", InitiatingProcessCommandLine), "\n",
-    "- Destination: ", Destination, "\n",
-    "- Remote URL: ", iff(isempty(RemoteUrl), "N/A", RemoteUrl), "\n",
-    "- Remote IP: ", iff(isempty(RemoteIP), "N/A", RemoteIP), "\n",
-    "- Remote port: ", tostring(RemotePort), "\n",
-    "- Traffic shape: ", TrafficShape, ".\n",
-    "- Destination prevalence: ", DestinationFamiliarity, "; seen on ", tostring(DestinationDevicesSeen), " device(s), by ", tostring(DestinationUsersSeen), " user(s), across ", tostring(DestinationDaysSeen), " day(s) in ", BaselineLabel, ".\n",
-    "- Usual process context for destination: ", iff(array_length(DestinationProcessNames) > 0, tostring(DestinationProcessNames), "none recorded in baseline"), ".\n",
-    "- Process-destination relationship: ", ProcessDestinationFamiliarity, "; ", tostring(ProcessDestinationCount), " prior event(s) in baseline.\n",
-    "- Device-destination relationship: ", DeviceDestinationFamiliarity, "; ", tostring(DeviceDestinationCount), " prior event(s) in baseline.\n",
-    "- Nearby behaviour: ", NearbyDetail, ".\n",
-    "- Behavioural flags: ", iff(isempty(BehaviouralFlags), "none", BehaviouralFlags), ".\n",
-    "- Determination: ", Determination
-)
+//
+// --- Verdict-class + Analyst assessment ---
+// Derived in parallel from the same QuickScore thresholds as Determination —
+// never parsed from the determination text. Branch thresholds mirror
+// Determination so a signal change updates both case-expressions in
+// lockstep. The QuickScore >=15 sub-tier collapses to verdict-class
+// "benign" (precautionary benign in notes.md vocabulary), matching the
+// 02 pattern where multiple benign sub-conditions share one verdict-class.
+| extend
+    _verdictClass = case(
+        QuickScore >= 60, "escalation",
+        QuickScore >= 35, "review",
+        "benign"
+    ),
+    _analystAssessment = case(
+        QuickScore >= 60, "- Analyst assessment: Run network deep-dive and review the initiating-process chain. Confirm whether the process-destination pairing has any precedent before closing.",
+        QuickScore >= 35, "- Analyst assessment: Validate against expected software/admin activity. If the process-destination pairing is new and traffic shape carries multiple flags, deep-dive to confirm.",
+        ""
+    )
+//
+// --- Per-line narrative builders ---
+// Each output line is a standalone computed column so the assembler can
+// order them verdict-first. Inline lines apply rule 4 (suppress when
+// source field empty). Bare lines (Host / Account / Destination /
+// Remote URL / Remote IP) emit unconditionally per rule 7 — role-label
+// placeholders resolved post-finalisation from the Entities block.
+| extend
+    _line_determination = strcat("- Determination: ", Determination),
+    _line_host = "- Host",
+    _line_timestamp = strcat("- TimeGenerated: ", tostring(Timestamp)),
+    _line_process = iff(isempty(InitiatingProcessFileName), "",
+        strcat("- Process: ", InitiatingProcessFileName)),
+    _line_account = "- Account",
+    _line_commandLine = iff(isempty(InitiatingProcessCommandLine), "",
+        strcat("- Command line: ", InitiatingProcessCommandLine)),
+    _line_destination = "- Destination",
+    _line_remoteUrl = "- Remote URL",
+    _line_remoteIP = "- Remote IP",
+    _line_remotePort = iff(isempty(tostring(RemotePort)), "",
+        strcat("- Remote port: ", tostring(RemotePort))),
+    _line_trafficShape = strcat("- Traffic shape: ", TrafficShape),
+    _line_destinationPrevalence = strcat(
+        "- Destination prevalence: ", DestinationFamiliarity,
+        "; seen on ", tostring(DestinationDevicesSeen), " device(s), by ",
+        tostring(DestinationUsersSeen), " user(s), across ",
+        tostring(DestinationDaysSeen), " day(s) in ", BaselineLabel),
+    _line_usualProcessContext = strcat(
+        "- Usual process context for destination: ",
+        iff(array_length(DestinationProcessNames) > 0,
+            tostring(DestinationProcessNames),
+            "none recorded in baseline")),
+    _line_processDestinationRelationship = strcat(
+        "- Process-destination relationship: ", ProcessDestinationFamiliarity,
+        "; ", tostring(ProcessDestinationCount), " prior event(s) in baseline"),
+    _line_deviceDestinationRelationship = strcat(
+        "- Device-destination relationship: ", DeviceDestinationFamiliarity,
+        "; ", tostring(DeviceDestinationCount), " prior event(s) in baseline"),
+    _line_nearbyBehaviour = strcat("- Nearby behaviour: ", NearbyDetail),
+    _line_behaviouralFlags = strcat("- Behavioural flags: ",
+        iff(isempty(BehaviouralFlags), "none", BehaviouralFlags))
+//
+// --- Assemble (verdict-first; closure-only) ---
+// Architecture: narrative-gen produces the verdict + Actions-taken body.
+// Escalation verdicts prepend the literal header "--- ESCALATE ---".
+// Benign verdicts append the fixed rule-9 closure insignia, character
+// for character. Review verdicts get neither header nor insignia.
+| extend InvestigationNarrative = strcat_array(array_concat(
+    iff(_verdictClass == "escalation", pack_array("--- ESCALATE ---"), dynamic([])),
+    // Tier A — verdict (Determination + Analyst assessment)
+    pack_array(_line_determination),
+    iff(isnotempty(_analystAssessment), pack_array(_analystAssessment), dynamic([])),
+    // Tier B — corroborating identity + context
+    pack_array(_line_host, _line_timestamp),
+    iff(isnotempty(_line_process),      pack_array(_line_process),      dynamic([])),
+    pack_array(_line_account),
+    iff(isnotempty(_line_commandLine),  pack_array(_line_commandLine),  dynamic([])),
+    pack_array(_line_destination, _line_remoteUrl, _line_remoteIP),
+    iff(isnotempty(_line_remotePort),   pack_array(_line_remotePort),   dynamic([])),
+    pack_array(_line_trafficShape,
+               _line_destinationPrevalence,
+               _line_usualProcessContext,
+               _line_processDestinationRelationship,
+               _line_deviceDestinationRelationship,
+               _line_nearbyBehaviour),
+    // Tier M — markers
+    pack_array(_line_behaviouralFlags),
+    // Closure insignia — benign only, hardcoded literal
+    iff(_verdictClass == "benign",
+        pack_array("Totality of context facilitates no further investigation, converges benign. Closing as such."),
+        dynamic([]))
+), "\n")
 | project InvestigationNarrative
