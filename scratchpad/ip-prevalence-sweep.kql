@@ -1,0 +1,108 @@
+// name:     IP Prevalence Sweep
+// purpose:  Where does this IP show up across the environment, and doing what? Cross-table
+//           prevalence-first triage for a single IP over a 90d window. One row per data source:
+//           event volume, distinct accounts/hosts, associated activity, first/last seen, active days.
+// tables:   SigninLogs, AADNonInteractiveUserSignInLogs, AuditLogs, OfficeActivity, AzureActivity,
+//           SecurityEvent, DeviceNetworkEvents, EmailEvents (each optional — a source absent from the
+//           tenant simply contributes zero rows). ThreatIntelligenceIndicator is an optional TI flag.
+// note:     Scratchpad query — exempt from the family contract. Decision-gate only: tells you which
+//           family deep-dive to reach for, not a full investigation.
+//
+let targetIP = "";        // <-- IP to sweep (IPv4 or IPv6)
+let lookback  = 90d;
+//
+// ---- One normalised stream per source: Timestamp | SourceTable | Account | Host | Activity ----
+//
+// Entra ID interactive sign-ins
+let _signin =
+    SigninLogs
+    | where TimeGenerated > ago(lookback)
+    | where IPAddress == targetIP
+    | project Timestamp = TimeGenerated, SourceTable = "SigninLogs",
+              Account = UserPrincipalName, Host = tostring(DeviceDetail.displayName),
+              Activity = strcat("Interactive sign-in (ResultType ", tostring(ResultType), ")");
+// Entra ID non-interactive sign-ins (service/token refresh — high volume, often the real story)
+let _noninteractive =
+    AADNonInteractiveUserSignInLogs
+    | where TimeGenerated > ago(lookback)
+    | where IPAddress == targetIP
+    | project Timestamp = TimeGenerated, SourceTable = "AADNonInteractiveUserSignInLogs",
+              Account = UserPrincipalName, Host = tostring(DeviceDetail.displayName),
+              Activity = strcat("Non-interactive sign-in (ResultType ", tostring(ResultType), ")");
+// Entra ID directory changes, anchored on the actor's source IP
+let _audit =
+    AuditLogs
+    | where TimeGenerated > ago(lookback)
+    | where tostring(InitiatedBy.user.ipAddress) == targetIP
+    | project Timestamp = TimeGenerated, SourceTable = "AuditLogs",
+              Account = tostring(InitiatedBy.user.userPrincipalName), Host = "",
+              Activity = OperationName;
+// M365 / Office operations (ClientIP can carry a :port suffix, so token-match with has)
+let _office =
+    OfficeActivity
+    | where TimeGenerated > ago(lookback)
+    | where ClientIP has targetIP
+    | project Timestamp = TimeGenerated, SourceTable = "OfficeActivity",
+              Account = UserId, Host = tostring(OfficeWorkload),
+              Activity = Operation;
+// Azure control-plane calls
+let _azure =
+    AzureActivity
+    | where TimeGenerated > ago(lookback)
+    | where CallerIpAddress == targetIP
+    | project Timestamp = TimeGenerated, SourceTable = "AzureActivity",
+              Account = Caller, Host = Resource,
+              Activity = OperationNameValue;
+// Windows / on-prem security events carrying a source IP (logons, etc.)
+let _security =
+    SecurityEvent
+    | where TimeGenerated > ago(lookback)
+    | where IpAddress == targetIP
+    | project Timestamp = TimeGenerated, SourceTable = "SecurityEvent",
+              Account = Account, Host = Computer,
+              Activity = strcat(Activity, " (EventID ", tostring(EventID), ")");
+// Defender endpoint network connections to/from the IP
+let _devnet =
+    DeviceNetworkEvents
+    | where Timestamp > ago(lookback)
+    | where RemoteIP == targetIP or LocalIP == targetIP
+    | project Timestamp, SourceTable = "DeviceNetworkEvents",
+              Account = InitiatingProcessAccountUpn, Host = DeviceName,
+              Activity = strcat(ActionType, " via ", InitiatingProcessFileName, ":", tostring(RemotePort));
+// Email sender infrastructure
+let _email =
+    EmailEvents
+    | where TimeGenerated > ago(lookback)
+    | where SenderIPv4 == targetIP
+    | project Timestamp = TimeGenerated, SourceTable = "EmailEvents",
+              Account = RecipientEmailAddress, Host = tostring(SenderFromDomain),
+              Activity = strcat("Inbound mail (", DeliveryAction, ")");
+//
+// ---- Optional TI flag: is this IP a known indicator? (graceful if table absent) ----
+let _tiHit = toscalar(
+    ThreatIntelligenceIndicator
+    | where TimeGenerated > ago(lookback)
+    | where NetworkIP == targetIP or NetworkSourceIP == targetIP or NetworkDestinationIP == targetIP
+    | where ExpirationDateTime > now()
+    | summarize Hits = count()
+);
+//
+// ---- Prevalence roll-up: one row per source the IP touched ----
+union isfuzzy=true
+    _signin, _noninteractive, _audit, _office, _azure, _security, _devnet, _email
+| extend Account = tolower(Account)
+| summarize
+    Events            = count(),
+    DistinctAccounts  = dcountif(Account, isnotempty(Account)),
+    AccountSample     = make_set_if(Account, isnotempty(Account), 8),
+    DistinctHosts     = dcountif(Host, isnotempty(Host)),
+    HostSample        = make_set_if(Host, isnotempty(Host), 8),
+    Activities        = make_set(Activity, 12),
+    FirstSeen         = min(Timestamp),
+    LastSeen          = max(Timestamp),
+    ActiveDays        = dcount(bin(Timestamp, 1d))
+    by SourceTable
+| extend TargetIP = targetIP, KnownThreatIndicator = (_tiHit > 0)
+| project TargetIP, SourceTable, Events, ActiveDays, FirstSeen, LastSeen,
+          DistinctAccounts, AccountSample, DistinctHosts, HostSample, Activities, KnownThreatIndicator
+| sort by Events desc
