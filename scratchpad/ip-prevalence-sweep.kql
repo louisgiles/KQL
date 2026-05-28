@@ -19,7 +19,7 @@ let _signin =
     | where TimeGenerated > ago(lookback)
     | where IPAddress == targetIP
     | project Timestamp = TimeGenerated, SourceTable = "SigninLogs",
-              Account = UserPrincipalName, Host = tostring(DeviceDetail.displayName),
+              Account = UserPrincipalName, Host = tostring(parse_json(tostring(DeviceDetail)).displayName),
               Activity = strcat("Interactive sign-in (ResultType ", tostring(ResultType), ")");
 // Entra ID non-interactive sign-ins (service/token refresh — high volume, often the real story)
 let _noninteractive =
@@ -27,15 +27,15 @@ let _noninteractive =
     | where TimeGenerated > ago(lookback)
     | where IPAddress == targetIP
     | project Timestamp = TimeGenerated, SourceTable = "AADNonInteractiveUserSignInLogs",
-              Account = UserPrincipalName, Host = tostring(DeviceDetail.displayName),
+              Account = UserPrincipalName, Host = tostring(parse_json(tostring(DeviceDetail)).displayName),
               Activity = strcat("Non-interactive sign-in (ResultType ", tostring(ResultType), ")");
 // Entra ID directory changes, anchored on the actor's source IP
 let _audit =
     AuditLogs
     | where TimeGenerated > ago(lookback)
-    | where tostring(InitiatedBy.user.ipAddress) == targetIP
+    | where tostring(parse_json(tostring(InitiatedBy)).user.ipAddress) == targetIP
     | project Timestamp = TimeGenerated, SourceTable = "AuditLogs",
-              Account = tostring(InitiatedBy.user.userPrincipalName), Host = "",
+              Account = tostring(parse_json(tostring(InitiatedBy)).user.userPrincipalName), Host = "",
               Activity = OperationName;
 // M365 / Office operations (ClientIP can carry a :port suffix, so token-match with has)
 let _office =
@@ -78,13 +78,23 @@ let _email =
               Account = RecipientEmailAddress, Host = tostring(SenderFromDomain),
               Activity = strcat("Inbound mail (", DeliveryAction, ")");
 //
-// ---- Optional TI flag: is this IP a known indicator? (graceful if table absent) ----
+// ---- Optional TI flag: is this IP a known indicator? ----
+// Genuinely optional: the isfuzzy union + empty seed means a missing table degrades to
+// "no hit" instead of failing the query, and column_ifexists tolerates tenants whose TI
+// schema lacks the source/destination IP columns.
 let _tiHit = toscalar(
-    ThreatIntelligenceIndicator
-    | where TimeGenerated > ago(lookback)
-    | where NetworkIP == targetIP or NetworkSourceIP == targetIP or NetworkDestinationIP == targetIP
-    | where ExpirationDateTime > now()
-    | summarize Hits = count()
+    union isfuzzy=true
+        (datatable(Hits: long) []),
+        (
+            ThreatIntelligenceIndicator
+            | where TimeGenerated > ago(lookback)
+            | where ExpirationDateTime > now()
+            | where column_ifexists("NetworkIP", "") == targetIP
+                or column_ifexists("NetworkSourceIP", "") == targetIP
+                or column_ifexists("NetworkDestinationIP", "") == targetIP
+            | summarize Hits = count()
+        )
+    | summarize Total = sum(Hits)
 );
 //
 // ---- Prevalence roll-up: one row per source the IP touched ----
@@ -102,7 +112,7 @@ union isfuzzy=true
     LastSeen          = max(Timestamp),
     ActiveDays        = dcount(bin(Timestamp, 1d))
     by SourceTable
-| extend TargetIP = targetIP, KnownThreatIndicator = (_tiHit > 0)
+| extend TargetIP = targetIP, KnownThreatIndicator = (coalesce(_tiHit, 0) > 0)
 | project TargetIP, SourceTable, Events, ActiveDays, FirstSeen, LastSeen,
           DistinctAccounts, AccountSample, DistinctHosts, HostSample, Activities, KnownThreatIndicator
 | sort by Events desc
