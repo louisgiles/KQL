@@ -1,0 +1,47 @@
+// Severity: Medium baseline, High when LOLBin / user-writable. Frequency: 1h/1h.
+// Table: DeviceNetworkEvents. This is the standalone C2-catcher — no correlation needed.
+let lookback = 1h;
+// ── Shared DDNS provider-domain lookup ───────────────────────────────
+// PRODUCTION (recommended): cache to a Watchlist refreshed on a timer, so the
+// rule never depends on a live fetch and the 600+ domains never become IOCs:
+//   let ddns_all = _GetWatchlist('DDNS_Domains') | project d = tolower(tostring(Domain)) | distinct d;
+// FALLBACK: load + clean from source (non-afraid tier only — the FreeDNS bulk
+// is ~98% of the list and ~4.7k legit businesses, so it's excluded by design).
+let ddns_all = materialize(
+    union
+    ( externaldata(Domain:string, RetrievedAt:string, Provider:string)
+        [@"https://raw.githubusercontent.com/alexandrosmagos/dyn-dns-list/master/links.csv"]
+        with (format="csv", ignoreFirstRecord=true)
+      | where Provider != "afraid.org"
+      | extend d = extract(@"^\s*\.?([a-z0-9.\-]+)", 1, tolower(Domain))
+      | where isnotempty(d) ),
+    ( datatable(d:string)["duckdns.org","dyndns.org"] )   // host-bearing bases missing from the list
+    | distinct d
+);
+let browsers = dynamic(["msedge.exe","chrome.exe","firefox.exe","brave.exe","opera.exe","iexplore.exe","msedgewebview2.exe"]);
+DeviceNetworkEvents
+| where TimeGenerated > ago(lookback)
+| where ActionType == "ConnectionSuccess"
+| where InitiatingProcessFileName !in~ (browsers)            // machine-initiated, not a browser pull
+| extend host = extract(@"^(?:[a-z]+:/{2})?([^/:?#]+)", 1, tolower(RemoteUrl))
+| where isnotempty(host) and host !in~ ("checkip.dyndns.org","checkip.dyndns.com")
+| extend host = trim_end(@"\.", host)
+| extend arr = split(host, "."), n = array_length(split(host, "."))
+| where n >= 2
+| extend l2 = strcat(tostring(arr[n-2]), ".", tostring(arr[n-1]))
+| extend l3 = iff(n >= 3, strcat(tostring(arr[n-3]), ".", tostring(arr[n-2]), ".", tostring(arr[n-1])), "")
+| where l2 in (ddns_all) or l3 in (ddns_all)
+| extend ddnsDomain = iff(l3 in (ddns_all), l3, l2)
+| where host != ddnsDomain                                   // subdomain must exist
+// ── provenance flags (these carry the fidelity) ──
+| extend isLolbin = InitiatingProcessFileName in~ ("powershell.exe","pwsh.exe","cmd.exe","rundll32.exe","regsvr32.exe","mshta.exe","wscript.exe","cscript.exe","bitsadmin.exe","certutil.exe","curl.exe","msiexec.exe","installutil.exe","regasm.exe","regsvcs.exe")
+| extend fromUserWritable = InitiatingProcessFolderPath has_any (@"\appdata\",@"\temp\",@"\programdata\",@"\users\public\",@"\downloads\",@"\$recycle.bin\")
+| extend noFolder = isempty(InitiatingProcessFolderPath)     // possible fileless / injected
+| extend SevScore = 2 + iff(isLolbin,3,0) + iff(fromUserWritable,3,0) + iff(noFolder,2,0)
+| summarize Connections=count(), SevScore=max(SevScore), FirstSeen=min(TimeGenerated), LastSeen=max(TimeGenerated),
+            RemoteIPs=make_set(RemoteIP,25), RemotePorts=make_set(RemotePort,10),
+            CommandLines=make_set(InitiatingProcessCommandLine,5),
+            ParentProcs=make_set(InitiatingProcessParentFileName,5), SHA256s=make_set(InitiatingProcessSHA256,5)
+          by DeviceName, InitiatingProcessFileName, InitiatingProcessFolderPath, InitiatingProcessAccountName, host, ddnsDomain
+| extend SeverityHint = case(SevScore >= 5, "High", SevScore >= 3, "Medium", "Low")
+| sort by SevScore desc, Connections desc
