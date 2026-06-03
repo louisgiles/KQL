@@ -1,0 +1,54 @@
+// Severity: Informational. Deploy a 2nd instance at Low/Med by uncommenting the
+//   SevScore filter near the end. Frequency: hourly/1h (or daily for a hunt feed).
+// Table: DeviceNetworkEvents.
+let lookback = 1h;
+// ── Shared DDNS provider-domain lookup ───────────────────────────────
+// PRODUCTION (recommended): cache to a Watchlist refreshed on a timer, so the
+// rule never depends on a live fetch and the 600+ domains never become IOCs:
+//   let ddns_all = _GetWatchlist('DDNS_Domains') | project d = tolower(tostring(Domain)) | distinct d;
+// FALLBACK: load + clean from source (non-afraid tier only — the FreeDNS bulk
+// is ~98% of the list and ~4.7k legit businesses, so it's excluded by design).
+let ddns_all = materialize(
+    union
+    ( externaldata(Domain:string, RetrievedAt:string, Provider:string)
+        [@"https://raw.githubusercontent.com/alexandrosmagos/dyn-dns-list/master/links.csv"]
+        with (format="csv", ignoreFirstRecord=true)
+      | where Provider != "afraid.org"
+      | extend d = extract(@"^\s*\.?([a-z0-9.\-]+)", 1, tolower(Domain))
+      | where isnotempty(d) ),
+    ( datatable(d:string)["duckdns.org","dyndns.org"] )   // host-bearing bases missing from the list
+    | distinct d
+);
+DeviceNetworkEvents
+| where TimeGenerated > ago(lookback)
+| where ActionType == "ConnectionSuccess"                       // completed, not a failed attempt
+| extend host = extract(@"^(?:[a-z]+:/{2})?([^/:?#]+)", 1, tolower(RemoteUrl))
+| where isnotempty(host)
+| where host !in~ ("checkip.dyndns.org","checkip.dyndns.com")   // IP-echo utility FP
+| extend host = trim_end(@"\.", host)
+| extend arr = split(host, "."), n = array_length(split(host, "."))
+| where n >= 2
+| extend l2 = strcat(tostring(arr[n-2]), ".", tostring(arr[n-1]))
+| extend l3 = iff(n >= 3, strcat(tostring(arr[n-3]), ".", tostring(arr[n-2]), ".", tostring(arr[n-1])), "")
+| where l2 in (ddns_all) or l3 in (ddns_all)
+| extend ddnsDomain = iff(l3 in (ddns_all), l3, l2)
+| where host != ddnsDomain                                      // subdomain must exist; apex hits aren't risk
+// ── context flags ────────────────────────────────────────────────
+| extend subLabel = tostring(arr[0])
+| extend isBrowser = InitiatingProcessFileName in~ ("msedge.exe","chrome.exe","firefox.exe","brave.exe","opera.exe","iexplore.exe","msedgewebview2.exe")
+| extend isLolbin  = InitiatingProcessFileName in~ ("powershell.exe","pwsh.exe","cmd.exe","rundll32.exe","regsvr32.exe","mshta.exe","wscript.exe","cscript.exe","bitsadmin.exe","certutil.exe","curl.exe","msiexec.exe")
+| extend fromUserWritable = InitiatingProcessFolderPath has_any (@"\appdata\",@"\temp\",@"\programdata\",@"\users\public\",@"\downloads\")
+| extend isPunycode = host has "xn--"                           // IDN homograph proxy (the client-5 сõбîîúé case)
+| extend looksDeceptive = subLabel has_any ("login","secure","verify","account","signin","sso","webmail","ads","analytics","update","portal")
+// crude DGA/high-entropy heuristic on the left-most label (approximate — tune):
+| extend digitRatio = toreal(countof(subLabel, @"[0-9]", "regex")) / toreal(max_of(strlen(subLabel),1))
+| extend looksRandom = strlen(subLabel) >= 12 and (digitRatio >= 0.33 or subLabel matches regex @"^[bcdfghjklmnpqrstvwxz]{6,}")
+| extend SevScore = iff(isLolbin,3,0) + iff(fromUserWritable,3,0) + iff(isPunycode,3,0)
+                  + iff(looksRandom,2,0) + iff(not(isBrowser),2,0) + iff(looksDeceptive,1,0)
+| summarize Connections=count(), SevScore=max(SevScore), FirstSeen=min(TimeGenerated), LastSeen=max(TimeGenerated),
+            RemoteIPs=make_set(RemoteIP,25), Ports=make_set(RemotePort,10),
+            Processes=make_set(InitiatingProcessFileName,10), ProcPaths=make_set(InitiatingProcessFolderPath,10)
+          by ddnsDomain, host, DeviceName, InitiatingProcessAccountName
+| extend SeverityHint = case(SevScore >= 3, "Medium", SevScore >= 2, "Low", "Informational")
+//| where SevScore >= 2          // <-- UNCOMMENT for the Low/Medium-severity instance
+| sort by SevScore desc, Connections desc
