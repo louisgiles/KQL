@@ -18,6 +18,22 @@ let ddns_all = materialize(
     ( datatable(d:string)["duckdns.org","dyndns.org"] )   // host-bearing bases missing from the list
     | distinct d
 );
+// PRODUCTION (recommended): cache to a Watchlist refreshed on a timer, so the
+// rule never depends on a live fetch and the 600+ domains never become IOCs:
+//   let ddns_all = _GetWatchlist('DDNS_Domains') | project d = tolower(tostring(Domain)) | distinct d;
+// FALLBACK: load + clean from source (non-afraid tier only — the FreeDNS bulk
+// is ~98% of the list and ~4.7k legit businesses, so it's excluded by design).
+let ddns_all = materialize(
+    union
+    ( externaldata(Domain:string, RetrievedAt:string, Provider:string)
+        [@"https://raw.githubusercontent.com/alexandrosmagos/dyn-dns-list/master/links.csv"]
+        with (format="csv", ignoreFirstRecord=true)
+      | where Provider != "afraid.org"
+      | extend d = extract(@"^\s*\.?([a-z0-9.\-]+)", 1, tolower(Domain))
+      | where isnotempty(d) ),
+    ( datatable(d:string)["duckdns.org","dyndns.org"] )   // host-bearing bases missing from the list
+    | distinct d
+);
 let browsers = dynamic(["msedge.exe","chrome.exe","firefox.exe","brave.exe","opera.exe","iexplore.exe","msedgewebview2.exe"]);
 DeviceNetworkEvents
 | where TimeGenerated > ago(lookback)
