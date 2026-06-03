@@ -1,0 +1,20 @@
+// Severity: High — treat ConnectionSuccess as an incident. Frequency: hourly/1h.
+// Table: DeviceNetworkEvents.
+// MAINTENANCE: BPH operators re-home ASNs to dodge sanctions (Aeza moved
+//   AS210644 -> AS211522 within ~10 days), so feed these ranges from a
+//   TI-backed Watchlist, refreshed often — NOT a static list:
+//     let bph_ranges = _GetWatchlist('BPH_Ranges') | project Cidr;
+let lookback = 1h;
+let bph_ranges = dynamic([           // FALLBACK seed — replace/extend from TI
+    "PASTE_AEZA_AS210644_CIDRS",
+    "PASTE_AEZA_AS211522_CIDRS",
+    "PASTE_AEZA_AS216246_CIDRS"
+]);
+DeviceNetworkEvents
+| where TimeGenerated > ago(lookback)
+| where isnotempty(RemoteIP) and RemoteIP matches regex @"^\d{1,3}(\.\d{1,3}){3}$"   // IPv4 only for the range op
+| where ipv4_is_in_any_range(RemoteIP, bph_ranges)
+| summarize Connections=count(), Actions=make_set(ActionType,5), FirstSeen=min(TimeGenerated), LastSeen=max(TimeGenerated),
+            RemoteUrls=make_set(RemoteUrl,25), Ports=make_set(RemotePort,10), Processes=make_set(InitiatingProcessFileName,10)
+          by RemoteIP, DeviceName, InitiatingProcessAccountName
+| sort by LastSeen desc
