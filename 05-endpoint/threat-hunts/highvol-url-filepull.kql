@@ -1,0 +1,199 @@
+// name:              High-Volume URL File-Pull Endpoint Hunt
+// purpose:           Score devices on volume of connections to one target web service, escalating sharply when a file is provably downloaded (and run) from it.
+// starting_entities: TargetUrlToken (registrable-domain token, no scheme). Optionally: adware URL/process exclusion tokens.
+// required_tables:   DeviceNetworkEvents, DeviceFileEvents, DeviceProcessEvents
+// optional_tables:   (none — all three are load-bearing; absence degrades the corresponding signal silently)
+// variables:         Lookback, ProximityWindow, TargetUrlToken, AdwareUrlExclusions, AdwareProcExclusions, Browsers, W_* weights
+// done_criteria:     Devices ranked; provable pulls (FileFromTarget / RanFileFromTarget) floated to the top; adware/PUP tuned out; each high-band device reviewed.
+// output_type:       hunt
+//
+// ----------------------------------------------------------------------------
+// INTENT
+//   Hunt for high-volume endpoint use of a single unsanctioned file web-service.
+//   Volume alone is a weak signal (browsers chatter); the *escalator* is a
+//   provable download — a file whose origin/referrer URL is the target — and,
+//   strongest of all, that downloaded file then being executed. Adware / PUP
+//   beaconing to CDNs is the dominant false-positive source, so it is tunable
+//   out per-host and per-process rather than baked in.
+//
+// SCORE MODEL (sum of applicable weights, one row per device)
+//   Network volume   3-9 conns        -> +W_NetSmall
+//                    10+ conns        -> +W_NetBig
+//   File proximity   FileCreated within ProximityWindow of a target conn
+//                                     -> +W_FileProx
+//   File origin      origin/referrer == target  (DOMINANT, provable pull)
+//                                     -> +W_FileOrigin   [always surfaces device]
+//   Process agency   non-browser initiated the target connection
+//                                     -> +W_ProcNonBrowser
+//                    downloaded-from-target file was executed
+//                                     -> +W_ProcOriginExec  (provable, prominent)
+//
+// TUNING LEVERS
+//   TargetUrlToken        — the one knob the analyst MUST set (bare reg. domain).
+//   AdwareUrlExclusions   — host tokens to drop from connection / origin counting.
+//   AdwareProcExclusions  — PUP/adware process names to drop from agency counting.
+//   ProximityWindow       — how tight "downloaded around the same time" is.
+//   W_*                   — re-weight any signal without touching logic.
+//
+// MATCHING NOTE
+//   RemoteUrl / FileOriginUrl / FileOriginReferrerUrl are matched against
+//   TargetUrlToken with `has`. `has` tokenises URLs on punctuation, so a bare
+//   registrable-domain token (e.g. "filehippo") is reliable; a dotted substring
+//   is NOT. If matching proves leaky in your tenant, harden by extracting the
+//   host and comparing there, e.g.:
+//       | extend _host = tolower(tostring(parse_url(RemoteUrl).Host))
+//       | where _host endswith TargetUrlToken
+//
+// SCOPE NOTE
+//   New artifact type: a scored, multi-table endpoint hunt. It deliberately does
+//   NOT follow the deep-dive / narrative-gen / quick-dive family contract and is
+//   not a fourth endpoint sub-family. Validated by the syntax smoke harness like
+//   any other .kql.
+// ----------------------------------------------------------------------------
+//
+// ── Tuning surface (all analyst-supplied / re-weightable values live here) ──
+let Lookback = 30d;
+let ProximityWindow = 60m;
+let TargetUrlToken = "";                 // analyst fills: registrable-domain token, no scheme
+let AdwareUrlExclusions = dynamic([]);   // scoped adware/CDN host tokens to ignore
+let AdwareProcExclusions = dynamic([]);  // scoped PUP/adware process names to ignore
+let Browsers = dynamic(["msedge.exe","chrome.exe","firefox.exe","brave.exe","opera.exe","iexplore.exe"]);
+let W_NetSmall = 10;       // 3-9 connections
+let W_NetBig = 30;         // 10+ connections
+let W_FileProx = 15;       // file event within ProximityWindow of a target connection
+let W_FileOrigin = 50;     // file origin/referrer == target  (dominant)
+let W_ProcNonBrowser = 20;
+let W_ProcOriginExec = 25;
+//
+// ── SECTION 1 — DeviceNetworkEvents: connection volume per device, adware stripped ──
+// Connection-level rows to the target service, minus adware/CDN host tokens; reused by proximity + agency.
+let NetConns = materialize(
+    DeviceNetworkEvents
+    | where Timestamp between (ago(Lookback) .. now())
+    | where isnotempty(TargetUrlToken) and RemoteUrl has TargetUrlToken
+    | where not(RemoteUrl has_any (AdwareUrlExclusions))
+    | project Timestamp, DeviceId, DeviceName, RemoteUrl, InitiatingProcessFileName
+);
+// Per-device volume summary (the Section-1 fact table).
+let NetPerDevice = materialize(
+    NetConns
+    | summarize
+        ConnCount = count(),
+        FirstSeen = min(Timestamp),
+        LastSeen  = max(Timestamp),
+        Initiators = make_set(InitiatingProcessFileName, 50)
+      by DeviceId, DeviceName
+);
+//
+// ── SECTION 2 — DeviceFileEvents (the escalator): provable origin + time proximity ──
+// Origin match — file whose origin/referrer URL is the target. Computed independently across full Lookback (NOT gated by Section 1).
+let FileOrigin = materialize(
+    DeviceFileEvents
+    | where Timestamp between (ago(Lookback) .. now())
+    | where ActionType == "FileCreated"
+    | where isnotempty(TargetUrlToken)
+    | where (FileOriginUrl has TargetUrlToken) or (FileOriginReferrerUrl has TargetUrlToken)
+    | where not(FileOriginUrl has_any (AdwareUrlExclusions)) and not(FileOriginReferrerUrl has_any (AdwareUrlExclusions))
+    | project Timestamp, DeviceId, DeviceName, FileName, FolderPath, SHA256, FileOriginUrl, FileOriginReferrerUrl
+);
+// Dominant signal: any origin match surfaces the device (override), even with zero Section-1 connections.
+let FileOriginDevices = materialize(
+    FileOrigin
+    | summarize OriginFileCount = count(), OriginFirstSeen = min(Timestamp), OriginLastSeen = max(Timestamp)
+      by DeviceId, DeviceName
+    | extend FileFromTarget = true
+);
+// Proximity sub-signal: a FileCreated within ProximityWindow of a Section-1 connection on the same device.
+// DeviceId join + time-delta filter, deduped to one row per file (min delta) before summarising to avoid join fan-out.
+let FileProximityDevices = materialize(
+    DeviceFileEvents
+    | where Timestamp between (ago(Lookback) .. now())
+    | where ActionType == "FileCreated"
+    | project FileTime = Timestamp, DeviceId, FileName, FolderPath, ReportId
+    | join kind=inner (NetConns | project DeviceId, ConnTime = Timestamp) on DeviceId
+    | extend Delta = abs(FileTime - ConnTime)
+    | where Delta <= ProximityWindow
+    | summarize MinDelta = min(Delta) by DeviceId, FileName, FolderPath, FileTime, ReportId
+    | summarize ProximityFileCount = count() by DeviceId
+    | extend FileProximityHit = true
+);
+//
+// ── SECTION 3 — DeviceProcessEvents (agency): non-browser initiator + ran-from-target ──
+// NonBrowserInitiator — a Section-1 connection driven by a process that is neither a browser nor an excluded PUP.
+let NonBrowserDevices = materialize(
+    NetConns
+    | where isnotempty(InitiatingProcessFileName)
+    | where InitiatingProcessFileName !in~ (Browsers)
+    | where InitiatingProcessFileName !in~ (AdwareProcExclusions)
+    | summarize by DeviceId
+    | extend NonBrowserInitiator = true
+);
+// OriginExec — a ProcessCreated whose backing file matches a downloaded-from-target file (SHA256, else FolderPath+FileName).
+let OriginExecDevices = materialize(
+    DeviceProcessEvents
+    | where Timestamp between (ago(Lookback) .. now())
+    | where ActionType == "ProcessCreated"
+    | project DeviceId, ProcSHA256 = SHA256, ProcFolderPath = FolderPath, ProcFileName = FileName
+    | join kind=inner (
+        FileOrigin
+        | project DeviceId, FileSHA256 = SHA256, FileFolderPath = FolderPath, FileFileName = FileName
+      ) on DeviceId
+    | where (isnotempty(ProcSHA256) and ProcSHA256 == FileSHA256)
+         or (tolower(ProcFolderPath) == tolower(FileFolderPath) and tolower(ProcFileName) == tolower(FileFileName))
+    | summarize by DeviceId
+    | extend RanFileFromTarget = true
+);
+//
+// ── FINAL COMBINE — one row per device: union volume + origin-override keys, attach signals, score, rank ──
+// Master device set = Section-1 volume devices UNION origin-match devices (the override path).
+let DeviceKeys = materialize(
+    union
+      (NetPerDevice      | project DeviceId, DeviceName),
+      (FileOriginDevices | project DeviceId, DeviceName)
+    | summarize DeviceName = take_any(DeviceName) by DeviceId
+);
+DeviceKeys
+| join kind=leftouter (NetPerDevice       | project DeviceId, ConnCount, FirstSeen, LastSeen, Initiators) on DeviceId
+| join kind=leftouter (FileOriginDevices  | project DeviceId, FileFromTarget, OriginFirstSeen, OriginLastSeen) on DeviceId
+| join kind=leftouter (FileProximityDevices | project DeviceId, FileProximityHit) on DeviceId
+| join kind=leftouter (NonBrowserDevices  | project DeviceId, NonBrowserInitiator) on DeviceId
+| join kind=leftouter (OriginExecDevices  | project DeviceId, RanFileFromTarget) on DeviceId
+| extend
+    ConnCount           = coalesce(ConnCount, 0),
+    FileFromTarget      = coalesce(FileFromTarget, false),
+    FileProximityHit    = coalesce(FileProximityHit, false),
+    NonBrowserInitiator = coalesce(NonBrowserInitiator, false),
+    RanFileFromTarget   = coalesce(RanFileFromTarget, false)
+// Volume tier, mutually exclusive: <=2 contributes nothing (and does not surface on its own); 3-9 small; 10+ big.
+| extend NetWeight = case(ConnCount >= 10, W_NetBig, ConnCount >= 3, W_NetSmall, 0)
+| extend Score =
+      NetWeight
+    + iff(FileFromTarget,      W_FileOrigin,     0)
+    + iff(FileProximityHit,    W_FileProx,       0)
+    + iff(NonBrowserInitiator, W_ProcNonBrowser, 0)
+    + iff(RanFileFromTarget,   W_ProcOriginExec, 0)
+// Surface rule: earned a volume tier (>=3) OR a provable pull/exec (origin override). ConnCount <= 2 with no provable signal is dropped.
+| where ConnCount >= 3 or FileFromTarget or RanFileFromTarget
+| extend
+    FirstSeen = coalesce(FirstSeen, OriginFirstSeen),
+    LastSeen  = coalesce(LastSeen,  OriginLastSeen)
+// Triage band from Score, forced to high on any provable pull or execution.
+| extend TriageBand = case(
+    FileFromTarget or RanFileFromTarget, "high",
+    Score >= 60, "high",
+    Score >= 30, "medium",
+    "low")
+| project
+    DeviceName,
+    ConnCount,
+    FirstSeen,
+    LastSeen,
+    Initiators,
+    FileFromTarget,
+    FileProximityHit,
+    NonBrowserInitiator,
+    RanFileFromTarget,
+    Score,
+    TriageBand
+// Provable pulls float to the top, then executions, then raw score.
+| sort by FileFromTarget desc, RanFileFromTarget desc, Score desc
