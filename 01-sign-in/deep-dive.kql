@@ -20,97 +20,135 @@
 //
 // Tables: SigninLogs, IdentityInfo, AuditLogs
 
+// ------- parameters -------
 let TimeToCheck = 30d;
 let UserIdentityCheck = "";
 let IPtoCheck = "";
 let DeviceDetailtoCheck = "";
+let IncludeNonInteractive = false;
 //
+// ------- signin source -------
+let Signins = union isfuzzy=true
+    (SigninLogs
+    | where TimeGenerated >= ago(TimeToCheck)
+    | project TimeGenerated, CreatedDateTime, UserPrincipalName, Identity, IPAddress,
+        ResultType, ResultDescription,
+        DeviceDetailStr = tostring(DeviceDetail),
+        LocationDetailsStr = tostring(LocationDetails),
+        UserAgent, AppDisplayName,
+        RiskDetail, RiskEventTypes, RiskLevelDuringSignIn, RiskState,
+        AuthenticationDetails = tostring(AuthenticationDetails),
+        MfaDetail = tostring(MfaDetail),
+        ConditionalAccessPolicies = tostring(ConditionalAccessPolicies),
+        ConditionalAccessStatus, CorrelationId,
+        SigninType = "Interactive"),
+    (AADNonInteractiveUserSignInLogs
+    | where IncludeNonInteractive
+    | where TimeGenerated >= ago(TimeToCheck)
+    | project TimeGenerated, CreatedDateTime, UserPrincipalName,
+        Identity = tostring(column_ifexists("Identity", UserPrincipalName)),
+        IPAddress, ResultType, ResultDescription,
+        DeviceDetailStr = tostring(DeviceDetail),
+        LocationDetailsStr = tostring(LocationDetails),
+        UserAgent, AppDisplayName,
+        RiskDetail,
+        RiskEventTypes = tostring(column_ifexists("RiskEventTypes", "")),
+        RiskLevelDuringSignIn, RiskState,
+        AuthenticationDetails = tostring(AuthenticationDetails),
+        MfaDetail = tostring(column_ifexists("MfaDetail", "")),
+        ConditionalAccessPolicies = tostring(ConditionalAccessPolicies),
+        ConditionalAccessStatus, CorrelationId,
+        SigninType = "NonInteractive");
+//
+// ------- identity context -------
 let Job = IdentityInfo
-    | where AccountUPN contains UserIdentityCheck
     | where TimeGenerated >= ago(90d)
-    | extend AccountUPN = tolower(AccountUPN)
-    | summarize arg_max(TimeGenerated, *) by AccountObjectId
-    | project AccountUPN, JobTitle, RiskLevel, AssignedRoles, Manager;
+    | where AccountUPN contains UserIdentityCheck
+    | extend JoinUPN = tolower(AccountUPN)
+    | summarize arg_max(TimeGenerated, JobTitle, RiskLevel, AssignedRoles, Manager) by JoinUPN
+    | project JoinUPN, JobTitle, RiskLevel, AssignedRoles, Manager;
 let NewStarterCheck = AuditLogs
-    | where TargetResources contains UserIdentityCheck
-    | where TimeGenerated > ago(90d)
+    | where TimeGenerated >= ago(90d)
     | where OperationName == "Add user"
-    | where TargetResources contains "AccountEnabled"
-    | extend PropertiesString = tostring(TargetResources)
-    | extend JobString = extract('"JobTitle.*?"]', 0, PropertiesString)
-    | extend NewStarterJobTitle = extract('"newValue":"\\[\\\\"(.*?)\\\\"\\]', 1, JobString)
-    | extend UserString = extract('"DisplayName.*?"]', 0, PropertiesString)
-    | extend Identity = extract('"newValue":"\\[\\\\"(.*?)\\\\"\\]', 1, UserString)
-    | project-rename StartDate = ActivityDateTime
-    | project StartDate, NewStarterJobTitle, Identity;
-// --- Org-wide scans: materialize to avoid repeated full-table passes ---
-let allIPcounts = materialize(
-    SigninLogs
-    | where TimeGenerated >= ago(TimeToCheck)
-    | summarize DaysIpSeenInOrg = dcount(datetime_part("day", TimeGenerated)) by IPAddress
-);
-let DistinctIDfromIP = materialize(
-    SigninLogs
-    | where TimeGenerated >= ago(TimeToCheck)
-    | where ResultType == "0"
-    | summarize UsersWithThisIP = make_set(Identity) by IPAddress
-);
-// --- User-scoped baselines: single scan, multiple aggregations ---
-let UserBaselines = materialize(
-    SigninLogs
-    | where UserPrincipalName contains UserIdentityCheck
-    | where TimeGenerated >= ago(TimeToCheck)
-    | extend DeviceString = tostring(DeviceDetail)
-    | extend DeviceShort = extract(@"deviceId.*?browser.*?(\w+)", 0, DeviceString)
-    | extend LocationString = tostring(LocationDetails)
-    | extend LocationShort = extract(@"([^,]*,[^,]*,[^,]*),", 1, LocationString)
+    | mv-expand TargetResources
+    | where tostring(TargetResources.type) == "User"
+    | extend NewStarterUPN = tolower(tostring(TargetResources.userPrincipalName))
+    | where NewStarterUPN contains tolower(UserIdentityCheck)
+    | mv-expand ModProp = TargetResources.modifiedProperties
     | summarize
-        DaysIpSeenUser = dcount(datetime_part("day", TimeGenerated))
-        by IPAddress, DeviceShort, UserAgent, LocationShort, AppDisplayName
-);
-let uniqueCounts = UserBaselines | summarize DaysIpSeenUser = max(DaysIpSeenUser) by IPAddress;
-let DeviceCount = UserBaselines | summarize DeviceDayCount = max(DaysIpSeenUser) by DeviceShort;
-let UserAgentCount = UserBaselines | summarize UserAgentDayCount = max(DaysIpSeenUser) by UserAgent;
-let LocationCount = UserBaselines | summarize DaysLocationSeenUser = max(DaysIpSeenUser) by LocationShort;
-let AppDisplayNameCount = UserBaselines | summarize AppDayCount = max(DaysIpSeenUser) by AppDisplayName;
+        StartDate = max(ActivityDateTime),
+        NewStarterJobTitle = take_anyif(tostring(parse_json(tostring(ModProp.newValue))[0]), tostring(ModProp.displayName) == "JobTitle")
+        by NewStarterUPN;
 //
-SigninLogs
-| where TimeGenerated >= ago(TimeToCheck)
-| extend DeviceString = tostring(DeviceDetail)
-| extend LocationString = tostring(LocationDetails)
-| extend DeviceShort = extract(@"deviceId.*?browser.*?(\w+)", 0, DeviceString)
-| extend LocationShort = extract(@"([^,]*,[^,]*,[^,]*),", 1, LocationString)
-| extend
-    DeviceParsed = parse_json(DeviceDetail),
-    LocationParsed = parse_json(LocationDetails)
+// -------  org-wide IP prevalence -------
+let OrgIPStats = materialize(
+    Signins
+    | summarize
+        DaysIpSeenInOrg = dcountif(startofday(TimeGenerated), ResultType == "0"),
+        OrgFailuresFromIP = countif(ResultType != "0"),
+        UsersWIPCount = dcountif(Identity, ResultType == "0"),
+        UsersWithThisIP = make_set_if(Identity, ResultType == "0", 20)
+        by IPAddress
+);
+//
+// ------- user familiarity baselines -------
+let UserBase = materialize(
+    Signins
+    | where UserPrincipalName contains UserIdentityCheck
+    | extend Day = startofday(TimeGenerated), IsSuccess = ResultType == "0"
+    | extend DeviceParsed = parse_json(DeviceDetailStr), LocationParsed = parse_json(LocationDetailsStr)
+    | extend
+        DeviceKey = iff(isempty(tostring(DeviceParsed.deviceId)),
+            strcat("unreg|", tostring(DeviceParsed.operatingSystem), "|", tostring(DeviceParsed.browser)),
+            tostring(DeviceParsed.deviceId)),
+        LocationKey = strcat(tostring(LocationParsed.city), "|", tostring(LocationParsed.state), "|", tostring(LocationParsed.countryOrRegion))
+    | project Day, IsSuccess, IPAddress, DeviceKey, UserAgent, LocationKey, AppDisplayName
+);
+let IPDays = UserBase | summarize DaysIpSeenUser = dcountif(Day, IsSuccess) by IPAddress;
+let DeviceDays = UserBase | summarize DeviceDayCount = dcountif(Day, IsSuccess) by DeviceKey;
+let UADays = UserBase | summarize UserAgentDayCount = dcountif(Day, IsSuccess) by UserAgent;
+let LocationDays = UserBase | summarize DaysLocationSeenUser = dcountif(Day, IsSuccess) by LocationKey;
+let AppDays = UserBase | summarize AppDayCount = dcountif(Day, IsSuccess) by AppDisplayName;
+//
+// ------- main pipeline -------
+Signins
+| where UserPrincipalName contains UserIdentityCheck
+| where IPAddress contains IPtoCheck
+| where DeviceDetailStr contains DeviceDetailtoCheck
+| extend JoinUPN = tolower(UserPrincipalName)
+| extend DeviceParsed = parse_json(DeviceDetailStr), LocationParsed = parse_json(LocationDetailsStr)
 | extend
     IsManaged = tostring(DeviceParsed.isManaged),
     IsCompliant = tostring(DeviceParsed.isCompliant),
     TrustType = tostring(DeviceParsed.trustType),
     DeviceOS = tostring(DeviceParsed.operatingSystem),
     DeviceBrowser = tostring(DeviceParsed.browser),
-    DeviceDisplayName = tostring(DeviceParsed.displayName)
-//
-| join kind=fullouter NewStarterCheck on Identity
-| join kind=inner (allIPcounts) on IPAddress
-| join kind=inner (uniqueCounts) on IPAddress
-| join kind=leftouter (DistinctIDfromIP) on IPAddress
-| join kind=inner (DeviceCount) on DeviceShort
-| join kind=inner (UserAgentCount) on UserAgent
-| join kind=inner (LocationCount) on LocationShort
-| join kind=inner (AppDisplayNameCount) on AppDisplayName
-| join kind=leftouter Job on $left.UserPrincipalName == $right.AccountUPN
-| where UserPrincipalName contains UserIdentityCheck
-| where DeviceDetail contains DeviceDetailtoCheck
-| where IPAddress contains IPtoCheck
-| extend UsersWIPCount = array_length(UsersWithThisIP)
+    DeviceDisplayName = tostring(DeviceParsed.displayName),
+    DeviceKey = iff(isempty(tostring(DeviceParsed.deviceId)),
+        strcat("unreg|", tostring(DeviceParsed.operatingSystem), "|", tostring(DeviceParsed.browser)),
+        tostring(DeviceParsed.deviceId)),
+    LocationKey = strcat(tostring(LocationParsed.city), "|", tostring(LocationParsed.state), "|", tostring(LocationParsed.countryOrRegion))
+| join kind=leftouter OrgIPStats on IPAddress
+| join kind=leftouter IPDays on IPAddress
+| join kind=leftouter DeviceDays on DeviceKey
+| join kind=leftouter UADays on UserAgent
+| join kind=leftouter LocationDays on LocationKey
+| join kind=leftouter AppDays on AppDisplayName
+| join kind=leftouter NewStarterCheck on $left.JoinUPN == $right.NewStarterUPN
+| join kind=leftouter Job on JoinUPN
+| extend
+    DaysIpSeenInOrg = coalesce(DaysIpSeenInOrg, 0),
+    OrgFailuresFromIP = coalesce(OrgFailuresFromIP, 0),
+    UsersWIPCount = coalesce(UsersWIPCount, 0),
+    DaysIpSeenUser = coalesce(DaysIpSeenUser, 0),
+    DeviceDayCount = coalesce(DeviceDayCount, 0),
+    UserAgentDayCount = coalesce(UserAgentDayCount, 0),
+    DaysLocationSeenUser = coalesce(DaysLocationSeenUser, 0),
+    AppDayCount = coalesce(AppDayCount, 0)
 | project-rename LogCreatedTime = TimeGenerated, EventTime = CreatedDateTime
 //
-// ============================================================================
-// RISK SCORING ENGINE
-// ============================================================================
+// ------- risk scoring engine -------
 | extend
-    // --- Individual risk factors ---
     _ipOrgRisk = iff(DaysIpSeenInOrg <= 1, 30, 0),
     _ipUserRisk = iff(DaysIpSeenInOrg > 1 and DaysIpSeenUser <= 1, 10, 0),
     _deviceMgmtRisk = iff(IsManaged != "true", 25, 0),
@@ -118,23 +156,24 @@ SigninLogs
     _uaRisk = iff(UserAgentDayCount <= 1, 10, 0),
     _locationRisk = iff(DaysLocationSeenUser <= 1, 10, 0),
     _appRisk = iff(AppDayCount <= 1, 5, 0),
-    _aadRisk = iff(RiskLevelDuringSignIn in ("medium", "high") or RiskDetail != "none", 20, 0),
-    _newStarterRisk = iff(isnotempty(StartDate) and StartDate > ago(14d), 5, 0)
+    _aadRisk = iff(RiskLevelDuringSignIn in~ ("medium", "high") or RiskState =~ "atRisk", 20, 0),
+    _sprayRisk = iff(OrgFailuresFromIP >= 20 and DaysIpSeenInOrg <= 1, 10, 0),
+    _newStarterRisk = iff(isnotnull(StartDate) and StartDate > ago(14d), 5, 0)
 | extend
     RiskScore = _ipOrgRisk + _ipUserRisk + _deviceMgmtRisk + _deviceFamiliarityRisk
-        + _uaRisk + _locationRisk + _appRisk + _aadRisk + _newStarterRisk
+        + _uaRisk + _locationRisk + _appRisk + _aadRisk + _sprayRisk + _newStarterRisk
 | extend
-    // --- Build a human-readable list of what's contributing ---
     RiskFlags = strcat_array(array_concat(
-        iff(_ipOrgRisk > 0,             pack_array("IP_NEW_TO_ORG"), dynamic([])),
-        iff(_ipUserRisk > 0,            pack_array("IP_NEW_TO_USER"), dynamic([])),
-        iff(_deviceMgmtRisk > 0,        pack_array("UNMANAGED_DEVICE"), dynamic([])),
-        iff(_deviceFamiliarityRisk > 0,  pack_array("DEVICE_NEW_TO_USER"), dynamic([])),
-        iff(_uaRisk > 0,               pack_array("UA_NEW_TO_USER"), dynamic([])),
-        iff(_locationRisk > 0,          pack_array("LOCATION_NEW_TO_USER"), dynamic([])),
-        iff(_appRisk > 0,              pack_array("APP_NEW_TO_USER"), dynamic([])),
-        iff(_aadRisk > 0,              pack_array("AAD_RISK_FLAGGED"), dynamic([])),
-        iff(_newStarterRisk > 0,        pack_array("NEW_STARTER"), dynamic([]))
+        iff(_ipOrgRisk > 0, pack_array("IP_NEW_TO_ORG"), dynamic([])),
+        iff(_ipUserRisk > 0, pack_array("IP_NEW_TO_USER"), dynamic([])),
+        iff(_deviceMgmtRisk > 0, pack_array("UNMANAGED_DEVICE"), dynamic([])),
+        iff(_deviceFamiliarityRisk > 0, pack_array("DEVICE_NEW_TO_USER"), dynamic([])),
+        iff(_uaRisk > 0, pack_array("UA_NEW_TO_USER"), dynamic([])),
+        iff(_locationRisk > 0, pack_array("LOCATION_NEW_TO_USER"), dynamic([])),
+        iff(_appRisk > 0, pack_array("APP_NEW_TO_USER"), dynamic([])),
+        iff(_aadRisk > 0, pack_array("AAD_RISK_FLAGGED"), dynamic([])),
+        iff(_sprayRisk > 0, pack_array("IP_FAIL_HEAVY"), dynamic([])),
+        iff(_newStarterRisk > 0, pack_array("NEW_STARTER"), dynamic([]))
     ), " | ")
 | extend
     TriageVerdict = case(
@@ -144,65 +183,22 @@ SigninLogs
         "🟢 LIKELY BENIGN"
     )
 //
-// ============================================================================
-// OUTPUT
-// ============================================================================
-| project-reorder
-    TriageVerdict,
-    RiskScore,
-    RiskFlags,
-    EventTime,
-    LogCreatedTime,
-    IsManaged,
-    IsCompliant,
-    TrustType,
-    RiskDetail,
-    RiskEventTypes,
-    UsersWIPCount,
-    UsersWithThisIP,
-    StartDate,
-    NewStarterJobTitle,
-    Identity,
-    JobTitle,
-    RiskLevel,
-    AssignedRoles,
-    Manager,
-    IPAddress,
-    DaysIpSeenInOrg,
-    DaysIpSeenUser,
-    ResultType,
-    ResultDescription,
-    AppDayCount,
-    AppDisplayName,
-    DaysLocationSeenUser,
-    LocationShort,
+// ------- output -------
+| project
+    TriageVerdict, RiskScore, RiskFlags, SigninType,
+    EventTime, LogCreatedTime,
+    IsManaged, IsCompliant, TrustType,
+    RiskLevelDuringSignIn, RiskState, RiskDetail, RiskEventTypes,
+    UsersWIPCount, UsersWithThisIP,
+    StartDate, NewStarterJobTitle,
+    UserPrincipalName, Identity, JobTitle, RiskLevel, AssignedRoles, Manager,
+    IPAddress, DaysIpSeenInOrg, DaysIpSeenUser, OrgFailuresFromIP,
+    ResultType, ResultDescription,
+    AppDayCount, AppDisplayName,
+    DaysLocationSeenUser, LocationKey,
     AuthenticationDetails,
-    DeviceDayCount,
-    DeviceDisplayName,
-    DeviceOS,
-    DeviceBrowser,
-    DeviceDetail,
-    UserAgentDayCount,
-    UserAgent,
-    MfaDetail,
-    ConditionalAccessPolicies,
-    ConditionalAccessStatus,
+    DeviceDayCount, DeviceDisplayName, DeviceOS, DeviceBrowser, DeviceKey, DeviceDetailStr,
+    UserAgentDayCount, UserAgent,
+    MfaDetail, ConditionalAccessPolicies, ConditionalAccessStatus,
     CorrelationId
-| project-away
-    TenantId, SourceSystem, Resource*, Operation*, Category, ResultSignature,
-    DurationMs, Level, Location, AppId, AuthenticationContextClassReferences,
-    AuthenticationProcessingDetails, AuthenticationRe*, ClientAppUsed,
-    IsInteractive, Id, LocationDetails, NetworkLocationDetails,
-    OriginalRequestId, ProcessingTimeInMilliseconds, RiskEventTypes_V2,
-    RiskLevelAggregated, RiskLevelDuringSignIn, RiskState, Status, Token*,
-    UserDisplayName, AADTenantId, UserType, HomeTenantId, UniqueTokenIdentifier,
-    SessionLifetimePolicies, AutonomousSystemNumber, AuthenticationProtocol,
-    Type, DeviceString, LocationString, DeviceShort, Identity1, IPAddress1,
-    IPAddress2, IPAddress3, DeviceShort1,
-    UserAgent1, LocationShort1, AppDisplayName1, AlternateSignInName,
-    SignInIdentifier, CrossTenantAccessType, ClientCredentialType,
-    IsThroughGlobalSecureAccess, OriginalTransferMethod, IsTenantRestricted,
-    UserId, IncomingTokenType, DeviceParsed, LocationParsed,
-    _ipOrgRisk, _ipUserRisk, _deviceMgmtRisk, _deviceFamiliarityRisk,
-    _uaRisk, _locationRisk, _appRisk, _aadRisk, _newStarterRisk
 | sort by EventTime desc
