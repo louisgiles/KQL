@@ -1,0 +1,835 @@
+// ============================================================================
+// BABBLER: IDENTITY POSTURE / BEHAVIOURAL SIGN-IN NOVELTY
+// Hardened workbench: 0.3.1
+//
+// PURPOSE
+//   Scores the last 24 hours of a user's interactive authentication flows
+//   against the immediately preceding 90-day successful-flow baseline.
+//   Per-dimension values are priced in bits using a coherent, smoothed unseen
+//   bucket. Result-code rarity is reported separately from behavioural context.
+//   Applicability-aware coverage prevents native flows from being penalised for
+//   fields that do not apply. Raw and disposition-adjusted novelty stay separate.
+//
+// ENVIRONMENT
+//   Microsoft Sentinel / Log Analytics
+//
+// REQUIRED TABLE / COLUMNS
+//   SigninLogs
+//   TimeGenerated, CreatedDateTime, UserPrincipalName, UserId, IsInteractive,
+//   Id, OriginalRequestId, CorrelationId, SessionId, IPAddress,
+//   AutonomousSystemNumber, Location, LocationDetails, DeviceDetail,
+//   AppId, AppDisplayName, AuthenticationProtocol, AuthenticationRequirement,
+//   AuthenticationMethodsUsed, ClientAppUsed, ResultType, ResultDescription,
+//   ConditionalAccessStatus, RiskLevelDuringSignIn, RiskEventTypes_V2,
+//   RiskState, RiskDetail, IsRisky, CrossTenantAccessType, HomeTenantId,
+//   ResourceTenantId, TokenProtectionStatusDetails.
+//
+// SCOPE / EXCLUSIONS
+//   Interactive user sign-ins only: IsInteractive == true.
+//   Non-interactive, service-principal and managed-identity sign-ins excluded.
+//   Context vocabularies train on successful terminal flows only.
+//   Result-code vocabulary trains on all terminal flows.
+//   Missing applicable telemetry is surfaced but never priced as behaviour.
+//   Non-applicable dimensions are excluded from both price and coverage.
+//   Protocol is scored; requirement and method details remain evidence-only.
+//
+// OUTPUTS
+//   RUN 1: exact-window baseline integrity chart
+//   RUN 2: scored authentication flows, hottest first
+//   RUN 3: baseline vocabulary profile
+//   RUN 4: pasteable investigation note
+//   RUN 5: baseline-health / parameter diagnostic
+//   RUN 6: per-dimension novelty-price diagnostic
+//   RUN 7: per-flow, per-dimension scoring microscope
+//
+// IMPORTANT
+//   RawContextBits is an explanatory independent-marginal score, not a finding
+//   of compromise. AdjustedContextBits is an operational view only; it never
+//   rewrites raw history. This build reports RarityBand=uncalibrated. Validate
+//   against tenant data before assigning percentile or severity bands.
+//
+// V3.1 HARDENING
+//   - Browser applicability is derived from client type and observed telemetry.
+//   - Protocol is scored separately from requirement/method evidence.
+//   - Coverage uses applicable dimensions instead of a fixed denominator.
+//   - Raw and actionable novelty patterns are both retained.
+//   - Raw/adjusted per-dimension bits and two model microscopes are exposed.
+//   - A fixed UTC anchor keeps every independently-run instrument aligned.
+//   - Baseline charts explicitly render zero-flow days instead of joining gaps.
+//   - Ticket output summarizes expected flows and bounds detailed findings.
+//   - RUN 7 emits a copy-safe disposition key from the exact scored values.
+// ============================================================================
+//
+// ============================================================
+// ZONE 1: PARAMETERS. Per-run and per-user facts only.
+// ============================================================
+let TargetUPN            = "<upn>";     // required; current or historical UPN
+let AnchorTime           = datetime(2026-08-08T14:29:00Z); // fixed test anchor
+let ScoreWindow          = 1d;
+let BaselineWindow       = 90d;
+let IngestionGrace       = 2d;          // captures modestly late-arriving rows
+let MinBaselineEvents    = 25;
+let MinBaselineActiveDays= 7;
+let NoBaselineFloor      = 5;
+let MinModelCoveragePct  = 75.0;
+let MaxNoteFindings      = 20;
+let TargetConfigured     = isnotempty(TargetUPN) and TargetUPN != "<upn>";
+let AnchorConfigured     = isnotnull(AnchorTime);
+let ScoreEnd             = AnchorTime;
+let ScoreStart           = ScoreEnd - ScoreWindow;
+let ModelEnd             = ScoreStart;
+let ModelStart           = ModelEnd - BaselineWindow;
+//
+// Per-user verdict ledger. Keep one row per UserId + Dimension + Value.
+// RawBits is never changed; an active entry changes AdjustedBits only.
+// Copy DispositionKey from RUN 7; app values use AppId, not display name.
+let Dispositioned = datatable(
+    UserId: string,
+    Dimension: string,
+    Value: string,
+    ValidFrom: datetime,
+    ExpiresOn: datetime,
+    CaseId: string,
+    DispositionNote: string
+)[
+    // "00000000-0000-0000-0000-000000000000", "asn", "12576",
+    // datetime(2026-08-01), datetime(2026-09-01), "CASE-12345",
+    // "Confirmed corporate/mobile egress"
+];
+//
+// ============================================================
+// ZONE 2: ENGINE. Not edited per run.
+// ============================================================
+// === SECTION 1: resolve the analyst-friendly UPN to stable UserId ===
+let ResolvedUserId = toscalar(
+    SigninLogs
+    | where TimeGenerated >= ModelStart - IngestionGrace
+    | where TimeGenerated < ScoreEnd + IngestionGrace
+    | where UserPrincipalName =~ TargetUPN
+    | where isnotempty(UserId)
+    | summarize arg_max(TimeGenerated, UserId)
+    | project UserId
+);
+//
+// === SECTION 2: scoped raw rows, with event time distinct from ingestion ===
+let RawSigninRows = materialize(
+    SigninLogs
+    | where TimeGenerated >= ModelStart - IngestionGrace
+    | where TimeGenerated < ScoreEnd + IngestionGrace
+    | where IsInteractive == true
+    | where iff(isnotempty(ResolvedUserId),
+                UserId == ResolvedUserId,
+                UserPrincipalName =~ TargetUPN)
+    | extend EventTime = coalesce(CreatedDateTime, TimeGenerated)
+    | where EventTime >= ModelStart and EventTime < ScoreEnd
+    | extend FlowKey = case(
+        isnotempty(OriginalRequestId), OriginalRequestId,
+        isnotempty(CorrelationId),     CorrelationId,
+        isnotempty(Id),                Id,
+        strcat("fallback:", tostring(EventTime), "|", IPAddress,
+               "|", AppId, "|", tostring(ResultType)))
+    | project
+        EventTime, TimeGenerated, FlowKey, Id, OriginalRequestId,
+        CorrelationId, SessionId, UserId, UserPrincipalName,
+        IPAddress, AutonomousSystemNumber, Location, LocationDetails,
+        DeviceDetail, AppId, AppDisplayName, AuthenticationProtocol,
+        AuthenticationRequirement, AuthenticationMethodsUsed,
+        ClientAppUsed, ResultType, ResultDescription,
+        ConditionalAccessStatus, RiskLevelDuringSignIn,
+        RiskEventTypes_V2, RiskState, RiskDetail, IsRisky,
+        CrossTenantAccessType, HomeTenantId, ResourceTenantId,
+        TokenProtectionStatusDetails
+);
+//
+// === SECTION 3: collapse Azure Monitor rows into authentication flows ===
+let Prep = materialize(
+    RawSigninRows
+    | summarize
+        RawRecordCount = count(),
+        FlowStart = min(EventTime),
+        FlowEnd = max(EventTime),
+        ResultSet = make_set(tostring(ResultType), 16),
+        AuthMethodsSet = make_set(AuthenticationMethodsUsed, 16),
+        arg_max(
+            TimeGenerated,
+            EventTime, Id, OriginalRequestId, CorrelationId, SessionId,
+            UserId, UserPrincipalName, IPAddress, AutonomousSystemNumber,
+            Location, LocationDetails, DeviceDetail, AppId, AppDisplayName,
+            AuthenticationProtocol, AuthenticationRequirement,
+            AuthenticationMethodsUsed, ClientAppUsed, ResultType,
+            ResultDescription, ConditionalAccessStatus,
+            RiskLevelDuringSignIn, RiskEventTypes_V2, RiskState, RiskDetail,
+            IsRisky, CrossTenantAccessType, HomeTenantId, ResourceTenantId,
+            TokenProtectionStatusDetails)
+      by FlowKey
+    | extend Dev = DeviceDetail, Loc = LocationDetails
+    | extend
+        OsRaw = tostring(Dev.operatingSystem),
+        BrowserRaw = tostring(Dev.browser),
+        ProtocolRaw = tostring(AuthenticationProtocol),
+        AuthMethodsRaw = tostring(AuthenticationMethodsUsed)
+    | extend
+        DimAsn = iff(isempty(tostring(AutonomousSystemNumber)),
+                     "<missing>", tostring(AutonomousSystemNumber)),
+        DimCountry = toupper(coalesce(
+                         Location,
+                         tostring(Loc.countryOrRegion),
+                         "<missing>")),
+        DeviceId = iff(isempty(tostring(Dev.deviceId)),
+                       "<unregistered>", tostring(Dev.deviceId)),
+        DeviceTrust = iff(isempty(tostring(Dev.trustType)),
+                          "<none>", tostring(Dev.trustType)),
+        DeviceCompliant = iff(isempty(tostring(Dev.isCompliant)),
+                              "<unknown>", tostring(Dev.isCompliant)),
+        DimOs = tolower(replace_regex(
+                    iff(isempty(OsRaw), "<missing>", OsRaw),
+                    @'[0-9]+([.][0-9]+)*', "#")),
+        DimBrowser = tolower(replace_regex(
+                         iff(isempty(BrowserRaw), "<missing>", BrowserRaw),
+                         @'[0-9]+([.][0-9]+)*', "#")),
+        DimApp = coalesce(AppId, AppDisplayName, "<missing>"),
+        DimProtocol = tolower(iff(
+                          isempty(ProtocolRaw), "<missing>", ProtocolRaw)),
+        DimClient = coalesce(ClientAppUsed, "<missing>"),
+        DimResult = iff(isempty(tostring(ResultType)),
+                        "<missing>", tostring(ResultType)),
+        BrowserExpected = ClientAppUsed has "Browser",
+        AuthMethodsObserved = isnotempty(AuthMethodsRaw)
+                              and AuthMethodsRaw != "[]",
+        IngestionDelay = TimeGenerated - EventTime
+    | extend
+        BrowserApplicable = BrowserExpected or isnotempty(BrowserRaw),
+        BrowserMissing = BrowserExpected and isempty(BrowserRaw),
+        AuthRequirementDisplay = iff(
+            isempty(AuthenticationRequirement),
+            "<not_reported>", AuthenticationRequirement),
+        AuthMethodsDisplay = iff(
+            AuthMethodsObserved, AuthMethodsRaw, "<not_reported>"),
+        AuthEvidenceState = case(
+            AuthMethodsObserved, "observed",
+            AuthenticationProtocol in~ ("saml20", "wsFederation"),
+                "federated_upstream",
+            AuthenticationRequirement =~ "multiFactorAuthentication",
+                "missing_expected",
+            "not_reported")
+    | extend
+        DimDevice = DeviceId,
+        Registered = iff(DeviceId == "<unregistered>",
+                         "unregistered device", "registered device"),
+        EvidenceGaps = set_difference(
+            pack_array(
+                iff(AuthEvidenceState == "missing_expected",
+                    "authmethods", "")),
+            dynamic([""])),
+        ControlFlags = set_difference(
+            pack_array(
+                iff(DeviceId == "<unregistered>",
+                    "unregistered_device", ""),
+                iff(tolower(DeviceCompliant) == "false",
+                    "noncompliant_device", ""),
+                iff(tolower(ConditionalAccessStatus) == "failure",
+                    "conditional_access_failure", ""),
+                iff(AuthenticationProtocol =~ "ropc"
+                    or ClientAppUsed in~
+                       ("Exchange ActiveSync", "IMAP", "MAPI", "SMTP", "POP"),
+                    "legacy_auth", ""),
+                iff(IsRisky == true
+                    or RiskLevelDuringSignIn in~ ("medium", "high"),
+                    "entra_risk_signal", ""),
+                iff(isnotempty(CrossTenantAccessType)
+                    and CrossTenantAccessType !~ "none",
+                    "cross_tenant", "")),
+            dynamic([""]))
+);
+//
+// === SECTION 4: long form, one row per flow + dimension + value ===
+let PrepLong = (start: datetime, stop: datetime) {
+    Prep
+    | where EventTime >= start and EventTime < stop
+    | extend Dims = pack_array(
+        bag_pack("d", "asn",       "p", "network", "context", true,
+                 "v", DimAsn,      "a", true,
+                 "m", DimAsn == "<missing>"),
+        bag_pack("d", "country",   "p", "network", "context", true,
+                 "v", DimCountry,  "a", true,
+                 "m", DimCountry == "<missing>"),
+        bag_pack("d", "device",    "p", "client",  "context", true,
+                 "v", DimDevice,   "a", true, "m", false),
+        bag_pack("d", "os",        "p", "client",  "context", true,
+                 "v", DimOs,       "a", true,
+                 "m", DimOs == "<missing>"),
+        bag_pack("d", "browser",   "p", "client",  "context", true,
+                 "v", DimBrowser,  "a", BrowserApplicable,
+                 "m", BrowserMissing),
+        bag_pack("d", "app",       "p", "access",  "context", true,
+                 "v", DimApp,      "a", true,
+                 "m", DimApp == "<missing>"),
+        bag_pack("d", "protocol",  "p", "access",  "context", true,
+                 "v", DimProtocol, "a", true,
+                 "m", DimProtocol == "<missing>"),
+        bag_pack("d", "clientapp", "p", "access",  "context", true,
+                 "v", DimClient,   "a", true,
+                 "m", DimClient == "<missing>"),
+        bag_pack("d", "result",    "p", "outcome", "context", false,
+                 "v", DimResult,   "a", true,
+                 "m", DimResult == "<missing>"))
+    | mv-expand D = Dims
+    | extend
+        Dimension = tostring(D.d),
+        Plane = tostring(D.p),
+        IncludeContext = tobool(D.context),
+        Value = tostring(D.v),
+        Applicable = tobool(D.a),
+        Missing = tobool(D.m)
+    | project-away D, Dims
+};
+//
+// === SECTION 5: baseline health, trained on successful terminal flows ===
+let BaselineHealth = materialize(
+    Prep
+    | where EventTime >= ModelStart and EventTime < ModelEnd
+    | where DimResult == "0"
+    | summarize
+        BaselineFlows = count(),
+        BaselineActiveDays = dcount(startofday(EventTime)),
+        BaselineFirst = min(EventTime),
+        BaselineLast = max(EventTime)
+);
+let BaselineN = toscalar(
+    BaselineHealth | project BaselineFlows);
+let BaselineDays = toscalar(
+    BaselineHealth | project BaselineActiveDays);
+let BaselineStateScalar = case(
+    TargetConfigured == false, "target_not_set",
+    AnchorConfigured == false, "anchor_not_set",
+    BaselineN < NoBaselineFloor, "no_baseline",
+    BaselineN < MinBaselineEvents or BaselineDays < MinBaselineActiveDays,
+        "thin_baseline",
+    "ready");
+//
+// === SECTION 6: per-dimension vocabularies ===
+// Context dimensions learn successful flows. Outcome learns all flows.
+let BaselineLong = materialize(
+    PrepLong(ModelStart, ModelEnd)
+    | where Applicable == true
+    | where Missing == false
+    | where IncludeContext == false or DimResult == "0"
+);
+let Model = materialize(
+    BaselineLong
+    | summarize
+        ValueCount = count(),
+        DaysSeen = dcount(startofday(EventTime)),
+        LastSeen = max(EventTime),
+        DisplayValue = take_any(
+            iff(Dimension == "app",
+                strcat(AppDisplayName, " [", Value, "]"),
+                Value))
+      by Dimension, Value
+);
+//
+// === SECTION 7: coherent, smoothed unseen-bucket price ===
+let DimStats = materialize(
+    Model
+    | summarize
+        DimTotal = sum(ValueCount),
+        Vocabulary = count(),
+        Singletons = countif(ValueCount == 1)
+      by Dimension
+    | extend PUnseen = (todouble(Singletons) + 0.5)
+                       / (todouble(DimTotal) + 1.0)
+);
+//
+// === SECTION 8: score the recent flows ===
+let ScoredLong = materialize(
+    PrepLong(ScoreStart, ScoreEnd)
+    | lookup kind=leftouter Model on Dimension, Value
+    | lookup kind=leftouter DimStats on Dimension
+    | lookup kind=leftouter Dispositioned on UserId, Dimension, Value
+    | extend HasModel = isnotnull(DimTotal) and DimTotal > 0
+    | extend Novel = Applicable and Missing == false
+                     and HasModel and isnull(ValueCount)
+    | extend Probability = case(
+        Applicable == false or Missing or HasModel == false, real(null),
+        Novel, PUnseen,
+        (1.0 - PUnseen)
+            * todouble(ValueCount)
+            / todouble(DimTotal))
+    | extend RawBits = case(
+        BaselineStateScalar != "ready" or isnull(Probability), real(null),
+        -log2(Probability))
+    | extend DispositionApplies =
+        isnotempty(DispositionNote)
+        and Applicable and Missing == false
+        and (isnull(ValidFrom) or EventTime >= ValidFrom)
+        and (isnull(ExpiresOn) or EventTime < ExpiresOn)
+    | extend ActionableNovel = Novel and DispositionApplies == false
+    | extend AdjustedBits = case(
+        isnull(RawBits), real(null),
+        DispositionApplies, 0.0,
+        RawBits)
+);
+//
+// === SECTION 9: one analyst-facing row per authentication flow ===
+let Scored = materialize(
+    ScoredLong
+    | summarize
+        RawContextBitsCalc = sumif(RawBits, IncludeContext),
+        AdjustedContextBitsCalc = sumif(AdjustedBits, IncludeContext),
+        RawOutcomeBitsCalc = sumif(RawBits, IncludeContext == false),
+        AdjustedOutcomeBitsCalc = sumif(
+            AdjustedBits, IncludeContext == false),
+        RawAsnBitsCalc = sumif(RawBits, Dimension == "asn"),
+        AdjustedAsnBitsCalc = sumif(AdjustedBits, Dimension == "asn"),
+        RawCountryBitsCalc = sumif(RawBits, Dimension == "country"),
+        AdjustedCountryBitsCalc = sumif(
+            AdjustedBits, Dimension == "country"),
+        RawDeviceBitsCalc = sumif(RawBits, Dimension == "device"),
+        AdjustedDeviceBitsCalc = sumif(
+            AdjustedBits, Dimension == "device"),
+        RawOsBitsCalc = sumif(RawBits, Dimension == "os"),
+        AdjustedOsBitsCalc = sumif(AdjustedBits, Dimension == "os"),
+        RawBrowserBitsCalc = sumif(RawBits, Dimension == "browser"),
+        AdjustedBrowserBitsCalc = sumif(
+            AdjustedBits, Dimension == "browser"),
+        RawAppBitsCalc = sumif(RawBits, Dimension == "app"),
+        AdjustedAppBitsCalc = sumif(AdjustedBits, Dimension == "app"),
+        RawProtocolBitsCalc = sumif(RawBits, Dimension == "protocol"),
+        AdjustedProtocolBitsCalc = sumif(
+            AdjustedBits, Dimension == "protocol"),
+        RawClientAppBitsCalc = sumif(
+            RawBits, Dimension == "clientapp"),
+        AdjustedClientAppBitsCalc = sumif(
+            AdjustedBits, Dimension == "clientapp"),
+        RawResultBitsCalc = sumif(RawBits, Dimension == "result"),
+        AdjustedResultBitsCalc = sumif(
+            AdjustedBits, Dimension == "result"),
+        AsnScoreCount = countif(
+            Dimension == "asn" and isnotnull(RawBits)),
+        CountryScoreCount = countif(
+            Dimension == "country" and isnotnull(RawBits)),
+        DeviceScoreCount = countif(
+            Dimension == "device" and isnotnull(RawBits)),
+        OsScoreCount = countif(
+            Dimension == "os" and isnotnull(RawBits)),
+        BrowserScoreCount = countif(
+            Dimension == "browser" and isnotnull(RawBits)),
+        AppScoreCount = countif(
+            Dimension == "app" and isnotnull(RawBits)),
+        ProtocolScoreCount = countif(
+            Dimension == "protocol" and isnotnull(RawBits)),
+        ClientAppScoreCount = countif(
+            Dimension == "clientapp" and isnotnull(RawBits)),
+        ResultScoreCount = countif(
+            Dimension == "result" and isnotnull(RawBits)),
+        ApplicableContextDims = countif(IncludeContext and Applicable),
+        ScoredContextDims = countif(IncludeContext and isnotnull(RawBits)),
+        RawNetworkNovelCount = countif(
+            Novel and IncludeContext and Plane == "network"),
+        RawClientNovelCount = countif(
+            Novel and IncludeContext and Plane == "client"),
+        RawAccessNovelCount = countif(
+            Novel and IncludeContext and Plane == "access"),
+        ActionableNetworkNovelCount = countif(
+            ActionableNovel and IncludeContext and Plane == "network"),
+        ActionableClientNovelCount = countif(
+            ActionableNovel and IncludeContext and Plane == "client"),
+        ActionableAccessNovelCount = countif(
+            ActionableNovel and IncludeContext and Plane == "access"),
+        RawOutcomeNovelCount = countif(Novel and IncludeContext == false),
+        ActionableOutcomeNovelCount = countif(
+            ActionableNovel and IncludeContext == false),
+        RawNovelDims = make_set_if(
+            Dimension, Novel and IncludeContext),
+        ActionableNovelDims = make_set_if(
+            Dimension, ActionableNovel and IncludeContext),
+        MissingDims = make_set_if(Dimension, Applicable and Missing),
+        NotApplicableDims = make_set_if(Dimension, Applicable == false),
+        UnmodelledDims = make_set_if(
+            Dimension,
+            Applicable and Missing == false and HasModel == false),
+        DispositionHits = make_set_if(
+            strcat(Dimension, "=", Value, " [", CaseId, "]"),
+            DispositionApplies),
+        take_any(
+            TimeGenerated, UserId, UserPrincipalName, IPAddress,
+            AutonomousSystemNumber, Location, AppDisplayName, AppId,
+            DeviceId, DeviceTrust, DeviceCompliant, Registered,
+            DimOs, DimBrowser, BrowserApplicable, DimProtocol,
+            DimClient, DimResult, AuthenticationRequirement,
+            AuthenticationMethodsUsed, AuthRequirementDisplay,
+            AuthMethodsDisplay, AuthMethodsSet, AuthEvidenceState,
+            EvidenceGaps, ResultDescription, ResultSet,
+            ConditionalAccessStatus, RiskLevelDuringSignIn,
+            RiskEventTypes_V2, RiskState, RiskDetail,
+            CrossTenantAccessType, HomeTenantId, ResourceTenantId,
+            TokenProtectionStatusDetails, SessionId, OriginalRequestId,
+            CorrelationId, RawRecordCount, FlowStart, FlowEnd,
+            IngestionDelay, ControlFlags)
+      by FlowKey, EventTime
+    | extend
+        RawContextBits = iff(
+            BaselineStateScalar == "ready" and ScoredContextDims > 0,
+            round(RawContextBitsCalc, 1), real(null)),
+        AdjustedContextBits = iff(
+            BaselineStateScalar == "ready" and ScoredContextDims > 0,
+            round(AdjustedContextBitsCalc, 1), real(null)),
+        RawOutcomeBits = iff(
+            BaselineStateScalar == "ready" and ResultScoreCount > 0,
+            round(RawOutcomeBitsCalc, 1), real(null)),
+        AdjustedOutcomeBits = iff(
+            BaselineStateScalar == "ready" and ResultScoreCount > 0,
+            round(AdjustedOutcomeBitsCalc, 1), real(null)),
+        RawAsnBits = iff(AsnScoreCount > 0,
+                         round(RawAsnBitsCalc, 1), real(null)),
+        AdjustedAsnBits = iff(AsnScoreCount > 0,
+                              round(AdjustedAsnBitsCalc, 1), real(null)),
+        RawCountryBits = iff(CountryScoreCount > 0,
+                             round(RawCountryBitsCalc, 1), real(null)),
+        AdjustedCountryBits = iff(CountryScoreCount > 0,
+                                  round(AdjustedCountryBitsCalc, 1), real(null)),
+        RawDeviceBits = iff(DeviceScoreCount > 0,
+                            round(RawDeviceBitsCalc, 1), real(null)),
+        AdjustedDeviceBits = iff(DeviceScoreCount > 0,
+                                 round(AdjustedDeviceBitsCalc, 1), real(null)),
+        RawOsBits = iff(OsScoreCount > 0,
+                        round(RawOsBitsCalc, 1), real(null)),
+        AdjustedOsBits = iff(OsScoreCount > 0,
+                             round(AdjustedOsBitsCalc, 1), real(null)),
+        RawBrowserBits = iff(BrowserScoreCount > 0,
+                             round(RawBrowserBitsCalc, 1), real(null)),
+        AdjustedBrowserBits = iff(BrowserScoreCount > 0,
+                                  round(AdjustedBrowserBitsCalc, 1), real(null)),
+        RawAppBits = iff(AppScoreCount > 0,
+                         round(RawAppBitsCalc, 1), real(null)),
+        AdjustedAppBits = iff(AppScoreCount > 0,
+                              round(AdjustedAppBitsCalc, 1), real(null)),
+        RawProtocolBits = iff(ProtocolScoreCount > 0,
+                              round(RawProtocolBitsCalc, 1), real(null)),
+        AdjustedProtocolBits = iff(ProtocolScoreCount > 0,
+                                   round(AdjustedProtocolBitsCalc, 1),
+                                   real(null)),
+        RawClientAppBits = iff(ClientAppScoreCount > 0,
+                               round(RawClientAppBitsCalc, 1), real(null)),
+        AdjustedClientAppBits = iff(ClientAppScoreCount > 0,
+                                    round(AdjustedClientAppBitsCalc, 1),
+                                    real(null)),
+        RawResultBits = iff(ResultScoreCount > 0,
+                            round(RawResultBitsCalc, 1), real(null)),
+        AdjustedResultBits = iff(ResultScoreCount > 0,
+                                 round(AdjustedResultBitsCalc, 1), real(null)),
+        ModelCoverage = iff(
+            ApplicableContextDims > 0,
+            round(100.0 * todouble(ScoredContextDims)
+                  / todouble(ApplicableContextDims), 1),
+            real(null))
+    | extend
+        RawMultiContextPlane =
+            (RawNetworkNovelCount > 0 and RawClientNovelCount > 0)
+            or (RawNetworkNovelCount > 0 and RawAccessNovelCount > 0)
+            or (RawClientNovelCount > 0 and RawAccessNovelCount > 0),
+        ActionableMultiContextPlane =
+            (ActionableNetworkNovelCount > 0
+             and ActionableClientNovelCount > 0)
+            or (ActionableNetworkNovelCount > 0
+                and ActionableAccessNovelCount > 0)
+            or (ActionableClientNovelCount > 0
+                and ActionableAccessNovelCount > 0)
+    | extend
+        BaselineState = BaselineStateScalar,
+        BaselineFlows = BaselineN,
+        BaselineActiveDays = BaselineDays,
+        ExpectedContextDims = 8,
+        RawNoveltyPattern = case(
+            BaselineStateScalar != "ready", "not_assessed",
+            RawMultiContextPlane, "multi_plane",
+            RawNetworkNovelCount > 0, "network",
+            RawClientNovelCount > 0, "client",
+            RawAccessNovelCount > 0, "access",
+            "all_context_values_seen"),
+        ActionableNoveltyPattern = case(
+            BaselineStateScalar != "ready", "not_assessed",
+            array_length(RawNovelDims) > 0
+                and array_length(ActionableNovelDims) == 0,
+                "fully_dispositioned",
+            ActionableMultiContextPlane, "multi_plane",
+            ActionableNetworkNovelCount > 0, "network",
+            ActionableClientNovelCount > 0, "client",
+            ActionableAccessNovelCount > 0, "access",
+            "all_context_values_seen"),
+        RawOutcomeNovel = BaselineStateScalar == "ready"
+                          and RawOutcomeNovelCount > 0,
+        ActionableOutcomeNovel = BaselineStateScalar == "ready"
+                                 and ActionableOutcomeNovelCount > 0,
+        RarityBand = "uncalibrated",
+        DispositionState = iff(
+            array_length(DispositionHits) > 0, "applied", "none"),
+        ScoreConfidence = case(
+            BaselineStateScalar != "ready", "not_scored",
+            isnull(ModelCoverage) or ModelCoverage < MinModelCoveragePct,
+                "low_model_coverage",
+            array_length(MissingDims) > 0
+                or array_length(EvidenceGaps) > 0,
+                "reduced_missing_telemetry",
+            "standard")
+    | extend Assessment = case(
+        BaselineState == "target_not_set",
+            "Not assessed: set TargetUPN in Zone 1.",
+        BaselineState == "anchor_not_set",
+            "Not assessed: set one fixed UTC AnchorTime in Zone 1.",
+        BaselineState == "no_baseline",
+            "Not assessed: fewer than the no-baseline floor of successful flows.",
+        BaselineState == "thin_baseline",
+            "Not assessed: baseline is too thin for confident bits.",
+        array_length(ControlFlags) > 0
+            and ActionableNoveltyPattern !in
+                ("all_context_values_seen", "fully_dispositioned"),
+            "Novel identity context with one or more deterministic control flags; investigate.",
+        array_length(ControlFlags) > 0,
+            "Known identity context with one or more deterministic control flags; review the flags.",
+        ActionableNoveltyPattern == "fully_dispositioned",
+            "Raw novelty observed; active dispositions removed it from the actionable view.",
+        ActionableNoveltyPattern != "all_context_values_seen",
+            "Novel identity context observed; compromise is not established.",
+        "All scored context values were previously observed; compromise is not excluded.")
+    | project-away
+        RawContextBitsCalc, AdjustedContextBitsCalc,
+        RawOutcomeBitsCalc, AdjustedOutcomeBitsCalc,
+        RawAsnBitsCalc, AdjustedAsnBitsCalc,
+        RawCountryBitsCalc, AdjustedCountryBitsCalc,
+        RawDeviceBitsCalc, AdjustedDeviceBitsCalc,
+        RawOsBitsCalc, AdjustedOsBitsCalc,
+        RawBrowserBitsCalc, AdjustedBrowserBitsCalc,
+        RawAppBitsCalc, AdjustedAppBitsCalc,
+        RawProtocolBitsCalc, AdjustedProtocolBitsCalc,
+        RawClientAppBitsCalc, AdjustedClientAppBitsCalc,
+        RawResultBitsCalc, AdjustedResultBitsCalc,
+        AsnScoreCount, CountryScoreCount, DeviceScoreCount, OsScoreCount,
+        BrowserScoreCount, AppScoreCount, ProtocolScoreCount,
+        ClientAppScoreCount, ResultScoreCount,
+        RawMultiContextPlane, ActionableMultiContextPlane
+);
+//
+// ============================================================
+// ZONE 3: RUN SECTION. Exactly one block is live at a time.
+// ============================================================
+// FLIGHT MANUAL
+//   1. Paste the whole file. Set TargetUPN and one literal UTC AnchorTime.
+//      Example: datetime(2026-08-08T14:57:00Z). Never use now() here: each
+//      RUN block is a separate execution and would otherwise move its windows.
+//   2. RUN 5 ships live. Confirm parameter state ready and aligned windows.
+//   3. Ground the live block with Ctrl+/, then wake one other block with Ctrl+/.
+//   4. Include the BLOCK HEAD line when toggling. Shift+Enter to run.
+//   5. Keep comment-only spacer lines as //. Do not introduce blank boundaries.
+// ============================================================
+// RUN 1: baseline integrity, exact model window and collapsed flows.
+// Prep                                    // BLOCK HEAD
+// | where EventTime >= ModelStart and EventTime < ModelEnd
+// | make-series kind=nonempty
+//     Flows = count() default=0,
+//     SuccessfulFlows = countif(DimResult == "0") default=0,
+//     FailedFlows = countif(DimResult != "0") default=0
+//   on EventTime from ModelStart to ModelEnd step 1d
+// | render timechart
+//
+// RUN 2: scored 24h, hottest first. Raw and adjusted scores remain separate.
+// Scored                                  // BLOCK HEAD
+// | project
+//     EventTime, RawContextBits, AdjustedContextBits,
+//     RawOutcomeBits, AdjustedOutcomeBits,
+//     RawNoveltyPattern, ActionableNoveltyPattern,
+//     RawNovelDims, ActionableNovelDims,
+//     RawOutcomeNovel, ActionableOutcomeNovel,
+//     RawAsnBits, AdjustedAsnBits,
+//     RawCountryBits, AdjustedCountryBits,
+//     RawDeviceBits, AdjustedDeviceBits,
+//     RawOsBits, AdjustedOsBits,
+//     RawBrowserBits, AdjustedBrowserBits,
+//     RawAppBits, AdjustedAppBits,
+//     RawProtocolBits, AdjustedProtocolBits,
+//     RawClientAppBits, AdjustedClientAppBits,
+//     RawResultBits, AdjustedResultBits,
+//     BaselineState, ScoreConfidence, RarityBand,
+//     ExpectedContextDims, ApplicableContextDims, ScoredContextDims,
+//     ModelCoverage, MissingDims, NotApplicableDims, UnmodelledDims,
+//     EvidenceGaps, DispositionState, DispositionHits, ControlFlags,
+//     IPAddress, AutonomousSystemNumber, Location, Registered,
+//     DeviceId, DeviceTrust, DeviceCompliant, DimOs, DimBrowser,
+//     BrowserApplicable, AppDisplayName, AppId, DimProtocol, DimClient,
+//     AuthRequirementDisplay, AuthMethodsDisplay, AuthEvidenceState,
+//     DimResult,
+//     ResultDescription, ResultSet, RiskLevelDuringSignIn,
+//     RiskEventTypes_V2, ConditionalAccessStatus, CrossTenantAccessType,
+//     FlowKey, OriginalRequestId, CorrelationId, SessionId,
+//     RawRecordCount, FlowStart, FlowEnd, IngestionDelay, Assessment
+// | sort by RawContextBits desc nulls last, EventTime desc
+//
+// RUN 3: baseline vocabulary, most-spoken values first.
+// Model                                   // BLOCK HEAD
+// | sort by Dimension asc, ValueCount desc
+// | serialize
+// | extend Rank = row_number(1, Dimension != prev(Dimension))
+// | where Rank <= 8
+// | project
+//     Dimension, Value, DisplayValue, ValueCount,
+//     Seen = strcat("seen ", DaysSeen, " active days"),
+//     LastSeen = strcat(
+//         format_datetime(LastSeen, "yyyy-MM-dd HH:mm"), " UTC")
+//
+// RUN 4: bounded pasteable note. Expected flows are counted, not repeated.
+// Raw IPs are intentionally retained for downstream defang.
+// Scored                                  // BLOCK HEAD
+// | extend NoteWorthy =
+//     array_length(ControlFlags) > 0
+//     or (BaselineState == "ready"
+//         and (RawOutcomeNovel
+//              or RawNoveltyPattern != "all_context_values_seen"))
+// | where NoteWorthy
+// | extend NotePriority = case(
+//     array_length(ControlFlags) > 0, 4,
+//     ActionableOutcomeNovel, 3,
+//     ActionableNoveltyPattern == "multi_plane", 3,
+//     ActionableNoveltyPattern in ("network", "client", "access"), 2,
+//     ActionableNoveltyPattern == "fully_dispositioned", 1,
+//     RawOutcomeNovel, 1,
+//     0)
+// | sort by NotePriority desc, RawContextBits desc nulls last, EventTime desc
+// | take MaxNoteFindings
+// | extend
+//     BrowserText = iff(
+//         BrowserApplicable, DimBrowser, "<not_applicable>"),
+//     ScoreText = iff(
+//         isnull(RawContextBits),
+//         strcat("not scored (", BaselineState, ")"),
+//         strcat(RawContextBits, " raw / ", AdjustedContextBits,
+//                " adjusted context bits; ", RawOutcomeBits, " raw / ",
+//                AdjustedOutcomeBits, " adjusted outcome bits"))
+// | project SortOrder = int(2), Note = strcat(
+//     "- ", format_datetime(EventTime, "yyyy-MM-dd HH:mm"), " UTC | ",
+//     ScoreText, " | raw pattern ", RawNoveltyPattern,
+//     " -> actionable ", ActionableNoveltyPattern,
+//     " | confidence ", ScoreConfidence, " (", ModelCoverage, "% coverage)",
+//     " | IP ", IPAddress, " (AS", AutonomousSystemNumber, ", ", Location,
+//     ") | ", DimOs, " / ", BrowserText, " | ", Registered,
+//     " | app ", AppDisplayName, " [", AppId, "]",
+//     " | protocol ", DimProtocol,
+//     " | requirement ", AuthRequirementDisplay,
+//     " | methods ", AuthMethodsDisplay,
+//     " (", AuthEvidenceState, ")",
+//     " | result ", DimResult, " | flags ", tostring(ControlFlags),
+//     " | raw novel ", tostring(RawNovelDims),
+//     " | actionable novel ", tostring(ActionableNovelDims),
+//     " | missing ", tostring(MissingDims),
+//     " | not applicable ", tostring(NotApplicableDims),
+//     " | evidence gaps ", tostring(EvidenceGaps),
+//     " | flow ", FlowKey, " | ", Assessment)
+// | union (print SortOrder = int(0), Note = strcat(
+//     "Identity posture, ", TargetUPN, ": ",
+//     format_datetime(ScoreStart, "yyyy-MM-dd HH:mm"), " to ",
+//     format_datetime(ScoreEnd, "yyyy-MM-dd HH:mm"),
+//     " UTC scored against the preceding ", BaselineWindow,
+//     " (", BaselineN, " successful baseline flows across ",
+//     BaselineDays, " active days; state ", BaselineStateScalar, ")."))
+// | union (
+//     Scored
+//     | summarize
+//         TotalFlows = count(),
+//         ActionableNovelFlows = countif(
+//             ActionableNoveltyPattern !in
+//                 ("all_context_values_seen", "fully_dispositioned",
+//                  "not_assessed")),
+//         FullyDispositionedFlows = countif(
+//             ActionableNoveltyPattern == "fully_dispositioned"),
+//         ControlFlaggedFlows = countif(array_length(ControlFlags) > 0),
+//         RawNovelOutcomeFlows = countif(RawOutcomeNovel),
+//         ReducedConfidenceFlows = countif(ScoreConfidence != "standard"),
+//         DetailedCandidates = countif(
+//             array_length(ControlFlags) > 0
+//             or (BaselineState == "ready"
+//                 and (RawOutcomeNovel
+//                      or RawNoveltyPattern != "all_context_values_seen")))
+//     | project SortOrder = int(1), Note = strcat(
+//         "Flow summary: ", TotalFlows, " total; ",
+//         ActionableNovelFlows, " actionable novel; ",
+//         FullyDispositionedFlows, " fully dispositioned; ",
+//         ControlFlaggedFlows, " control-flagged; ",
+//         RawNovelOutcomeFlows, " raw novel outcomes; ",
+//         ReducedConfidenceFlows, " reduced-confidence; ",
+//         DetailedCandidates, " detailed candidates (showing at most ",
+//         MaxNoteFindings, ")."))
+// | union (
+//     Scored
+//     | summarize DetailedCandidates = countif(
+//         array_length(ControlFlags) > 0
+//         or (BaselineState == "ready"
+//             and (RawOutcomeNovel
+//                  or RawNoveltyPattern != "all_context_values_seen")))
+//     | where DetailedCandidates > MaxNoteFindings
+//     | project SortOrder = int(3), Note = strcat(
+//         "Detail truncated: ", DetailedCandidates - MaxNoteFindings,
+//         " additional candidate flow(s) omitted; use RUN 2 to review them."))
+// | sort by SortOrder asc, Note desc
+// | project Note
+//
+// RUN 5: parameter resolution and baseline-health diagnostic.
+BaselineHealth                           // BLOCK HEAD
+| extend
+    TargetUPN = TargetUPN,
+    TargetConfigured = TargetConfigured,
+    AnchorTime = AnchorTime,
+    AnchorConfigured = AnchorConfigured,
+    ResolvedUserId = ResolvedUserId,
+    ModelStart = ModelStart,
+    ModelEnd = ModelEnd,
+    ScoreStart = ScoreStart,
+    ScoreEnd = ScoreEnd,
+    ParameterState = case(
+        TargetConfigured == false, "target_not_set",
+        AnchorConfigured == false, "anchor_not_set",
+        "ready"),
+    BaselineState = BaselineStateScalar,
+    RequiredEvents = MinBaselineEvents,
+    RequiredActiveDays = MinBaselineActiveDays,
+    RequiredCoveragePct = MinModelCoveragePct
+| project
+    TargetUPN, TargetConfigured, AnchorTime, AnchorConfigured,
+    ResolvedUserId, ModelStart, ModelEnd, ScoreStart, ScoreEnd,
+    ParameterState, BaselineFlows, BaselineActiveDays,
+    BaselineFirst, BaselineLast, BaselineState,
+    RequiredEvents, RequiredActiveDays, RequiredCoveragePct
+//
+// RUN 6: vocabulary health and the exact unseen-bucket price per dimension.
+// DimStats                                // BLOCK HEAD
+// | extend
+//     SingletonEventPct = round(
+//         100.0 * todouble(Singletons) / todouble(DimTotal), 1),
+//     NovelBits = round(-log2(PUnseen), 2)
+// | project
+//     Dimension, DimTotal, Vocabulary, Singletons,
+//     SingletonEventPct, PUnseen, NovelBits
+// | sort by Dimension asc
+//
+// RUN 7: scoring microscope, one row per flow + dimension.
+// ScoredLong                              // BLOCK HEAD
+// | extend PriceState = case(
+//     Applicable == false, "not_applicable",
+//     Missing, "missing",
+//     HasModel == false, "unmodelled",
+//     Novel, "novel",
+//     "known")
+// | extend DispositionKey = strcat(
+//     '"', UserId, '", "', Dimension, '", "', Value, '"')
+// | project
+//     EventTime, FlowKey, UserId, AppDisplayName, Dimension, Plane,
+//     IncludeContext, Value, DispositionKey,
+//     PriceState, Applicable, Missing, HasModel, ValueCount,
+//     DimTotal, Vocabulary, Singletons, PUnseen, Probability,
+//     RawBits = round(RawBits, 2),
+//     AdjustedBits = round(AdjustedBits, 2),
+//     Novel, ActionableNovel, AuthEvidenceState, DispositionApplies,
+//     CaseId, DispositionNote
+// | sort by EventTime desc, FlowKey asc, Dimension asc
+//
+// NEXT STATISTICAL GATE
+//   Add empirical percentile calibration and dependency-aware conditional edges
+//   only after this event-flow and missing-mass build passes tenant testing.
