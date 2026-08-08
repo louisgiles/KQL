@@ -1,0 +1,237 @@
+// ============================================================================
+// PROBABILISTIC SIGN-IN REVIEW
+// Scores the last 24h of a user's interactive sign-ins against their own
+// 90-day behavioural baseline, per dimension, in bits of surprise.
+//
+// Method: each of nine sign-in dimensions (ASN, country, device posture,
+// OS family, browser family, application, auth method, client app, result)
+// is treated as an independent vocabulary. A known value costs
+// -log2( P(value | dimension) ) bits. A never-seen value pays that
+// dimension's Good-Turing novelty price: -log2( (singletons + 0.5) / total ).
+// An event's score is the sum of its per-dimension bits, so the breakdown
+// tells you WHICH plane moved before you pivot anywhere.
+//
+// The pricing self-calibrates per user: a mobile-heavy user's IP/ASN
+// vocabulary is full of one-offs, so novelty there is cheap; an office
+// user's is not, so the same new ASN costs them a fortune.
+//
+// Tables: SigninLogs (interactive only; non-interactive excluded by table
+//         choice). RiskLevelDuringSignIn is displayed, never scored.
+// Surface: Microsoft Sentinel / Log Analytics.
+// Usage: see the FLIGHT MANUAL at the top of Zone 3. Short version:
+//        paste the whole file, set TargetUPN, Shift+Enter to run;
+//        switch outputs with two Ctrl+/ toggles. Never edit structure.
+// Honesty floors: below MinBaselineEvents the classes report
+// thin_baseline / no_baseline instead of emitting confident bits.
+// ============================================================================
+//
+// ============================================================
+// ZONE 1: PARAMETERS. Per-run and per-user facts only.
+// ============================================================
+let TargetUPN         = "<upn>";        // required
+let ModelStart        = ago(90d);
+let ModelEnd          = ago(1d);
+let ScoreStart        = ago(1d);
+let ScoreEnd          = now();
+let MinBaselineEvents = 25;             // below this: thin_baseline
+let NoBaselineFloor   = 5;              // below this: no_baseline
+let Dispositioned = datatable(Dimension: string, Value: string, DispositionNote: string)[
+    // per-user verdict ledger; dispositioned values contribute zero bits.
+    // e.g. "asn", "12576", "EE mobile, confirmed with user, case 12345"
+];
+//
+// ============================================================
+// ZONE 2: ENGINE. Not edited per run.
+// ============================================================
+// === SECTION 1: prep, one row per sign-in with folded dimensions ===
+let Prep = (start: datetime, stop: datetime) {
+    SigninLogs
+    | where TimeGenerated between (start .. stop)
+    | where UserPrincipalName =~ TargetUPN
+    | extend Dev = DeviceDetail, Loc = LocationDetails
+    | extend
+        DimAsn     = coalesce(tostring(AutonomousSystemNumber), "unknown"),
+        DimCountry = coalesce(tostring(Loc.countryOrRegion), Location, "unknown"),
+        DimDevice  = strcat(
+                        coalesce(tostring(Dev.deviceId), "unregistered"), ":",
+                        coalesce(tostring(Dev.trustType), "none"), ":",
+                        coalesce(tostring(Dev.isCompliant), "unknown")),
+        DimOs      = replace_regex(coalesce(tostring(Dev.operatingSystem), "unknown"), @'[0-9][0-9\.]*', "#"),
+        DimBrowser = replace_regex(coalesce(tostring(Dev.browser), "unknown"), @'[0-9][0-9\.]*', "#"),
+        DimApp     = coalesce(AppId, AppDisplayName, "unknown"),
+        DimMethod  = coalesce(tostring(MfaDetail.authMethod),
+                              strcat("single-factor:", coalesce(AuthenticationRequirement, "unknown"))),
+        DimClient  = coalesce(ClientAppUsed, "unknown"),
+        DimResult  = tostring(ResultType)
+    | project TimeGenerated, Id, IPAddress,
+              City = coalesce(tostring(Loc.city), ""),
+              AppDisplayName, RiskLevelDuringSignIn,
+              DimAsn, DimCountry, DimDevice, DimOs, DimBrowser,
+              DimApp, DimMethod, DimClient, DimResult
+};
+// === SECTION 2: long form, one row per (event, dimension, value) ===
+let PrepLong = (start: datetime, stop: datetime) {
+    Prep(start, stop)
+    | extend Dims = pack_array(
+        bag_pack("d", "asn",       "v", DimAsn),
+        bag_pack("d", "country",   "v", DimCountry),
+        bag_pack("d", "device",    "v", DimDevice),
+        bag_pack("d", "os",        "v", DimOs),
+        bag_pack("d", "browser",   "v", DimBrowser),
+        bag_pack("d", "app",       "v", DimApp),
+        bag_pack("d", "method",    "v", DimMethod),
+        bag_pack("d", "clientapp", "v", DimClient),
+        bag_pack("d", "result",    "v", DimResult))
+    | mv-expand D = Dims
+    | extend Dimension = tostring(D.d), Value = tostring(D.v)
+    | project-away D, Dims
+};
+// === SECTION 3: the model, per-dimension vocabularies ===
+let Model = materialize(
+    PrepLong(ModelStart, ModelEnd)
+    | summarize ValueCount = count(),
+                DaysSeen   = dcount(startofday(TimeGenerated)),
+                LastSeen   = max(TimeGenerated)
+        by Dimension, Value
+);
+// === SECTION 4: per-dimension stats and the Good-Turing novelty price ===
+let DimStats = materialize(
+    Model
+    | summarize DimTotal   = sum(ValueCount),
+                Vocabulary = count(),
+                Singletons = countif(ValueCount == 1)
+        by Dimension
+    | extend NovelBits = -log2((todouble(Singletons) + 0.5) / todouble(DimTotal))
+);
+// baseline event count = the sum of counts in any single dimension
+let BaselineN = toscalar(
+    Model | where Dimension == "asn" | summarize coalesce(sum(ValueCount), 0)
+);
+// === SECTION 5: the scorer ===
+let Scored = materialize(
+    PrepLong(ScoreStart, ScoreEnd)
+    | lookup kind=leftouter Model    on Dimension, Value
+    | lookup kind=leftouter DimStats on Dimension
+    | lookup kind=leftouter Dispositioned on Dimension, Value
+    | extend Novel = isnull(ValueCount) and isempty(DispositionNote)
+    | extend Bits = case(
+        isnotempty(DispositionNote), 0.0,
+        isnull(ValueCount),          NovelBits,
+                                     -log2(todouble(ValueCount) / todouble(DimTotal)))
+    | summarize
+        TotalBits   = round(sum(Bits), 1),
+        AsnBits     = round(sumif(Bits, Dimension == "asn"), 1),
+        CountryBits = round(sumif(Bits, Dimension == "country"), 1),
+        DeviceBits  = round(sumif(Bits, Dimension == "device"), 1),
+        OsBits      = round(sumif(Bits, Dimension == "os"), 1),
+        BrowserBits = round(sumif(Bits, Dimension == "browser"), 1),
+        AppBits     = round(sumif(Bits, Dimension == "app"), 1),
+        MethodBits  = round(sumif(Bits, Dimension == "method"), 1),
+        ClientBits  = round(sumif(Bits, Dimension == "clientapp"), 1),
+        ResultBits  = round(sumif(Bits, Dimension == "result"), 1),
+        NovelDims        = make_set_if(Dimension, Novel),
+        DispositionHits  = make_set_if(strcat(Dimension, "=", Value), isnotempty(DispositionNote)),
+        take_any(IPAddress, City, AppDisplayName, RiskLevelDuringSignIn,
+                 DimAsn, DimCountry, DimDevice, DimOs, DimBrowser,
+                 DimMethod, DimClient, DimResult)
+        by Id, TimeGenerated
+    | extend NetworkNovel = NovelDims has "asn" or NovelDims has "country",
+             ClientNovel  = NovelDims has "device" or NovelDims has "os" or NovelDims has "browser",
+             MethodNovel  = NovelDims has "method" or NovelDims has "clientapp"
+    | extend Class = case(
+        BaselineN < NoBaselineFloor,          "no_baseline",
+        BaselineN < MinBaselineEvents,        "thin_baseline",
+        NetworkNovel and ClientNovel,         "new_everything",
+        NetworkNovel,                         "novel_infrastructure",
+        ClientNovel,                          "novel_client",
+        MethodNovel,                          "novel_method",
+        array_length(NovelDims) > 0,          "novel_other",
+        array_length(DispositionHits) > 0,    "dispositioned",
+                                              "expected")
+    | extend Registered = iff(DimDevice startswith "unregistered", "unregistered device", "registered device")
+);
+//
+// ============================================================
+// ZONE 3: RUN SECTION. The cockpit. Read once, fly forever.
+// ============================================================
+// The whole file is one query. Nothing is deleted, moved, or
+// pasted in pieces. Comment markers are the only switchgear.
+//
+// FLIGHT MANUAL
+//   1. Paste the entire file into Log Analytics once per
+//      investigation. Set TargetUPN in Zone 1.
+//   2. Run: cursor anywhere in the file, Shift+Enter (or the
+//      Run button). Exactly one RUN block is live (uncommented)
+//      at a time; that block is the instrument you are flying.
+//      RUN 1 ships live.
+//   3. Switch instruments, two keystrokes: highlight the live
+//      block, Ctrl+/ grounds it. Highlight the block you want,
+//      Ctrl+/ brings it live. Shift+Enter. Nothing else moves.
+//   4. Anatomy: a block runs from its HEAD line (the bare table
+//      or variable name, tagged BLOCK HEAD) down to its last
+//      piped line. The head is part of the block; always include
+//      it in the highlight. The error "could not be parsed at
+//      '|'" means a block woke without its head.
+//   5. Unused engine costs nothing: lets are lazy, so RUN 1
+//      never pays for the scorer.
+//
+// This file contains no blank lines below the header BY DESIGN.
+// The LA editor treats a blank line as a query boundary, which
+// would orphan a RUN block from its Zone 1 parameters. Spacer
+// lines are a lone //. Never replace them with blank lines.
+// ============================================================
+// RUN 1, check: baseline integrity. a cliff mid-window (CA rollout, MFA
+// migration, onboarding) poisons the model; read this before trusting bits.
+SigninLogs                                  // BLOCK HEAD: highlight from here down
+| where TimeGenerated > ago(90d)
+| where UserPrincipalName =~ TargetUPN
+| summarize SignIns = count() by bin(TimeGenerated, 1d)
+| render timechart
+//
+// RUN 2: scored 24h, hottest first. read the breakdown columns, not just
+// the total: they name which plane moved.
+// Reading note: correlated event species inflate totals under the
+// independence assumption. A device logon (app "Windows Sign In") prices
+// app, client, method, os, and browser together: five ~4-bit charges for
+// one fact. High bits + class expected + zeros on asn/country/device is
+// a rare-but-known species, not an intruder. The zeros are the glance.
+// The Dispositioned ledger softens this (one entry per value); conditional
+// edges (v2) solve it.
+// Scored                                   // BLOCK HEAD: highlight from here down
+// | project TimeGenerated, TotalBits, Class, NovelDims,
+//           AsnBits, CountryBits, DeviceBits, OsBits, BrowserBits,
+//           AppBits, MethodBits, ClientBits, ResultBits,
+//           IPAddress, DimAsn, DimCountry, City, Registered,
+//           AppDisplayName, DimMethod, DimClient, DimResult,
+//           RiskLevelDuringSignIn, DispositionHits
+// | sort by TotalBits desc, TimeGenerated desc
+//
+// RUN 3: the baseline profile. the user's vocabulary per dimension, most
+// spoken first. this is "expected behaviour" as a pasteable artefact.
+// Model                                    // BLOCK HEAD: highlight from here down
+// | sort by Dimension asc, ValueCount desc
+// | extend Rank = row_number(1, Dimension != prev(Dimension))
+// | where Rank <= 8
+// | project Dimension, Value, ValueCount,
+//           Seen = strcat("seen ", DaysSeen, " of last 90 days"),
+//           LastSeen = strcat(format_datetime(LastSeen, "yyyy-MM-dd HH:mm"), " UTC")
+//
+// RUN 4: the note block. copy the Note column straight into the ticket.
+// IPs deliberately raw; the defang app handles notes downstream.
+// Scored                                   // BLOCK HEAD: highlight from here down
+// | sort by TotalBits desc, TimeGenerated desc
+// | project SortOrder = 1, Note = strcat(
+//     "- ", format_datetime(TimeGenerated, "yyyy-MM-dd HH:mm"), " UTC | ",
+//     TotalBits, " bits | ", Class, " | IP ", IPAddress,
+//     " (AS", DimAsn, ", ", DimCountry, ") | ",
+//     DimOs, " / ", DimBrowser, " | ", Registered,
+//     " | app ", AppDisplayName, " | auth ", DimMethod,
+//     " | result ", DimResult)
+// | union (print SortOrder = 0, Note = strcat(
+//     "Sign-in behaviour, ", TargetUPN, ": last 24h scored against 90d baseline (",
+//     BaselineN, " baseline sign-ins)"))
+// | sort by SortOrder asc, Note asc
+// | project Note
+//
+// v2, flagged not built: conditional edges (device speaks ASN), catching
+// "this laptop has never touched this network" that independence smooths over.
