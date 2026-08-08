@@ -752,3 +752,21 @@ Prep                                      // BLOCK HEAD
 // NEXT STATISTICAL GATE
 //   Add empirical percentile calibration and dependency-aware conditional edges
 //   only after this event-flow and missing-mass build passes tenant testing.
+
+
+let Dispositioned = datatable(
+    UserId: string,
+    Dimension: string,
+    Value: string,
+    ValidFrom: datetime,
+    ExpiresOn: datetime,
+    CaseId: string,
+    DispositionNote: string
+)[
+    "<actual-resolved-user-id>", "app",
+    "660285a0-65a2-463a-ae5c-96272e51a34d",
+    datetime(2026-08-07T00:00:00Z),
+    datetime(2026-08-09T00:00:00Z),
+    "TEST-V3",
+    "Confirmed Anthropic test sign-in"
+];
