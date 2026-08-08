@@ -64,7 +64,7 @@
 // ZONE 1: PARAMETERS. Per-run and per-user facts only.
 // ============================================================
 let TargetUPN            = "<upn>";     // required; current or historical UPN
-let AnchorTime           = datetime(); // required
+let AnchorTime           = datetime(); // set explicitly for historical replay
 let ScoreWindow          = 1d;
 let BaselineWindow       = 90d;
 let IngestionGrace       = 2d;          // captures modestly late-arriving rows
