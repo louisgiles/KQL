@@ -1,0 +1,517 @@
+// name:              The Curio Cabinet — rare Office operations (one-shot)
+// purpose:           Surface Office 365 operations that are statistically rare in this workspace, or curated as high-signal regardless of frequency, with triage-ready parameter context on every returned row.
+// starting_entities: None. This is a workspace-wide hunt, not an alert-driven triage — the analyst supplies thresholds, not entities.
+// required_tables:   OfficeActivity
+// optional_tables:   None. Deliberately single-table and self-contained — one workspace, one tenant, one pass.
+// variables:         baseline_window, hunt_window, rare_max_count, rare_max_users, excluded_accounts, excluded_operations, max_rows
+// done_criteria:     Every returned row is either falsified against one of the four criteria below, or escalated into 03-office-ops/deep-dive.kql carrying UserId as ActorToCheck, Operation as OperationType, and TimeGenerated as AlertTime.
+// output_type:       analysis
+//
+// ============================================================================
+// THE CURIO CABINET — rare Office operations, one-shot
+// ============================================================================
+//
+// PURPOSE
+//   Two-window rarity hunt over OfficeActivity. A baseline window establishes
+//   what "normal" looks like per Operation across the whole workspace; a
+//   shorter hunt window is then scored against that baseline. Three additive
+//   scoring layers stack into a single RiskScore with a human-readable Reason,
+//   so an analyst can triage straight off the result grid without pivoting.
+//
+//   Layer 1 — statistical rarity.  Is this Operation rare here?
+//   Layer 2 — curated overlay.     Is this Operation dangerous regardless?
+//   Layer 3 — actor novelty.       Is this actor new to this Operation?
+//
+//   Single workspace by design. There is deliberately no Lighthouse /
+//   cross-tenant variant in this file — run it per tenant.
+//
+// TUNING KNOBS (all in SECTION 1)
+//   baseline_window     How far back "normal" is measured. Longer = fewer
+//                       first-seen false positives, more query cost. Must be
+//                       comfortably larger than hunt_window and must sit
+//                       inside the workspace's OfficeActivity retention.
+//   hunt_window         The slice being scored. Excluded from the baseline so
+//                       an event can never be its own precedent.
+//   rare_max_count      Baseline event count at or below which an Operation
+//                       counts as rare. Raise to loosen, lower to tighten.
+//   rare_max_users      Baseline distinct-actor count at or below which an
+//                       Operation counts as narrowly-held.
+//   excluded_accounts   Service accounts / automation identities. Substring
+//                       matched against UserId, so a prefix is enough.
+//   excluded_operations Known-noise operations, removed from both windows.
+//                       This is the first place to reach when volume is high.
+//   max_rows            Hard output cap. See the guard in SECTION 11.
+//
+// EXPECTED VOLUME
+//   In a mid-size tenant (~2,000 seats) at the defaults, expect roughly
+//   20-80 rows per run. Most of that volume is layer-2 curated hits
+//   (transport rules, mailbox permission grants, eDiscovery) rather than
+//   layer-1 rarity — the curated overlay fires on frequency-normal activity
+//   by design. Layer-1-only rows should be a handful per week; if they are
+//   not, either excluded_operations needs extending or Microsoft has shipped
+//   new operation names into the workload (both are common, both are cheap
+//   to confirm).
+//
+//   First run against a workspace whose OfficeActivity retention is shorter
+//   than baseline_window will be loud — everything looks first-seen. The
+//   baseline guard in SECTION 2 suppresses the first-seen bonus entirely
+//   when the baseline comes back empty, but a thin (not empty) baseline is
+//   not detectable from inside the query. Check retention before trusting
+//   a first run.
+//
+// FALSIFICATION CRITERIA — how a row dies in triage
+//   A row is NOT a finding just because it scored. Kill it if any of these
+//   hold, and record which one in the ticket:
+//
+//   1. Sanctioned change window. The event lands inside an approved change
+//      or maintenance window and the operation matches what that change was
+//      authorised to do. Check the change record, not the calendar entry.
+//   2. Known admin with ticket reference. The actor is a recognised
+//      administrator and the operation maps to an open ticket / RFC. The
+//      ticket must predate the event — a ticket raised afterwards is a
+//      narrative, not an authorisation.
+//   3. IT service account. The actor is an automation or integration
+//      identity performing its documented function. If it is legitimate and
+//      recurring, add it to excluded_accounts rather than re-falsifying it
+//      every week.
+//   4. Vendor migration activity. A tenant-to-tenant migration, archiving
+//      product, backup vendor, or mail-hygiene product performing bulk
+//      permission grants, export requests, or connector edits under a
+//      contracted engagement. Confirm the engagement is live and the
+//      identity is the vendor's, not a lookalike.
+//
+//   Known deliberate over-inclusion: Set-Mailbox is gated on the *presence*
+//   of forwarding parameters, not on their values, so a Set-Mailbox that
+//   sets DeliverToMailboxAndForward to False will score. ParametersSummary
+//   shows the value — falsify it on sight. Gating on presence is cheap and
+//   runs before parameter parsing; gating on value is not.
+//
+// SCHEMA NOTES — verified against the OfficeActivity schema
+//   All output columns exist on OfficeActivity as documented: TimeGenerated
+//   (datetime), OfficeWorkload, Operation, UserId, UserType, ClientIP,
+//   ResultStatus and Parameters (all string). Note that Parameters is a
+//   *string* holding a JSON array of {Name, Value} pairs, not a dynamic —
+//   it must be parsed, see SECTION 10.
+//
+//   One curated operation name from the original specification was wrong and
+//   has been corrected: "UpdateInboundConnector" is not an Exchange Online
+//   audit operation and does not exist in the Microsoft 365 audit surface.
+//   Inbound connector lifecycle is audited under the Exchange cmdlet names
+//   New-InboundConnector / Set-InboundConnector / Remove-InboundConnector.
+//   Set-InboundConnector already covers the "connector was modified" case
+//   that UpdateInboundConnector was reaching for, so the slot has been given
+//   to Remove-InboundConnector to complete the lifecycle rather than dropped.
+//   Every other curated operation name verified as-specified.
+//
+// ============================================================================
+
+
+// === SECTION 1: parameters ===
+// Everything an analyst is expected to touch lives here. No investigation-scoped
+// value appears inline anywhere below this block.
+//
+let baseline_window = 60d;
+let hunt_window = 7d;
+let rare_max_count = 5;
+let rare_max_users = 3;
+//
+// Service accounts and automation identities. Substring-matched against UserId
+// via has_any, so a distinctive prefix is enough — no need for the full UPN.
+// Keep at least one element in this list: has_any against an empty dynamic
+// array fails at runtime. The sentinel below exists so the list stays valid
+// if you clear the real entries.
+let excluded_accounts = dynamic([
+    "NT AUTHORITY\\SYSTEM (Microsoft.Exchange.ServiceHost)",
+    "NT AUTHORITY\\SYSTEM (Microsoft.Exchange.AdminApi.NetCore)",
+    "NT AUTHORITY\\SYSTEM (w3wp)",
+    "devilfish-applicationaccount",
+    "__curio_cabinet_sentinel_never_matches__"
+]);
+//
+// Known-noise operations, stripped from both the baseline and the hunt window.
+// These are the high-volume SharePoint / OneDrive / Exchange read paths that
+// would otherwise dominate the baseline summarize without ever being scored.
+// First tuning surface to reach for when a run comes back too loud.
+let excluded_operations = dynamic([
+    "FileAccessed", "FileAccessedExtended", "FilePreviewed", "FileModified",
+    "FileModifiedExtended", "FileDownloaded", "FileUploaded", "FileCheckedIn",
+    "FileCheckedOut", "FileRenamed", "FileMoved", "FileCopied",
+    "FileSyncDownloadedFull", "FileSyncUploadedFull", "FileSyncDownloadedPartial",
+    "PageViewed", "PageViewedExtended", "ListViewed", "ListItemViewed",
+    "SearchQueryPerformed", "UserLoggedIn", "MailItemsAccessed", "MessageRead",
+    "MessageCreated", "MessageSent", "MessageUpdated", "ReactedWithEmoji",
+    "MipLabel", "SensitivityLabelApplied", "SensitivityLabelUpdated"
+]);
+//
+// Hard output cap. See the guard comment in SECTION 11 before raising it.
+let max_rows = 200;
+
+
+// === SECTION 2: window boundaries and baseline guard ===
+// ago() is resolved once into a let so every stage below scores against the
+// same instant — otherwise a long-running query can drift between the
+// baseline scan and the hunt scan and produce an event with no precedent
+// purely because the boundary moved underneath it.
+//
+let hunt_start = ago(hunt_window);
+let baseline_start = ago(baseline_window);
+//
+// The baseline is baseline_window MINUS the hunt window: strictly earlier than
+// hunt_start, so a hunt-window event can never contribute to its own baseline.
+// If baseline_window <= hunt_window this range is empty and the guard below
+// catches it.
+
+
+// === SECTION 3: baseline — operation prevalence across the workspace ===
+// Per-Operation event count and distinct actor count over the baseline range.
+// Materialized: this result set is consumed twice — once by the emptiness
+// guard in this section, once by the join in SECTION 6 — and recomputing a
+// 60-day scan of OfficeActivity for the second read is not acceptable.
+//
+// Column names are prefixed Baseline* so the joins in SECTION 6 produce no
+// name collisions and need no project-away of auto-suffixed duplicates.
+//
+let BaselineSummary = materialize(
+    OfficeActivity
+    | where TimeGenerated >= baseline_start and TimeGenerated < hunt_start
+    | where isnotempty(Operation)
+    | where Operation !in~ (excluded_operations)
+    | where not(UserId has_any (excluded_accounts))
+    | summarize
+        BaselineCount = count(),
+        BaselineDistinctUsers = dcount(UserId)
+        by BaselineOperation = Operation
+);
+//
+// Defensive handling for an empty baseline. A workspace with OfficeActivity
+// retention shorter than baseline_window, a newly onboarded tenant, or a
+// baseline_window mistakenly set below hunt_window all produce zero baseline
+// rows — at which point every single operation in the hunt window looks like
+// a first-seen and the query returns the entire workload at maximum score.
+// When this flag is false, SECTION 6 suppresses the whole rarity layer and
+// SECTION 9 stamps the reason string so the analyst knows the output is
+// curated-overlay-only rather than silently degraded.
+let baseline_has_data = toscalar(BaselineSummary | count) > 0;
+
+
+// === SECTION 4: baseline — actor / operation pairs ===
+// Same range as SECTION 3, but keyed on the actor as well as the operation.
+// This is what layer 3 asks: has THIS UserId ever run THIS Operation before?
+// Deliberately NOT filtered by excluded_operations — an actor's history is a
+// property of the actor, and narrowing it would inflate first-time claims.
+// UserId is lowercased because OfficeActivity casing is not stable across
+// workloads (Exchange and SharePoint disagree on UPN casing).
+//
+let ActorOperationBaseline = materialize(
+    OfficeActivity
+    | where TimeGenerated >= baseline_start and TimeGenerated < hunt_start
+    | where isnotempty(Operation) and isnotempty(UserId)
+    | summarize BaselineActorOpCount = count()
+        by BaselineActor = tolower(UserId), BaselineActorOperation = Operation
+);
+
+
+// === SECTION 5: hunt window candidates and cheap parameter pre-flags ===
+// Every scored event starts here. Note the ordering discipline in this query:
+// nothing expensive touches Parameters yet. Parsing the parameter blob into a
+// property bag is the single costliest operation in the file, so it is
+// deferred to SECTION 10 and runs only against rows that already survived
+// scoring. What SECTION 5 needs from Parameters, it gets from cheap
+// term-matching against the raw string.
+//
+let HuntCandidates =
+    OfficeActivity
+    | where TimeGenerated >= hunt_start
+    | where isnotempty(Operation)
+    | where Operation !in~ (excluded_operations)
+    | where not(UserId has_any (excluded_accounts))
+    | extend ActorKey = tolower(UserId)
+    | extend ParamsRaw = tostring(Parameters)
+    //
+    // Cheap presence flags. has_any does whole-term matching against the raw
+    // JSON, which is enough to know a parameter name appears — it says nothing
+    // about the parameter's value. That distinction is the documented
+    // over-inclusion in the header block.
+    | extend
+        HasForwardingParam = ParamsRaw has_any (
+            "ForwardingSmtpAddress", "ForwardingAddress", "DeliverToMailboxAndForward"),
+        HasRuleActionParam = ParamsRaw has_any (
+            "ForwardTo", "ForwardAsAttachmentTo", "RedirectTo", "DeleteMessage", "MoveToFolder");
+
+
+// === SECTION 6: layer 1 — statistical rarity ===
+// Left-outer joins so an operation with no baseline row survives as a
+// first-seen rather than being silently dropped by an inner join. The
+// coalesce to zero afterwards is what turns "no baseline row" into the
+// highest-scoring rarity signal rather than a null that poisons the
+// comparisons below.
+//
+let ScoredRarity =
+    HuntCandidates
+    | join kind=leftouter BaselineSummary on $left.Operation == $right.BaselineOperation
+    | join kind=leftouter ActorOperationBaseline
+        on $left.ActorKey == $right.BaselineActor, $left.Operation == $right.BaselineActorOperation
+    | extend
+        BaselineCount = coalesce(BaselineCount, tolong(0)),
+        BaselineDistinctUsers = coalesce(BaselineDistinctUsers, tolong(0)),
+        BaselineActorOpCount = coalesce(BaselineActorOpCount, tolong(0))
+    | extend
+        FirstSeenOperation = baseline_has_data and BaselineCount == 0,
+        FirstSeenForUser = baseline_has_data and BaselineActorOpCount == 0
+    //
+    // Rarity scores. Zero baseline occurrences scores highest — an operation
+    // name that has never appeared in this workspace is a stronger signal than
+    // one that appears occasionally. The count and distinct-user bands stack:
+    // an operation can be both infrequent and narrowly held, and that
+    // combination is more interesting than either alone.
+    //
+    // Every branch is gated on baseline_has_data. With no baseline there is no
+    // rarity claim to make, and asserting one anyway is how a hunt query turns
+    // into a denial-of-service against the analyst.
+    | extend
+        _scoreFirstSeenOp = iff(baseline_has_data and BaselineCount == 0, 40, 0),
+        _scoreRareCount = iff(
+            baseline_has_data and BaselineCount > 0 and BaselineCount <= rare_max_count, 25, 0),
+        _scoreFewActors = iff(
+            baseline_has_data and BaselineDistinctUsers > 0 and BaselineDistinctUsers <= rare_max_users, 15, 0);
+
+
+// === SECTION 7: layer 2 — curated high-signal overlay ===
+// These operations score on their own merit, irrespective of how routine they
+// are in this workspace. A tenant where transport-rule edits are frequent is
+// not a tenant where transport-rule edits are uninteresting — it is a tenant
+// where the rarity layer alone would go blind to them.
+//
+// Two flat tiers plus a conditional tier:
+//
+//   Tier 1 (30) — mail-flow interception, bulk export, audit tampering. These
+//                 change what leaves the tenant or what gets recorded.
+//   Tier 2 (20) — collection and standing access. Slower-burn, still curated.
+//   Conditional (30) — operations that are only interesting given specific
+//                 parameters, gated on the SECTION 5 pre-flags.
+//
+// All names verified against the OfficeActivity / Exchange Online audit
+// surface. See the schema note in the header for the one correction made.
+//
+let CuratedTier1 = dynamic([
+    "New-TransportRule",         // mail-flow rule created — interception, BCC, header strip
+    "Set-TransportRule",         // mail-flow rule modified — same capability, quieter
+    "New-InboundConnector",      // inbound connector created — mail path into the tenant
+    "Set-InboundConnector",      // inbound connector modified
+    "Remove-InboundConnector",   // inbound connector removed (replaces the non-existent
+                                 // "UpdateInboundConnector" from the original spec)
+    "New-MailboxExportRequest",  // mailbox exported to PST — bulk collection
+    "Set-AdminAuditLogConfig"    // audit configuration changed — anti-forensics
+]);
+let CuratedTier2 = dynamic([
+    "SearchCreated",             // eDiscovery / compliance search created
+    "SearchExported",            // eDiscovery / compliance search exported — data leaves
+    "Add-MailboxPermission",     // standing mailbox access granted
+    "Add-RecipientPermission"    // SendAs granted — impersonation capability
+]);
+//
+let ScoredCurated =
+    ScoredRarity
+    | extend
+        _isSetMailboxForwarding = Operation =~ "Set-Mailbox" and HasForwardingParam,
+        _isInboxRuleActionable = Operation in~ ("New-InboxRule", "Set-InboxRule") and HasRuleActionParam
+    | extend
+        _scoreCuratedT1 = iff(Operation in~ (CuratedTier1), 30, 0),
+        _scoreCuratedT2 = iff(Operation in~ (CuratedTier2), 20, 0),
+        _scoreCuratedConditional = iff(_isSetMailboxForwarding or _isInboxRuleActionable, 30, 0);
+
+
+// === SECTION 8: layer 3 — actor novelty ===
+// FirstSeenForUser was computed in SECTION 6 (it needs the actor/operation
+// join) — this section only turns it into score, plus the privilege bump.
+//
+// UserType is a string on OfficeActivity, but some workspaces surface the raw
+// enum ordinal rather than the friendly name. Both forms are matched: Admin is
+// 2 and DcAdmin is 3 in the Microsoft UserType enumeration. Matching only the
+// friendly names would silently drop the privilege bump on those workspaces.
+//
+let ScoredNovelty =
+    ScoredCurated
+    | extend IsAdminActor = UserType in~ ("Admin", "DcAdmin") or UserType in ("2", "3")
+    | extend
+        _scoreFirstSeenUser = iff(FirstSeenForUser, 20, 0),
+        _scoreAdminActor = iff(IsAdminActor, 10, 0);
+
+
+// === SECTION 9: score aggregation and reason string ===
+// RiskScore is a plain additive sum of the three layers — no weighting, no
+// normalisation, no cap. The number is only ever used for ordering and for a
+// rough eyeball of severity; it is not a probability and should not be
+// presented as one.
+//
+// Reason is assembled from the same booleans that produced the score, so the
+// two can never disagree. Anything that adds points adds a token.
+//
+let Scored =
+    ScoredNovelty
+    | extend RiskScore =
+        _scoreFirstSeenOp + _scoreRareCount + _scoreFewActors
+        + _scoreCuratedT1 + _scoreCuratedT2 + _scoreCuratedConditional
+        + _scoreFirstSeenUser + _scoreAdminActor
+    //
+    // Candidate gate. Everything scoring zero is neither rare nor curated nor
+    // novel — that is the overwhelming majority of OfficeActivity, and it is
+    // discarded here, BEFORE the parameter parsing in SECTION 10 runs.
+    | where RiskScore > 0
+    | extend Reason = strcat_array(array_concat(
+        iff(not(baseline_has_data),
+            pack_array("BASELINE_EMPTY — rarity layer suppressed, curated overlay only"), dynamic([])),
+        iff(_scoreFirstSeenOp > 0,
+            pack_array("FIRST_SEEN_IN_WORKSPACE — no baseline occurrence of this operation"), dynamic([])),
+        iff(_scoreRareCount > 0,
+            pack_array(strcat("RARE_OPERATION — ", tostring(BaselineCount), " baseline events")), dynamic([])),
+        iff(_scoreFewActors > 0,
+            pack_array(strcat("NARROWLY_HELD — ", tostring(BaselineDistinctUsers), " baseline actors")), dynamic([])),
+        iff(_scoreCuratedT1 > 0,
+            pack_array("CURATED_TIER1 — mail-flow, bulk export, or audit configuration"), dynamic([])),
+        iff(_scoreCuratedT2 > 0,
+            pack_array("CURATED_TIER2 — collection or standing access grant"), dynamic([])),
+        iff(_isSetMailboxForwarding,
+            pack_array("MAILBOX_FORWARDING_PARAMS — Set-Mailbox carrying forwarding fields"), dynamic([])),
+        iff(_isInboxRuleActionable,
+            pack_array("INBOX_RULE_ACTION — rule forwards, deletes, or moves"), dynamic([])),
+        iff(_scoreFirstSeenUser > 0,
+            pack_array("FIRST_TIME_FOR_ACTOR — actor has not run this operation in baseline"), dynamic([])),
+        iff(_scoreAdminActor > 0,
+            pack_array(strcat("ADMIN_ACTOR — UserType=", UserType)), dynamic([]))
+    ), " | ");
+
+
+// === SECTION 10: parameter parsing for surviving candidates ===
+// Parameters is a string holding a JSON array of {Name, Value} objects. It is
+// flattened into a property bag so individual fields can be addressed by name.
+//
+// Two defensive details:
+//
+//   1. coalesce(todynamic(...), dynamic([])) — Parameters is empty on most
+//      non-Exchange workloads and can be non-JSON on malformed records.
+//      todynamic returns null in both cases; without the coalesce the
+//      array_concat below would null out and the row would carry no bag.
+//   2. The placeholder element. mv-apply DROPS rows whose source array is
+//      empty. Every row here has already been scored and is wanted in the
+//      output, so silently losing the ones with no parameters would be a
+//      correctness bug, not a cosmetic one. Prepending one throwaway element
+//      guarantees the array is never empty and every scored row survives.
+//
+// Bag keys are case-sensitive. Exchange emits stable parameter casing, so the
+// lookups below use the cmdlet-documented spelling.
+//
+Scored
+| extend ParamArray = array_concat(
+    dynamic([{"Name": "_curio_placeholder", "Value": ""}]),
+    coalesce(todynamic(Parameters), dynamic([])))
+| mv-apply ParamEntry = ParamArray on (
+    summarize ParamBag = make_bag(bag_pack(tostring(ParamEntry.Name), tostring(ParamEntry.Value)))
+  )
+| extend
+    // Forwarding — Set-Mailbox and inbox rules
+    P_ForwardingAddress     = tostring(ParamBag.ForwardingAddress),
+    P_ForwardingSmtpAddress = tostring(ParamBag.ForwardingSmtpAddress),
+    P_DeliverAndForward     = tostring(ParamBag.DeliverToMailboxAndForward),
+    P_ForwardTo             = tostring(ParamBag.ForwardTo),
+    P_ForwardAsAttachTo     = tostring(ParamBag.ForwardAsAttachmentTo),
+    P_RedirectTo            = tostring(ParamBag.RedirectTo),
+    // Inbox rule conditions and actions
+    P_RuleName              = tostring(ParamBag.Name),
+    P_From                  = tostring(ParamBag.From),
+    P_SubjectContains       = tostring(ParamBag.SubjectContainsWords),
+    P_BodyContains          = tostring(ParamBag.BodyContainsWords),
+    P_DeleteMessage         = tostring(ParamBag.DeleteMessage),
+    P_MoveToFolder          = tostring(ParamBag.MoveToFolder),
+    P_MarkAsRead            = tostring(ParamBag.MarkAsRead),
+    P_StopProcessingRules   = tostring(ParamBag.StopProcessingRules),
+    // Transport rule actions
+    P_RedirectMessageTo     = tostring(ParamBag.RedirectMessageTo),
+    P_BlindCopyTo           = tostring(ParamBag.BlindCopyTo),
+    P_RemoveHeader          = tostring(ParamBag.RemoveHeader),
+    // Connector shape — where mail is allowed in from
+    P_SenderDomains         = tostring(ParamBag.SenderDomains),
+    P_SenderIPAddresses     = tostring(ParamBag.SenderIPAddresses),
+    P_ConnectorType         = tostring(ParamBag.ConnectorType),
+    P_ConnectorEnabled      = tostring(ParamBag.Enabled),
+    // Export targets
+    P_FilePath              = tostring(ParamBag.FilePath),
+    P_Mailbox               = tostring(ParamBag.Mailbox),
+    // Permission grants
+    P_Identity              = tostring(ParamBag.Identity),
+    P_User                  = tostring(ParamBag.User),
+    P_Trustee               = tostring(ParamBag.Trustee),
+    P_AccessRights          = tostring(ParamBag.AccessRights),
+    // Audit configuration
+    P_UnifiedAuditLog       = tostring(ParamBag.UnifiedAuditLogIngestionEnabled),
+    P_AdminAuditLog         = tostring(ParamBag.AdminAuditLogEnabled)
+//
+// ParametersSummary collapses whichever of the above are populated into one
+// pipe-delimited string. Only non-empty fields appear, so the column stays
+// readable across operations with wildly different parameter shapes — a
+// connector edit and a permission grant share no fields at all.
+| extend ParametersSummary = strcat_array(array_concat(
+    iff(isnotempty(P_ForwardingAddress),     pack_array(strcat("ForwardingAddress=", P_ForwardingAddress)), dynamic([])),
+    iff(isnotempty(P_ForwardingSmtpAddress), pack_array(strcat("ForwardingSmtpAddress=", P_ForwardingSmtpAddress)), dynamic([])),
+    iff(isnotempty(P_DeliverAndForward),     pack_array(strcat("DeliverToMailboxAndForward=", P_DeliverAndForward)), dynamic([])),
+    iff(isnotempty(P_ForwardTo),             pack_array(strcat("ForwardTo=", P_ForwardTo)), dynamic([])),
+    iff(isnotempty(P_ForwardAsAttachTo),     pack_array(strcat("ForwardAsAttachmentTo=", P_ForwardAsAttachTo)), dynamic([])),
+    iff(isnotempty(P_RedirectTo),            pack_array(strcat("RedirectTo=", P_RedirectTo)), dynamic([])),
+    iff(isnotempty(P_RuleName),              pack_array(strcat("RuleName=", P_RuleName)), dynamic([])),
+    iff(isnotempty(P_From),                  pack_array(strcat("From=", P_From)), dynamic([])),
+    iff(isnotempty(P_SubjectContains),       pack_array(strcat("SubjectContainsWords=", P_SubjectContains)), dynamic([])),
+    iff(isnotempty(P_BodyContains),          pack_array(strcat("BodyContainsWords=", P_BodyContains)), dynamic([])),
+    iff(isnotempty(P_DeleteMessage),         pack_array(strcat("DeleteMessage=", P_DeleteMessage)), dynamic([])),
+    iff(isnotempty(P_MoveToFolder),          pack_array(strcat("MoveToFolder=", P_MoveToFolder)), dynamic([])),
+    iff(isnotempty(P_MarkAsRead),            pack_array(strcat("MarkAsRead=", P_MarkAsRead)), dynamic([])),
+    iff(isnotempty(P_StopProcessingRules),   pack_array(strcat("StopProcessingRules=", P_StopProcessingRules)), dynamic([])),
+    iff(isnotempty(P_RedirectMessageTo),     pack_array(strcat("RedirectMessageTo=", P_RedirectMessageTo)), dynamic([])),
+    iff(isnotempty(P_BlindCopyTo),           pack_array(strcat("BlindCopyTo=", P_BlindCopyTo)), dynamic([])),
+    iff(isnotempty(P_RemoveHeader),          pack_array(strcat("RemoveHeader=", P_RemoveHeader)), dynamic([])),
+    iff(isnotempty(P_SenderDomains),         pack_array(strcat("SenderDomains=", P_SenderDomains)), dynamic([])),
+    iff(isnotempty(P_SenderIPAddresses),     pack_array(strcat("SenderIPAddresses=", P_SenderIPAddresses)), dynamic([])),
+    iff(isnotempty(P_ConnectorType),         pack_array(strcat("ConnectorType=", P_ConnectorType)), dynamic([])),
+    iff(isnotempty(P_ConnectorEnabled),      pack_array(strcat("Enabled=", P_ConnectorEnabled)), dynamic([])),
+    iff(isnotempty(P_FilePath),              pack_array(strcat("FilePath=", P_FilePath)), dynamic([])),
+    iff(isnotempty(P_Mailbox),               pack_array(strcat("Mailbox=", P_Mailbox)), dynamic([])),
+    iff(isnotempty(P_Identity),              pack_array(strcat("Identity=", P_Identity)), dynamic([])),
+    iff(isnotempty(P_User),                  pack_array(strcat("User=", P_User)), dynamic([])),
+    iff(isnotempty(P_Trustee),               pack_array(strcat("Trustee=", P_Trustee)), dynamic([])),
+    iff(isnotempty(P_AccessRights),          pack_array(strcat("AccessRights=", P_AccessRights)), dynamic([])),
+    iff(isnotempty(P_UnifiedAuditLog),       pack_array(strcat("UnifiedAuditLogIngestionEnabled=", P_UnifiedAuditLog)), dynamic([])),
+    iff(isnotempty(P_AdminAuditLog),         pack_array(strcat("AdminAuditLogEnabled=", P_AdminAuditLog)), dynamic([]))
+), " | ")
+
+
+// === SECTION 11: output ===
+// Ordered by RiskScore descending so the most interesting rows land first,
+// then by TimeGenerated ascending so that within a score band the analyst
+// reads the sequence forwards — an actor's first suspicious operation before
+// its consequences, which is the order a timeline needs to be written in.
+//
+| project
+    TimeGenerated,
+    OfficeWorkload,
+    Operation,
+    UserId,
+    UserType,
+    ClientIP,
+    ResultStatus,
+    ParametersSummary,
+    BaselineCount,
+    BaselineDistinctUsers,
+    FirstSeenOperation,
+    FirstSeenForUser,
+    RiskScore,
+    Reason
+| order by RiskScore desc, TimeGenerated asc
+//
+// GUARD: hard row cap.
+// This is a hunt, not a report. Hitting the cap means the thresholds are too
+// loose for this tenant, NOT that the cap is too tight — raising max_rows
+// past 200 buys more rows to triage without improving the signal in any of
+// them. Tighten rare_max_count / rare_max_users, or extend
+// excluded_operations and excluded_accounts, and re-run. If the cap is still
+// hit after tuning, shorten hunt_window and work through the period in
+// slices so no scored event is silently truncated away.
+| take max_rows
