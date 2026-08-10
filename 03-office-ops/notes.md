@@ -11,6 +11,16 @@ assignments surfaced from `OfficeActivity`.
 |---|---|---|
 | `deep-dive.kql` | analysis | Operation-aware evidence engine — scoped to `AlertTime ± EventWindow`, filtered to a whitelist of meaningful operations, enriched with actor/target/delegee identity, sign-in posture, MFA tamper check, and a weighted triage verdict. |
 | `narrative-gen.kql` | narrative | Ticket-ready closure note in analyst dash-prefixed format — timestamp, operation counts, plain-English translation, sign-in posture, MFA tamper result, identity context, and determination. |
+| `rare-office-ops-one-shot.kql` | analysis | "The Curio Cabinet" — standalone two-window rarity hunt. Not alert-driven: takes no entities, scores a hunt window against a longer baseline for statistical rarity, curated high-signal operations, and actor novelty. Feeds `deep-dive.kql`. |
+
+### Note on `rare-office-ops-one-shot.kql`
+
+This file sits outside the contract's named file set (`deep-dive` /
+`narrative-gen` / `quick-dive`). It is not a quick-dive — it does not gate a
+deep dive for a specific alert, it generates its own leads across the whole
+workspace. It lives in the family rather than `scratchpad/` because it
+recurs, carries the full contract header, and is covered by the smoke
+harness. Single workspace by design; there is no Lighthouse variant.
 
 ## Purpose
 
