@@ -72,6 +72,18 @@ let IdpDispositioned = datatable(
     // "Confirmed corporate/mobile egress"
 ];
 //
+// Resolve duplicate disposition tuples before scoring so lookup cannot
+// multiply scoring rows.
+let IdpDispositionedResolved = materialize(
+    IdpDispositioned
+    | summarize arg_max(
+        ValidFrom,
+        ExpiresOn,
+        CaseId,
+        DispositionNote)
+      by UserId, Dimension, Value
+);
+//
 // ============================================================
 // VALIDATED ENGINE. Namespaced; scoring semantics unchanged.
 // ============================================================
@@ -79,7 +91,7 @@ let IdpDispositioned = datatable(
 let IdpResolvedUserId = toscalar(
     SigninLogs
     | where TimeGenerated >= IdpModelStart - IdpIngestionGrace
-    | where TimeGenerated < IdpScoreEnd + IdpIngestionGrace
+    | where TimeGenerated < IdpAnchorTime
     | where UserPrincipalName =~ IdpTargetUPN
     | where isnotempty(UserId)
     | summarize arg_max(TimeGenerated, UserId)
@@ -90,7 +102,7 @@ let IdpResolvedUserId = toscalar(
 let IdpRawSigninRows = materialize(
     SigninLogs
     | where TimeGenerated >= IdpModelStart - IdpIngestionGrace
-    | where TimeGenerated < IdpScoreEnd + IdpIngestionGrace
+    | where TimeGenerated < IdpAnchorTime
     | where IsInteractive == true
     | where iff(isnotempty(IdpResolvedUserId),
                 UserId == IdpResolvedUserId,
@@ -321,7 +333,7 @@ let IdpScoredLong = materialize(
     IdpPrepLong(IdpScoreStart, IdpScoreEnd)
     | lookup kind=leftouter IdpModel on Dimension, Value
     | lookup kind=leftouter IdpDimStats on Dimension
-    | lookup kind=leftouter IdpDispositioned on UserId, Dimension, Value
+    | lookup kind=leftouter IdpDispositionedResolved on UserId, Dimension, Value
     | extend HasModel = isnotnull(DimTotal) and DimTotal > 0
     | extend Novel = Applicable and Missing == false
                      and HasModel and isnull(ValueCount)
