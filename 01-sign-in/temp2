@@ -1,0 +1,11 @@
+SigninLogs
+| extend IngestionDelay = TimeGenerated - CreatedDateTime
+| where IngestionDelay > 5m
+| top 10 by IngestionDelay desc
+| project
+    UserPrincipalName,
+    CreatedDateTime,
+    TimeGenerated,
+    IngestionDelay,
+    AppDisplayName,
+    IPAddress
