@@ -1,0 +1,19 @@
+SigninLogs
+| where IsInteractive == true
+| extend EventTime = coalesce(CreatedDateTime, TimeGenerated)
+| extend FlowKey = case(
+    isnotempty(OriginalRequestId), OriginalRequestId,
+    isnotempty(CorrelationId), CorrelationId,
+    isnotempty(Id), Id,
+    strcat("fallback:", tostring(EventTime), "|", IPAddress,
+           "|", AppId, "|", tostring(ResultType)))
+| summarize
+    EventTime = min(EventTime),
+    FirstAvailable = min(TimeGenerated),
+    Copies = count(),
+    UserPrincipalName = take_any(UserPrincipalName),
+    AppDisplayName = take_any(AppDisplayName)
+  by FlowKey
+| extend FirstAvailabilityDelay = FirstAvailable - EventTime
+| where FirstAvailabilityDelay > 5m
+| top 10 by FirstAvailabilityDelay desc
