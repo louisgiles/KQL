@@ -73,8 +73,8 @@ let BbhMinModelCoveragePct = 75.0;
 // versions. Run shard indexes 0..ShardCount-1.
 let BbhActorShardCount = 1;
 let BbhActorShardIndex = 0;
-let BbhSafeActorShardCount = toint(
-    max_of(tolong(1), tolong(BbhActorShardCount)));
+let BbhSafeActorShardCount =
+    max_of(tolong(1), tolong(BbhActorShardCount));
 // Offset/limit are applied after stable UserId ordering in the chosen shard.
 let BbhActorOffset = 0;
 // Begin with 1 for parity/runtime measurement; then test 10, 25, 50, 100.
@@ -175,7 +175,8 @@ let BbhTenantRecentStableActorCount = toscalar(
     BbhRecentActorUniverse | summarize count());
 let BbhRecentActors = materialize(
     BbhRecentActorUniverse
-    | where hash(UserId, BbhSafeActorShardCount) == BbhActorShardIndex
+    | where (hash(UserId, 2147483647) % BbhSafeActorShardCount)
+        == tolong(BbhActorShardIndex)
 );
 let BbhHuntActors = materialize(
     BbhRecentActors
