@@ -1,0 +1,1345 @@
+// For one live batch, now() is safe. For a multi-batch/shard sweep, replace
+// now() with one fixed datetime literal and reuse it in every execution.
+let BbhRunAnchor = now();
+let HuntEnd = BbhRunAnchor;
+let HuntStart = HuntEnd - 1d;
+let EvidenceAsOf = BbhRunAnchor;
+//
+// ============================================================================
+// BABBLER HUNT WORKBENCH — TENANT RESEARCH V1
+// Draft version: tenant-research 0.1.0-rc2
+// Scoring source: frozen Babbler incident section 0.1.0 / engine 0.3.1
+// GitHub blob: fa52de065f4335ef8c1b99b28e1ab1afe92e5269
+// Frozen local SHA-256:
+//   86540ad5cfb25dd81316f9ae14bd6b1a0dbe43859bfd4dd0c9ff4068c3074043
+//
+// PURPOSE
+//   Score recent interactive user sign-in flows against each actor's own
+//   preceding baseline. This is a bounded manual threat-hunting workbench.
+//   It preserves Babbler's scoring semantics; executable parity remains a
+//   release gate. It is not a new score.
+//
+// INTERPRETATION
+//   Babbler measures actor-relative behavioural novelty. It does not estimate
+//   compromise probability, compare one actor's risk with another actor's risk,
+//   or qualify a security finding. Per-actor ordering is exploratory only. A
+//   normal hunt period will still have a most-novel row for each actor.
+//
+// TIME MODEL
+//   Score:    HuntStart <= EventTime < HuntEnd
+//   Baseline: HuntStart - BbhBaselineWindow <= EventTime < HuntStart
+//   Live mode is the default: use rows already visible to Sentinel, bounded by
+//   EventTime and TimeGenerated. ingestion_time() remains diagnostic. Enforce
+//   EvidenceAsOf only after this table proves ingestion-time coverage. Historical
+//   disposition replay remains unsupported until the ledger carries RecordedAt.
+//
+// ACTOR MODEL
+//   Actors are selected from recent interactive rows with a stable UserId.
+//   Every vocabulary and Good-Turing statistic is grouped by UserId. There is
+//   no tenant-global behavioural vocabulary in this query.
+//
+// CANDIDATE-MODE ADAPTER SEAM
+//   This file implements tenant-research mode only. A hypothesis-led candidate
+//   mode should replace BbhHuntActors with a bounded table containing UserId,
+//   ActorUPN, CandidateId, CandidateTime, CandidateReason and CandidateSource.
+//   CandidateTime creates actor-specific score/model windows, so that adapter
+//   must be a separate tested query rather than a hidden switch in this query.
+//
+// OUTPUT
+//   Exactly one run_status row, one actor_status row per selected actor, then up
+//   to BbhMaxFlowsPerActor flow rows per actor. Flow diagnostics and repetition
+//   metadata are descriptive only; they do not change bits. Keep comment-only
+//   spacers so the entire file remains one paste-ready query.
+//
+// CALLER CONTRACT
+//   A successful execution must contain exactly one run_status row and the
+//   reported number of actor_status and flow rows. KQL cannot convert a compile
+//   error, timeout, connector failure or partial response into a status row;
+//   the caller must retain the hunt seed and fail open if reconciliation fails.
+// ============================================================================
+//
+// ============================================================
+// HUNT CONTROLS. Change these values; do not edit the engine.
+// ============================================================
+let BbhBaselineWindow = 90d;
+let BbhIngestionGrace = 2d;
+let BbhMinBaselineEvents = 25;
+let BbhMinBaselineActiveDays = 7;
+let BbhNoBaselineFloor = 5;
+let BbhMinModelCoveragePct = 75.0;
+// Default false: SigninLogs workspaces may return null from ingestion_time().
+// Set true only after proving complete coverage and freezing BbhRunAnchor.
+let BbhRequireIngestionTimeCutoff = false;
+let BbhEvidenceMode = iff(
+    BbhRequireIngestionTimeCutoff,
+    "ingestion_time_cutoff",
+    "live_visible_rows");
+// Bounded actor batching. Start with one shard; introduce 2/4/8/16 only after
+// the measured scale ladder requires it. Freeze BbhRunAnchor for a coherent
+// short sweep. Kusto hash() is not a durable roster contract across platform
+// versions. Run shard indexes 0..ShardCount-1.
+let BbhActorShardCount = 1;
+let BbhActorShardIndex = 0;
+let BbhSafeActorShardCount =
+    max_of(tolong(1), tolong(BbhActorShardCount));
+// Offset/limit are applied after stable UserId ordering in the chosen shard.
+let BbhActorOffset = 0;
+// Begin with 1 for parity/runtime measurement; then test 10, 25, 50, 100.
+let BbhActorLimit = 1;
+// Per-actor display bound only. It does not alter baselines, models or scores.
+let BbhMaxFlowsPerActor = 10;
+let BbhFlowMergeDurationThreshold = 15m;
+let BbhModelEnd = HuntStart;
+let BbhModelStart = BbhModelEnd - BbhBaselineWindow;
+let BbhHuntBoundsValid = isnotnull(HuntStart)
+    and isnotnull(HuntEnd) and HuntStart < HuntEnd;
+let BbhShardValid = BbhActorShardCount > 0
+    and BbhActorShardIndex >= 0
+    and BbhActorShardIndex < BbhActorShardCount;
+let BbhBatchValid = BbhActorOffset >= 0
+    and BbhActorLimit > 0 and BbhMaxFlowsPerActor > 0;
+let BbhScoreDisclaimer =
+    "Actor-relative novelty only; not threat probability or a qualified finding.";
+let BbhModelVersion = "babbler-incident-0.3.1/tenant-research-0.1.0-rc2";
+//
+// Per-user verdict ledger. Copy the exact UserId/Dimension/Value tuple from the
+// scoring microscope. Raw bits remain historical; active entries adjust only
+// the operational view. Semantics intentionally match frozen incident Babbler.
+let BbhDispositioned = datatable(
+    UserId: string,
+    Dimension: string,
+    Value: string,
+    ValidFrom: datetime,
+    ExpiresOn: datetime,
+    CaseId: string,
+    DispositionNote: string
+)[
+    // "00000000-0000-0000-0000-000000000000", "asn", "12576",
+    // datetime(2026-08-01), datetime(2026-09-01), "CASE-12345",
+    // "Confirmed corporate/mobile egress"
+];
+//
+// Resolve duplicate disposition tuples before scoring so lookup cannot
+// multiply scoring rows.
+let BbhDispositionedResolved = materialize(
+    BbhDispositioned
+    | summarize arg_max(
+        ValidFrom,
+        ExpiresOn,
+        CaseId,
+        DispositionNote)
+      by UserId, Dimension, Value
+);
+//
+// ============================================================
+// ACTOR SELECTOR. Bounded tenant-research population at one evidence cutoff.
+// ============================================================
+let BbhRecentInteractiveSource = materialize(
+    SigninLogs
+    | where BbhHuntBoundsValid and BbhShardValid and BbhBatchValid
+    | where TimeGenerated >= HuntStart - BbhIngestionGrace
+    | where TimeGenerated < HuntEnd
+    | where IsInteractive == true
+    | extend
+        EventTime = coalesce(CreatedDateTime, TimeGenerated),
+        IngestedAt = ingestion_time()
+    | where EventTime >= HuntStart and EventTime < HuntEnd
+    | project EventTime, IngestedAt, UserId, UserPrincipalName
+);
+let BbhRecentIngestionTimeMissingRows = toscalar(
+    BbhRecentInteractiveSource
+    | summarize countif(isnull(IngestedAt)));
+let BbhRecentRowsAfterEvidenceCutoff = toscalar(
+    BbhRecentInteractiveSource
+    | summarize countif(isnotnull(IngestedAt)
+                        and IngestedAt >= EvidenceAsOf));
+let BbhRecentInteractiveRows = (
+    BbhRecentInteractiveSource
+    | where BbhRequireIngestionTimeCutoff == false
+        or (isnotnull(IngestedAt) and IngestedAt < EvidenceAsOf)
+);
+let BbhRecentRowsMissingUserId = toscalar(
+    BbhRecentInteractiveRows
+    | summarize countif(isempty(UserId)));
+let BbhRecentMissingUserIdDistinctUPNs = toscalar(
+    BbhRecentInteractiveRows
+    | where isempty(UserId) and isnotempty(UserPrincipalName)
+    | summarize by UserPrincipalName
+    | summarize count());
+let BbhRecentActorUniverse = materialize(
+    BbhRecentInteractiveRows
+    | where isnotempty(UserId)
+    | summarize
+        RecentSourceRows = count(),
+        arg_max(EventTime, UserPrincipalName)
+      by UserId
+    | project
+        UserId,
+        ActorUPN = UserPrincipalName,
+        RecentLastSeen = EventTime,
+        RecentSourceRows
+);
+let BbhTenantRecentStableActorCount = toscalar(
+    BbhRecentActorUniverse | summarize count());
+let BbhRecentActors = materialize(
+    BbhRecentActorUniverse
+    | where (hash(UserId, 2147483647) % BbhSafeActorShardCount)
+        == tolong(BbhActorShardIndex)
+);
+let BbhHuntActors = materialize(
+    BbhRecentActors
+    | sort by UserId asc
+    | serialize
+    | extend ActorOrdinal = row_number()
+    | where ActorOrdinal > BbhActorOffset
+        and ActorOrdinal <= BbhActorOffset + BbhActorLimit
+    | project UserId, ActorUPN, ActorOrdinal,
+              RecentLastSeen, RecentSourceRows
+);
+let BbhShardActorCount = toscalar(
+    BbhRecentActors | summarize count());
+let BbhSelectedActorCount = toscalar(
+    BbhHuntActors | summarize count());
+let BbhActorsBeforeOffset = min_of(
+    tolong(BbhActorOffset), tolong(BbhShardActorCount));
+let BbhActorsAfterBatch = max_of(
+    tolong(0),
+    tolong(BbhShardActorCount)
+        - BbhActorsBeforeOffset - tolong(BbhSelectedActorCount));
+let BbhBatchHasMore = BbhActorsAfterBatch > 0;
+let BbhShardsAfterCurrent = max_of(
+    tolong(0),
+    tolong(BbhActorShardCount)
+        - tolong(BbhActorShardIndex) - tolong(1));
+let BbhOtherShardsExcluded = max_of(
+    tolong(0), tolong(BbhActorShardCount) - tolong(1));
+//
+// ============================================================
+// FAITHFUL MULTI-ACTOR ENGINE.
+// ============================================================
+// === SECTION 1: scoped raw rows; event, source-record and ingestion times ===
+let BbhRawSigninCandidates = materialize(
+    SigninLogs
+    | where TimeGenerated >= BbhModelStart - BbhIngestionGrace
+    | where TimeGenerated < HuntEnd
+    | where IsInteractive == true
+    | where isnotempty(UserId)
+    | lookup kind=inner (
+        BbhHuntActors | project UserId)
+      on UserId
+    | extend
+        EventTime = coalesce(CreatedDateTime, TimeGenerated),
+        IngestedAt = ingestion_time()
+    | where EventTime >= BbhModelStart and EventTime < HuntEnd
+    | extend
+        FlowKey = case(
+            isnotempty(OriginalRequestId), OriginalRequestId,
+            isnotempty(CorrelationId), CorrelationId,
+            isnotempty(Id), Id,
+            strcat("fallback:", tostring(EventTime), "|", IPAddress,
+                   "|", AppId, "|", tostring(ResultType))),
+        FlowKeySource = case(
+            isnotempty(OriginalRequestId), "original_request",
+            isnotempty(CorrelationId), "correlation",
+            isnotempty(Id), "id",
+            "fallback")
+    | project
+        EventTime, TimeGenerated, IngestedAt, FlowKey, FlowKeySource, Id,
+        OriginalRequestId, CorrelationId, SessionId, UserId, UserPrincipalName,
+        IPAddress, AutonomousSystemNumber, Location, LocationDetails,
+        DeviceDetail, AppId, AppDisplayName, AuthenticationProtocol,
+        AuthenticationRequirement, AuthenticationMethodsUsed,
+        ClientAppUsed, ResultType, ResultDescription,
+        ConditionalAccessStatus, RiskLevelDuringSignIn,
+        RiskEventTypes_V2, RiskState, RiskDetail, IsRisky,
+        CrossTenantAccessType, HomeTenantId, ResourceTenantId,
+        TokenProtectionStatusDetails
+);
+let BbhSelectedRowsMissingIngestionTime = toscalar(
+    BbhRawSigninCandidates
+    | summarize countif(isnull(IngestedAt)));
+let BbhSelectedRowsAfterEvidenceCutoff = toscalar(
+    BbhRawSigninCandidates
+    | summarize countif(isnotnull(IngestedAt)
+                        and IngestedAt >= EvidenceAsOf));
+let BbhRawSigninRows = (
+    BbhRawSigninCandidates
+    | where BbhRequireIngestionTimeCutoff == false
+        or (isnotnull(IngestedAt) and IngestedAt < EvidenceAsOf)
+);
+//
+// === SECTION 2: collapse Azure Monitor rows into authentication flows ===
+// FlowKey precedence is unchanged. UserId is added only as a grouping boundary
+// so an unexpected cross-user identifier collision cannot blend actor models.
+let BbhSelectedBatchFlowKeyCounts = materialize(
+    BbhRawSigninRows
+    | where EventTime >= HuntStart and EventTime < HuntEnd
+    | summarize SelectedBatchActorKeys = make_set(UserId, 2) by FlowKey
+    | extend SelectedBatchFlowKeyUsers = array_length(SelectedBatchActorKeys)
+    | project-away SelectedBatchActorKeys
+);
+let BbhPrep = materialize(
+    BbhRawSigninRows
+    | summarize
+        SourceRowCount = count(),
+        FlowStart = min(EventTime),
+        FlowEnd = max(EventTime),
+        FlowFirstIngestedAt = min(IngestedAt),
+        FlowLastIngestedAt = max(IngestedAt),
+        SigninIdSet = make_set_if(Id, isnotempty(Id), 1024),
+        OriginalRequestIdSet = make_set_if(
+            OriginalRequestId, isnotempty(OriginalRequestId), 1024),
+        CorrelationIdSet = make_set_if(
+            CorrelationId, isnotempty(CorrelationId), 1024),
+        UPNSet = make_set_if(
+            UserPrincipalName, isnotempty(UserPrincipalName), 1024),
+        IPSet = make_set_if(IPAddress, isnotempty(IPAddress), 1024),
+        AppIdentitySet = make_set_if(
+            strcat(tostring(AppId), "|", tostring(AppDisplayName)),
+            isnotempty(AppId) or isnotempty(AppDisplayName), 1024),
+        FlowKeySources = make_set(FlowKeySource, 4),
+        ResultSet = make_set(tostring(ResultType), 16),
+        AuthMethodsSet = make_set(AuthenticationMethodsUsed, 16),
+        arg_max(
+            TimeGenerated,
+            FlowKeySource,
+            EventTime, IngestedAt, Id, OriginalRequestId, CorrelationId, SessionId,
+            UserPrincipalName, IPAddress, AutonomousSystemNumber,
+            Location, LocationDetails, DeviceDetail, AppId, AppDisplayName,
+            AuthenticationProtocol, AuthenticationRequirement,
+            AuthenticationMethodsUsed, ClientAppUsed, ResultType,
+            ResultDescription, ConditionalAccessStatus,
+            RiskLevelDuringSignIn, RiskEventTypes_V2, RiskState, RiskDetail,
+            IsRisky, CrossTenantAccessType, HomeTenantId, ResourceTenantId,
+            TokenProtectionStatusDetails)
+      by UserId, FlowKey
+    | lookup kind=leftouter BbhSelectedBatchFlowKeyCounts on FlowKey
+    | extend
+        DistinctSigninIds = array_length(SigninIdSet),
+        DistinctOriginalRequestIds = array_length(OriginalRequestIdSet),
+        DistinctCorrelationIds = array_length(CorrelationIdSet),
+        DistinctUPNs = array_length(UPNSet),
+        DistinctIPs = array_length(IPSet),
+        DistinctApps = array_length(AppIdentitySet),
+        DistinctResults = array_length(ResultSet),
+        SelectedBatchFlowKeyUsers = tolong(
+            coalesce(SelectedBatchFlowKeyUsers, 1)),
+        FlowDuration = FlowEnd - FlowStart,
+        SelectedBatchFlowKeyCollision = SelectedBatchFlowKeyUsers > 1
+    | project-away
+        SigninIdSet, OriginalRequestIdSet, CorrelationIdSet,
+        UPNSet, IPSet, AppIdentitySet
+    | extend PossibleFlowMerge = SelectedBatchFlowKeyCollision
+            or DistinctUPNs > 1
+            or DistinctIPs > 1
+            or DistinctApps > 1
+            or FlowDuration > BbhFlowMergeDurationThreshold
+            or (DistinctSigninIds > 1 and DistinctResults > 1)
+            or (DistinctOriginalRequestIds > 1
+                and DistinctCorrelationIds > 1)
+            or (array_index_of(FlowKeySources, "fallback") >= 0
+                and SourceRowCount > 1)
+    | extend Dev = DeviceDetail, Loc = LocationDetails
+    | extend
+        OsRaw = tostring(Dev.operatingSystem),
+        BrowserRaw = tostring(Dev.browser),
+        ProtocolRaw = tostring(AuthenticationProtocol),
+        AuthMethodsRaw = tostring(AuthenticationMethodsUsed)
+    | extend
+        DimAsn = iff(isempty(tostring(AutonomousSystemNumber)),
+                     "<missing>", tostring(AutonomousSystemNumber)),
+        DimCountry = toupper(coalesce(
+                         Location,
+                         tostring(Loc.countryOrRegion),
+                         "<missing>")),
+        DeviceId = iff(isempty(tostring(Dev.deviceId)),
+                       "<unregistered>", tostring(Dev.deviceId)),
+        DeviceTrust = iff(isempty(tostring(Dev.trustType)),
+                          "<none>", tostring(Dev.trustType)),
+        DeviceCompliant = iff(isempty(tostring(Dev.isCompliant)),
+                              "<unknown>", tostring(Dev.isCompliant)),
+        DimOs = tolower(replace_regex(
+                    iff(isempty(OsRaw), "<missing>", OsRaw),
+                    @'[0-9]+([.][0-9]+)*', "#")),
+        DimBrowser = tolower(replace_regex(
+                         iff(isempty(BrowserRaw), "<missing>", BrowserRaw),
+                         @'[0-9]+([.][0-9]+)*', "#")),
+        DimApp = coalesce(AppId, AppDisplayName, "<missing>"),
+        DimProtocol = tolower(iff(
+                          isempty(ProtocolRaw), "<missing>", ProtocolRaw)),
+        DimClient = coalesce(ClientAppUsed, "<missing>"),
+        DimResult = iff(isempty(tostring(ResultType)),
+                        "<missing>", tostring(ResultType)),
+        BrowserExpected = ClientAppUsed has "Browser",
+        AuthMethodsObserved = isnotempty(AuthMethodsRaw)
+                              and AuthMethodsRaw != "[]",
+        SourceRecordDelay = TimeGenerated - EventTime
+    | extend
+        BrowserApplicable = BrowserExpected or isnotempty(BrowserRaw),
+        BrowserMissing = BrowserExpected and isempty(BrowserRaw),
+        AuthRequirementDisplay = iff(
+            isempty(AuthenticationRequirement),
+            "<not_reported>", AuthenticationRequirement),
+        AuthMethodsDisplay = iff(
+            AuthMethodsObserved, AuthMethodsRaw, "<not_reported>"),
+        AuthEvidenceState = case(
+            AuthMethodsObserved, "observed",
+            AuthenticationProtocol in~ ("saml20", "wsFederation"),
+                "federated_upstream",
+            AuthenticationRequirement =~ "multiFactorAuthentication",
+                "missing_expected",
+            "not_reported")
+    | extend
+        DimDevice = DeviceId,
+        Registered = iff(DeviceId == "<unregistered>",
+                         "unregistered device", "registered device"),
+        EvidenceGaps = set_difference(
+            pack_array(
+                iff(AuthEvidenceState == "missing_expected",
+                    "authmethods", "")),
+            dynamic([""])),
+        ControlFlags = set_difference(
+            pack_array(
+                iff(DeviceId == "<unregistered>",
+                    "unregistered_device", ""),
+                iff(tolower(DeviceCompliant) == "false",
+                    "noncompliant_device", ""),
+                iff(tolower(ConditionalAccessStatus) == "failure",
+                    "conditional_access_failure", ""),
+                iff(AuthenticationProtocol =~ "ropc"
+                    or ClientAppUsed in~
+                       ("Exchange ActiveSync", "IMAP", "MAPI", "SMTP", "POP"),
+                    "legacy_auth", ""),
+                iff(IsRisky == true
+                    or RiskLevelDuringSignIn in~ ("medium", "high"),
+                    "entra_risk_signal", ""),
+                iff(isnotempty(CrossTenantAccessType)
+                    and CrossTenantAccessType !~ "none",
+                    "cross_tenant", "")),
+            dynamic([""]))
+    | extend ContextSignature = strcat(
+        "asn=", DimAsn,
+        "|country=", DimCountry,
+        "|device=", DimDevice,
+        "|os=", DimOs,
+        "|browser=", DimBrowser,
+        "|app=", DimApp,
+        "|protocol=", DimProtocol,
+        "|clientapp=", DimClient)
+);
+//
+// === SECTION 3: long form, one row per actor + flow + dimension + value ===
+let BbhPrepLong = (start: datetime, stop: datetime) {
+    BbhPrep
+    | where EventTime >= start and EventTime < stop
+    | extend Dims = pack_array(
+        bag_pack("d", "asn",       "p", "network", "context", true,
+                 "v", DimAsn,      "a", true,
+                 "m", DimAsn == "<missing>"),
+        bag_pack("d", "country",   "p", "network", "context", true,
+                 "v", DimCountry,  "a", true,
+                 "m", DimCountry == "<missing>"),
+        bag_pack("d", "device",    "p", "client",  "context", true,
+                 "v", DimDevice,   "a", true, "m", false),
+        bag_pack("d", "os",        "p", "client",  "context", true,
+                 "v", DimOs,       "a", true,
+                 "m", DimOs == "<missing>"),
+        bag_pack("d", "browser",   "p", "client",  "context", true,
+                 "v", DimBrowser,  "a", BrowserApplicable,
+                 "m", BrowserMissing),
+        bag_pack("d", "app",       "p", "access",  "context", true,
+                 "v", DimApp,      "a", true,
+                 "m", DimApp == "<missing>"),
+        bag_pack("d", "protocol",  "p", "access",  "context", true,
+                 "v", DimProtocol, "a", true,
+                 "m", DimProtocol == "<missing>"),
+        bag_pack("d", "clientapp", "p", "access",  "context", true,
+                 "v", DimClient,   "a", true,
+                 "m", DimClient == "<missing>"),
+        bag_pack("d", "result",    "p", "outcome", "context", false,
+                 "v", DimResult,   "a", true,
+                 "m", DimResult == "<missing>"))
+    | mv-expand D = Dims
+    | extend
+        Dimension = tostring(D.d),
+        Plane = tostring(D.p),
+        IncludeContext = tobool(D.context),
+        Value = tostring(D.v),
+        Applicable = tobool(D.a),
+        Missing = tobool(D.m)
+    | project-away D, Dims
+};
+//
+// === SECTION 4: per-user baseline health ===
+// Successful terminal flows define readiness exactly as in incident Babbler.
+let BbhBaselineHealthObserved = materialize(
+    BbhPrep
+    | where EventTime >= BbhModelStart and EventTime < BbhModelEnd
+    | where DimResult == "0"
+    | summarize
+        BaselineFlows = count(),
+        BaselineActiveDays = dcount(startofday(EventTime)),
+        BaselineFirst = min(EventTime),
+        BaselineLast = max(EventTime)
+      by UserId
+);
+let BbhActorBaseline = materialize(
+    BbhHuntActors
+    | lookup kind=leftouter BbhBaselineHealthObserved on UserId
+    | extend
+        BaselineFlows = tolong(coalesce(BaselineFlows, 0)),
+        BaselineActiveDays = tolong(coalesce(BaselineActiveDays, 0))
+    | extend BaselineState = case(
+        BaselineFlows < BbhNoBaselineFloor, "no_baseline",
+        BaselineFlows < BbhMinBaselineEvents
+            or BaselineActiveDays < BbhMinBaselineActiveDays,
+            "thin_baseline",
+        "ready")
+    | project
+        UserId, ActorUPN, ActorOrdinal, RecentLastSeen, RecentSourceRows,
+        BaselineFlows, BaselineActiveDays, BaselineFirst, BaselineLast,
+        BaselineState
+);
+//
+// === SECTION 5: per-user, per-dimension vocabularies ===
+// Context dimensions learn successful flows. Outcome learns all flows.
+let BbhBaselineLong = materialize(
+    BbhPrepLong(BbhModelStart, BbhModelEnd)
+    | where Applicable == true
+    | where Missing == false
+    | where IncludeContext == false or DimResult == "0"
+    | project UserId, Dimension, Value, EventTime, AppDisplayName
+);
+let BbhModel = materialize(
+    BbhBaselineLong
+    | summarize
+        ValueCount = count(),
+        DaysSeen = dcount(startofday(EventTime)),
+        LastSeen = max(EventTime),
+        DisplayValue = take_any(
+            iff(Dimension == "app",
+                strcat(AppDisplayName, " [", Value, "]"),
+                Value))
+      by UserId, Dimension, Value
+);
+//
+// === SECTION 6: coherent, smoothed unseen-bucket price, per user ===
+let BbhDimStats = materialize(
+    BbhModel
+    | summarize
+        DimTotal = sum(ValueCount),
+        Vocabulary = count(),
+        Singletons = countif(ValueCount == 1)
+      by UserId, Dimension
+    | extend PUnseen = (todouble(Singletons) + 0.5)
+                       / (todouble(DimTotal) + 1.0)
+);
+//
+// === SECTION 7: score recent flows against their actor's own model ===
+let BbhScoredLong = materialize(
+    BbhPrepLong(HuntStart, HuntEnd)
+    | lookup kind=leftouter BbhModel on UserId, Dimension, Value
+    | lookup kind=leftouter BbhDimStats on UserId, Dimension
+    | lookup kind=leftouter BbhActorBaseline on UserId
+    | lookup kind=leftouter BbhDispositionedResolved
+        on UserId, Dimension, Value
+    | extend HasModel = isnotnull(DimTotal) and DimTotal > 0
+    | extend Novel = Applicable and Missing == false
+                     and HasModel and isnull(ValueCount)
+    | extend Probability = case(
+        Applicable == false or Missing or HasModel == false, real(null),
+        Novel, PUnseen,
+        (1.0 - PUnseen)
+            * todouble(ValueCount)
+            / todouble(DimTotal))
+    | extend RawBits = case(
+        BaselineState != "ready" or isnull(Probability), real(null),
+        -log2(Probability))
+    | extend DispositionApplies =
+        isnotempty(DispositionNote)
+        and Applicable and Missing == false
+        and (isnull(ValidFrom) or EventTime >= ValidFrom)
+        and (isnull(ExpiresOn) or EventTime < ExpiresOn)
+    | extend ActionableNovel = Novel and DispositionApplies == false
+    | extend AdjustedBits = case(
+        isnull(RawBits), real(null),
+        DispositionApplies, 0.0,
+        RawBits)
+);
+//
+// === SECTION 8: exact-context repetition metadata; no episode collapse ===
+let BbhContextRepetition = materialize(
+    BbhPrep
+    | where EventTime >= HuntStart and EventTime < HuntEnd
+    | summarize
+        SameContextFlowCount = count(),
+        SameContextFirstSeen = min(EventTime),
+        SameContextLastSeen = max(EventTime),
+        SameContextIPSet = make_set_if(
+            IPAddress, isnotempty(IPAddress), 1024),
+        SameContextResultSet = make_set(DimResult, 1024)
+      by UserId, ContextSignature
+    | extend
+        SameContextDistinctIPs = array_length(SameContextIPSet),
+        SameContextDistinctResults = array_length(SameContextResultSet)
+    | project-away SameContextIPSet, SameContextResultSet
+);
+let BbhRecentActorFlowCounts = materialize(
+    BbhPrep
+    | where EventTime >= HuntStart and EventTime < HuntEnd
+    | summarize ActorRecentFlowCount = count() by UserId
+);
+//
+// === SECTION 9: one analyst-facing row per authentication flow ===
+let BbhScoredCore = materialize(
+    BbhScoredLong
+    | summarize
+        RawContextBitsCalc = sumif(RawBits, IncludeContext),
+        AdjustedContextBitsCalc = sumif(AdjustedBits, IncludeContext),
+        RawOutcomeBitsCalc = sumif(RawBits, IncludeContext == false),
+        AdjustedOutcomeBitsCalc = sumif(
+            AdjustedBits, IncludeContext == false),
+        RawAsnBitsCalc = sumif(RawBits, Dimension == "asn"),
+        AdjustedAsnBitsCalc = sumif(AdjustedBits, Dimension == "asn"),
+        RawCountryBitsCalc = sumif(RawBits, Dimension == "country"),
+        AdjustedCountryBitsCalc = sumif(
+            AdjustedBits, Dimension == "country"),
+        RawDeviceBitsCalc = sumif(RawBits, Dimension == "device"),
+        AdjustedDeviceBitsCalc = sumif(
+            AdjustedBits, Dimension == "device"),
+        RawOsBitsCalc = sumif(RawBits, Dimension == "os"),
+        AdjustedOsBitsCalc = sumif(AdjustedBits, Dimension == "os"),
+        RawBrowserBitsCalc = sumif(RawBits, Dimension == "browser"),
+        AdjustedBrowserBitsCalc = sumif(
+            AdjustedBits, Dimension == "browser"),
+        RawAppBitsCalc = sumif(RawBits, Dimension == "app"),
+        AdjustedAppBitsCalc = sumif(AdjustedBits, Dimension == "app"),
+        RawProtocolBitsCalc = sumif(RawBits, Dimension == "protocol"),
+        AdjustedProtocolBitsCalc = sumif(
+            AdjustedBits, Dimension == "protocol"),
+        RawClientAppBitsCalc = sumif(
+            RawBits, Dimension == "clientapp"),
+        AdjustedClientAppBitsCalc = sumif(
+            AdjustedBits, Dimension == "clientapp"),
+        RawResultBitsCalc = sumif(RawBits, Dimension == "result"),
+        AdjustedResultBitsCalc = sumif(
+            AdjustedBits, Dimension == "result"),
+        AsnScoreCount = countif(
+            Dimension == "asn" and isnotnull(RawBits)),
+        CountryScoreCount = countif(
+            Dimension == "country" and isnotnull(RawBits)),
+        DeviceScoreCount = countif(
+            Dimension == "device" and isnotnull(RawBits)),
+        OsScoreCount = countif(
+            Dimension == "os" and isnotnull(RawBits)),
+        BrowserScoreCount = countif(
+            Dimension == "browser" and isnotnull(RawBits)),
+        AppScoreCount = countif(
+            Dimension == "app" and isnotnull(RawBits)),
+        ProtocolScoreCount = countif(
+            Dimension == "protocol" and isnotnull(RawBits)),
+        ClientAppScoreCount = countif(
+            Dimension == "clientapp" and isnotnull(RawBits)),
+        ResultScoreCount = countif(
+            Dimension == "result" and isnotnull(RawBits)),
+        ApplicableContextDims = countif(IncludeContext and Applicable),
+        ScoredContextDims = countif(IncludeContext and isnotnull(RawBits)),
+        RawNetworkNovelCount = countif(
+            Novel and IncludeContext and Plane == "network"),
+        RawClientNovelCount = countif(
+            Novel and IncludeContext and Plane == "client"),
+        RawAccessNovelCount = countif(
+            Novel and IncludeContext and Plane == "access"),
+        ActionableNetworkNovelCount = countif(
+            ActionableNovel and IncludeContext and Plane == "network"),
+        ActionableClientNovelCount = countif(
+            ActionableNovel and IncludeContext and Plane == "client"),
+        ActionableAccessNovelCount = countif(
+            ActionableNovel and IncludeContext and Plane == "access"),
+        RawOutcomeNovelCount = countif(
+            Novel and IncludeContext == false),
+        ActionableOutcomeNovelCount = countif(
+            ActionableNovel and IncludeContext == false),
+        RawNovelDims = make_set_if(
+            Dimension, Novel and IncludeContext),
+        ActionableNovelDims = make_set_if(
+            Dimension, ActionableNovel and IncludeContext),
+        MissingDims = make_set_if(
+            Dimension, Applicable and Missing),
+        NotApplicableDims = make_set_if(
+            Dimension, Applicable == false),
+        UnmodelledDims = make_set_if(
+            Dimension,
+            Applicable and Missing == false and HasModel == false),
+        DispositionHits = make_set_if(
+            strcat(Dimension, "=", Value, " [", CaseId, "]"),
+            DispositionApplies),
+        take_any(
+            TimeGenerated, UserPrincipalName, IPAddress,
+            AutonomousSystemNumber, Location, AppDisplayName, AppId,
+            DeviceId, DeviceTrust, DeviceCompliant, Registered,
+            DimOs, DimBrowser, BrowserApplicable, DimProtocol,
+            DimClient, DimResult, AuthenticationRequirement,
+            AuthenticationMethodsUsed, AuthRequirementDisplay,
+            AuthMethodsDisplay, AuthMethodsSet, AuthEvidenceState,
+            EvidenceGaps, ResultDescription, ResultSet,
+            ConditionalAccessStatus, RiskLevelDuringSignIn,
+            RiskEventTypes_V2, RiskState, RiskDetail,
+            CrossTenantAccessType, HomeTenantId, ResourceTenantId,
+            TokenProtectionStatusDetails, SessionId, OriginalRequestId,
+            CorrelationId, FlowKeySource, FlowKeySources,
+            SourceRowCount, DistinctSigninIds,
+            DistinctOriginalRequestIds, DistinctCorrelationIds,
+            DistinctUPNs, DistinctIPs, DistinctApps, DistinctResults,
+            SelectedBatchFlowKeyUsers, SelectedBatchFlowKeyCollision,
+            FlowStart, FlowEnd, FlowDuration, PossibleFlowMerge,
+            FlowFirstIngestedAt, FlowLastIngestedAt,
+            SourceRecordDelay, ControlFlags, ContextSignature)
+      by UserId, FlowKey, EventTime
+);
+//
+// === SECTION 10: preserve incident Babbler's score derivations ===
+let BbhScored = materialize(
+    BbhScoredCore
+    | lookup kind=leftouter BbhActorBaseline on UserId
+    | lookup kind=leftouter BbhContextRepetition
+        on UserId, ContextSignature
+    | lookup kind=leftouter BbhRecentActorFlowCounts on UserId
+    | extend
+        RawContextBits = iff(
+            BaselineState == "ready" and ScoredContextDims > 0,
+            round(RawContextBitsCalc, 1), real(null)),
+        AdjustedContextBits = iff(
+            BaselineState == "ready" and ScoredContextDims > 0,
+            round(AdjustedContextBitsCalc, 1), real(null)),
+        RawOutcomeBits = iff(
+            BaselineState == "ready" and ResultScoreCount > 0,
+            round(RawOutcomeBitsCalc, 1), real(null)),
+        AdjustedOutcomeBits = iff(
+            BaselineState == "ready" and ResultScoreCount > 0,
+            round(AdjustedOutcomeBitsCalc, 1), real(null)),
+        RawAsnBits = iff(
+            AsnScoreCount > 0,
+            round(RawAsnBitsCalc, 1), real(null)),
+        AdjustedAsnBits = iff(
+            AsnScoreCount > 0,
+            round(AdjustedAsnBitsCalc, 1), real(null)),
+        RawCountryBits = iff(
+            CountryScoreCount > 0,
+            round(RawCountryBitsCalc, 1), real(null)),
+        AdjustedCountryBits = iff(
+            CountryScoreCount > 0,
+            round(AdjustedCountryBitsCalc, 1), real(null)),
+        RawDeviceBits = iff(
+            DeviceScoreCount > 0,
+            round(RawDeviceBitsCalc, 1), real(null)),
+        AdjustedDeviceBits = iff(
+            DeviceScoreCount > 0,
+            round(AdjustedDeviceBitsCalc, 1), real(null)),
+        RawOsBits = iff(
+            OsScoreCount > 0,
+            round(RawOsBitsCalc, 1), real(null)),
+        AdjustedOsBits = iff(
+            OsScoreCount > 0,
+            round(AdjustedOsBitsCalc, 1), real(null)),
+        RawBrowserBits = iff(
+            BrowserScoreCount > 0,
+            round(RawBrowserBitsCalc, 1), real(null)),
+        AdjustedBrowserBits = iff(
+            BrowserScoreCount > 0,
+            round(AdjustedBrowserBitsCalc, 1), real(null)),
+        RawAppBits = iff(
+            AppScoreCount > 0,
+            round(RawAppBitsCalc, 1), real(null)),
+        AdjustedAppBits = iff(
+            AppScoreCount > 0,
+            round(AdjustedAppBitsCalc, 1), real(null)),
+        RawProtocolBits = iff(
+            ProtocolScoreCount > 0,
+            round(RawProtocolBitsCalc, 1), real(null)),
+        AdjustedProtocolBits = iff(
+            ProtocolScoreCount > 0,
+            round(AdjustedProtocolBitsCalc, 1), real(null)),
+        RawClientAppBits = iff(
+            ClientAppScoreCount > 0,
+            round(RawClientAppBitsCalc, 1), real(null)),
+        AdjustedClientAppBits = iff(
+            ClientAppScoreCount > 0,
+            round(AdjustedClientAppBitsCalc, 1), real(null)),
+        RawResultBits = iff(
+            ResultScoreCount > 0,
+            round(RawResultBitsCalc, 1), real(null)),
+        AdjustedResultBits = iff(
+            ResultScoreCount > 0,
+            round(AdjustedResultBitsCalc, 1), real(null)),
+        ModelCoverage = iff(
+            ApplicableContextDims > 0,
+            round(
+                100.0 * todouble(ScoredContextDims)
+                / todouble(ApplicableContextDims), 1),
+            real(null))
+    | extend
+        RawMultiContextPlane =
+            (RawNetworkNovelCount > 0 and RawClientNovelCount > 0)
+            or (RawNetworkNovelCount > 0 and RawAccessNovelCount > 0)
+            or (RawClientNovelCount > 0 and RawAccessNovelCount > 0),
+        ActionableMultiContextPlane =
+            (ActionableNetworkNovelCount > 0
+             and ActionableClientNovelCount > 0)
+            or (ActionableNetworkNovelCount > 0
+                and ActionableAccessNovelCount > 0)
+            or (ActionableClientNovelCount > 0
+                and ActionableAccessNovelCount > 0)
+    | extend
+        ExpectedContextDims = 8,
+        RawNoveltyPattern = case(
+            BaselineState != "ready", "not_assessed",
+            RawMultiContextPlane, "multi_plane",
+            RawNetworkNovelCount > 0, "network",
+            RawClientNovelCount > 0, "client",
+            RawAccessNovelCount > 0, "access",
+            "all_context_values_seen"),
+        ActionableNoveltyPattern = case(
+            BaselineState != "ready", "not_assessed",
+            array_length(RawNovelDims) > 0
+                and array_length(ActionableNovelDims) == 0,
+                "fully_dispositioned",
+            ActionableMultiContextPlane, "multi_plane",
+            ActionableNetworkNovelCount > 0, "network",
+            ActionableClientNovelCount > 0, "client",
+            ActionableAccessNovelCount > 0, "access",
+            "all_context_values_seen"),
+        RawOutcomeNovel =
+            BaselineState == "ready" and RawOutcomeNovelCount > 0,
+        ActionableOutcomeNovel =
+            BaselineState == "ready" and ActionableOutcomeNovelCount > 0,
+        RarityBand = "uncalibrated",
+        DispositionState = iff(
+            array_length(DispositionHits) > 0, "applied", "none"),
+        ScoreConfidence = case(
+            BaselineState != "ready", "not_scored",
+            isnull(ModelCoverage)
+                or ModelCoverage < BbhMinModelCoveragePct,
+                "low_model_coverage",
+            array_length(MissingDims) > 0
+                or array_length(EvidenceGaps) > 0,
+                "reduced_missing_telemetry",
+            "standard")
+    | extend Assessment = case(
+        BaselineState == "no_baseline",
+            "Not assessed: fewer than the no-baseline floor of successful flows.",
+        BaselineState == "thin_baseline",
+            "Not assessed: baseline is too thin for confident bits.",
+        array_length(ControlFlags) > 0
+            and ActionableNoveltyPattern !in
+                ("all_context_values_seen", "fully_dispositioned"),
+            "Novel identity context with one or more deterministic control flags; investigate.",
+        array_length(ControlFlags) > 0,
+            "Known identity context with one or more deterministic control flags; review the flags.",
+        ActionableNoveltyPattern == "fully_dispositioned",
+            "Raw novelty observed; active dispositions removed it from the actionable view.",
+        ActionableNoveltyPattern != "all_context_values_seen",
+            "Novel identity context observed; compromise is not established.",
+        "All scored context values were previously observed; compromise is not excluded.")
+    | project-away
+        RawContextBitsCalc, AdjustedContextBitsCalc,
+        RawOutcomeBitsCalc, AdjustedOutcomeBitsCalc,
+        RawAsnBitsCalc, AdjustedAsnBitsCalc,
+        RawCountryBitsCalc, AdjustedCountryBitsCalc,
+        RawDeviceBitsCalc, AdjustedDeviceBitsCalc,
+        RawOsBitsCalc, AdjustedOsBitsCalc,
+        RawBrowserBitsCalc, AdjustedBrowserBitsCalc,
+        RawAppBitsCalc, AdjustedAppBitsCalc,
+        RawProtocolBitsCalc, AdjustedProtocolBitsCalc,
+        RawClientAppBitsCalc, AdjustedClientAppBitsCalc,
+        RawResultBitsCalc, AdjustedResultBitsCalc,
+        AsnScoreCount, CountryScoreCount, DeviceScoreCount, OsScoreCount,
+        BrowserScoreCount, AppScoreCount, ProtocolScoreCount,
+        ClientAppScoreCount, ResultScoreCount,
+        RawMultiContextPlane, ActionableMultiContextPlane
+);
+//
+// ============================================================
+// ANALYST-FACING ADAPTER. No qualification gate and no cross-user score claim.
+// ============================================================
+let BbhRawSigninRowCount = toscalar(
+    BbhRawSigninRows | summarize count());
+let BbhPreparedFlowCount = toscalar(
+    BbhPrep | summarize count());
+let BbhBaselineLongRowCount = toscalar(
+    BbhBaselineLong | summarize count());
+let BbhModelRowCount = toscalar(
+    BbhModel | summarize count());
+let BbhScoredLongRowCount = toscalar(
+    BbhScoredLong | summarize count());
+let BbhScoredFlowCount = toscalar(
+    BbhScored | summarize count());
+let BbhExpectedScoredLongRowCount =
+    tolong(BbhScoredFlowCount) * tolong(9);
+let BbhNineRowsPerScoredFlow =
+    tolong(BbhScoredLongRowCount) == BbhExpectedScoredLongRowCount;
+let BbhReadyActorCount = toscalar(
+    BbhActorBaseline
+    | summarize countif(BaselineState == "ready"));
+let BbhThinBaselineActorCount = toscalar(
+    BbhActorBaseline
+    | summarize countif(BaselineState == "thin_baseline"));
+let BbhNoBaselineActorCount = toscalar(
+    BbhActorBaseline
+    | summarize countif(BaselineState == "no_baseline"));
+let BbhExecutionState = case(
+    BbhHuntBoundsValid == false, "invalid_window",
+    BbhShardValid == false, "invalid_shard",
+    BbhBatchValid == false, "invalid_batch_controls",
+    BbhRequireIngestionTimeCutoff
+        and (BbhRecentIngestionTimeMissingRows > 0
+             or BbhSelectedRowsMissingIngestionTime > 0),
+        "degraded_missing_ingestion_time",
+    BbhShardActorCount == 0, "no_recent_actors_in_shard",
+    BbhSelectedActorCount == 0, "no_selected_actors",
+    BbhNineRowsPerScoredFlow == false, "failed_long_row_invariant",
+    "ready");
+let BbhBatchCoversWholeShard =
+    BbhActorOffset == 0
+    and BbhActorsAfterBatch == 0
+    and BbhSelectedActorCount == BbhShardActorCount;
+let BbhPopulationComplete =
+    BbhExecutionState == "ready"
+    and BbhActorShardCount == 1
+    and BbhActorShardIndex == 0
+    and BbhBatchCoversWholeShard
+    and BbhRecentRowsMissingUserId == 0;
+let BbhPopulationCoverageState = case(
+    BbhExecutionState != "ready",
+        "not_assessed",
+    BbhPopulationComplete, "complete_stable_actor_population",
+    "bounded_partial_population");
+let BbhRequiresMoreBatches =
+    BbhExecutionState == "ready"
+    and (BbhBatchHasMore or BbhShardsAfterCurrent > 0);
+let BbhPerActorDisplay = materialize(
+    BbhScored
+    | sort by
+        UserId asc,
+        AdjustedContextBits desc nulls last,
+        RawContextBits desc nulls last,
+        EventTime desc,
+        FlowKey asc
+    | serialize
+    | extend ActorDisplayOrdinal = row_number(
+        1, UserId != prev(UserId))
+    | extend ActorFlowRowsOmitted = max_of(
+        tolong(0),
+        tolong(ActorRecentFlowCount)
+            - tolong(BbhMaxFlowsPerActor))
+    | where ActorDisplayOrdinal <= BbhMaxFlowsPerActor
+);
+let BbhPerActorDisplayCount = toscalar(
+    BbhPerActorDisplay | summarize count());
+let BbhActorDisplayCounts = materialize(
+    BbhPerActorDisplay
+    | summarize DisplayedFlowCount = count() by UserId
+);
+let BbhActorFlowHealth = materialize(
+    BbhScored
+    | summarize
+        ActorRecentFlowCount = count(),
+        MergeDiagnosticFlowCount = countif(PossibleFlowMerge),
+        ControlFlagFlowCount = countif(array_length(ControlFlags) > 0),
+        MissingTelemetryFlowCount = countif(
+            array_length(MissingDims) > 0
+            or array_length(EvidenceGaps) > 0),
+        ReducedConfidenceFlowCount = countif(
+            ScoreConfidence != "standard")
+      by UserId
+);
+let BbhActorStatus = materialize(
+    BbhActorBaseline
+    | lookup kind=leftouter BbhActorFlowHealth on UserId
+    | lookup kind=leftouter BbhActorDisplayCounts on UserId
+    | extend
+        ActorRecentFlowCount = tolong(
+            coalesce(ActorRecentFlowCount, 0)),
+        DisplayedFlowCount = tolong(
+            coalesce(DisplayedFlowCount, 0)),
+        MergeDiagnosticFlowCount = tolong(
+            coalesce(MergeDiagnosticFlowCount, 0)),
+        ControlFlagFlowCount = tolong(
+            coalesce(ControlFlagFlowCount, 0)),
+        MissingTelemetryFlowCount = tolong(
+            coalesce(MissingTelemetryFlowCount, 0)),
+        ReducedConfidenceFlowCount = tolong(
+            coalesce(ReducedConfidenceFlowCount, 0))
+    | extend
+        OmittedFlowCount = max_of(
+            tolong(0), ActorRecentFlowCount - DisplayedFlowCount),
+        AssessmentSupported =
+            BbhExecutionState == "ready" and BaselineState == "ready",
+        AssessmentState = case(
+            BbhExecutionState != "ready", BbhExecutionState,
+            BaselineState != "ready", BaselineState,
+            ReducedConfidenceFlowCount > 0, "degraded",
+            "ready"),
+        UnsupportedReason = case(
+            BbhExecutionState != "ready", BbhExecutionState,
+            BaselineState != "ready", BaselineState,
+            "")
+    | extend
+        RecordType = "actor_status",
+        OutputOrder = int(1),
+        ExecutionState = BbhExecutionState,
+        HuntMode = "tenant_research_v1",
+        ModelVersion = BbhModelVersion,
+        ScoreMeaning = BbhScoreDisclaimer,
+        CrossActorScoreComparisonSupported = false,
+        SecurityFindingQualified = false,
+        DecisionEligible = false,
+        ActorKey = UserId
+    | project
+        RecordType,
+        OutputOrder,
+        ExecutionState,
+        HuntMode,
+        ModelVersion,
+        ScoreMeaning,
+        CrossActorScoreComparisonSupported,
+        SecurityFindingQualified,
+        DecisionEligible,
+        AssessmentSupported,
+        AssessmentState,
+        UnsupportedReason,
+        HuntStart,
+        HuntEnd,
+        EvidenceAsOf,
+        EvidenceMode = BbhEvidenceMode,
+        IngestionTimeCutoffRequired = BbhRequireIngestionTimeCutoff,
+        ModelStart = BbhModelStart,
+        ModelEnd = BbhModelEnd,
+        PopulationCoverageState = BbhPopulationCoverageState,
+        PopulationComplete = BbhPopulationComplete,
+        RequiresMoreBatches = BbhRequiresMoreBatches,
+        ActorShardCount = BbhActorShardCount,
+        ActorShardIndex = BbhActorShardIndex,
+        ActorOffset = BbhActorOffset,
+        ActorLimit = BbhActorLimit,
+        ShardActorCount = BbhShardActorCount,
+        SelectedActorCount = BbhSelectedActorCount,
+        ActorsBeforeOffset = BbhActorsBeforeOffset,
+        ActorsAfterBatch = BbhActorsAfterBatch,
+        MaxFlowsPerActor = BbhMaxFlowsPerActor,
+        ActorOrdinal,
+        ActorKey,
+        UserId,
+        ActorUPN,
+        RecentLastSeen,
+        RecentSourceRows,
+        ActorRecentFlowCount,
+        DisplayedFlowCount,
+        OmittedFlowCount,
+        MergeDiagnosticFlowCount,
+        ControlFlagFlowCount,
+        MissingTelemetryFlowCount,
+        ReducedConfidenceFlowCount,
+        BaselineState,
+        BaselineFlows,
+        BaselineActiveDays,
+        BaselineFirst,
+        BaselineLast
+);
+let BabblerHuntWorkbench = materialize(
+    BbhPerActorDisplay
+    | extend
+        RecordType = "flow",
+        OutputOrder = int(2),
+        ExecutionState = BbhExecutionState,
+        HuntMode = "tenant_research_v1",
+        ModelVersion = BbhModelVersion,
+        ScoreMeaning = BbhScoreDisclaimer,
+        CrossActorScoreComparisonSupported = false,
+        SecurityFindingQualified = false,
+        DecisionEligible = false,
+        AssessmentSupported =
+            BbhExecutionState == "ready" and BaselineState == "ready",
+        AssessmentState = case(
+            BbhExecutionState != "ready", BbhExecutionState,
+            BaselineState != "ready", BaselineState,
+            ScoreConfidence),
+        UnsupportedReason = case(
+            BbhExecutionState != "ready", BbhExecutionState,
+            BaselineState != "ready", BaselineState,
+            ""),
+        ActorKey = UserId,
+        BrowserDisplay = iff(
+            BrowserApplicable, DimBrowser, "<not_applicable>"),
+        FlowMergeReason = case(
+            PossibleFlowMerge == false, "none",
+            SelectedBatchFlowKeyCollision,
+                "selected_batch_flow_key_collision",
+            array_index_of(FlowKeySources, "fallback") >= 0
+                and SourceRowCount > 1, "duplicate_fallback_key",
+            DistinctUPNs > 1, "multiple_upns",
+            DistinctIPs > 1, "multiple_ips",
+            DistinctApps > 1, "multiple_apps",
+            FlowDuration > BbhFlowMergeDurationThreshold,
+                "duration_over_threshold",
+            DistinctSigninIds > 1 and DistinctResults > 1,
+                "multiple_signin_ids_and_results",
+            DistinctOriginalRequestIds > 1
+                and DistinctCorrelationIds > 1,
+                "multiple_request_and_correlation_ids",
+            "diagnostic_rule")
+    | sort by
+        ActorOrdinal asc,
+        ActorDisplayOrdinal asc,
+        EventTime desc,
+        FlowKey asc
+    | serialize
+    | extend OutputRowOrdinal = row_number()
+    | project
+        RecordType,
+        OutputOrder,
+        ExecutionState,
+        HuntMode,
+        ModelVersion,
+        ScoreMeaning,
+        CrossActorScoreComparisonSupported,
+        SecurityFindingQualified,
+        DecisionEligible,
+        AssessmentSupported,
+        AssessmentState,
+        UnsupportedReason,
+        HuntStart,
+        HuntEnd,
+        EvidenceAsOf,
+        EvidenceMode = BbhEvidenceMode,
+        IngestionTimeCutoffRequired = BbhRequireIngestionTimeCutoff,
+        ModelStart = BbhModelStart,
+        ModelEnd = BbhModelEnd,
+        PopulationCoverageState = BbhPopulationCoverageState,
+        PopulationComplete = BbhPopulationComplete,
+        RequiresMoreBatches = BbhRequiresMoreBatches,
+        ActorShardCount = BbhActorShardCount,
+        ActorShardIndex = BbhActorShardIndex,
+        ActorOffset = BbhActorOffset,
+        ActorLimit = BbhActorLimit,
+        ShardActorCount = BbhShardActorCount,
+        SelectedActorCount = BbhSelectedActorCount,
+        ActorsBeforeOffset = BbhActorsBeforeOffset,
+        ActorsAfterBatch = BbhActorsAfterBatch,
+        MaxFlowsPerActor = BbhMaxFlowsPerActor,
+        ActorDisplayOrdinal,
+        ActorFlowRowsOmitted,
+        OutputRowOrdinal,
+        RequiredBaselineFlows = BbhMinBaselineEvents,
+        RequiredBaselineActiveDays = BbhMinBaselineActiveDays,
+        RequiredModelCoveragePct = BbhMinModelCoveragePct,
+        ActorOrdinal,
+        ActorKey,
+        UserId,
+        UserPrincipalName,
+        ActorUPN,
+        RecentLastSeen,
+        RecentSourceRows,
+        EventTime,
+        TimeGenerated,
+        FlowKey,
+        FlowKeySource,
+        FlowKeySources,
+        OriginalRequestId,
+        CorrelationId,
+        SessionId,
+        SourceRowCount,
+        DistinctSigninIds,
+        DistinctOriginalRequestIds,
+        DistinctCorrelationIds,
+        DistinctUPNs,
+        FlowStart,
+        FlowEnd,
+        FlowDuration,
+        DistinctIPs,
+        DistinctApps,
+        DistinctResults,
+        SelectedBatchFlowKeyUsers,
+        SelectedBatchFlowKeyCollision,
+        PossibleFlowMerge,
+        FlowMergeReason,
+        ContextSignature,
+        SameContextFlowCount,
+        SameContextFirstSeen,
+        SameContextLastSeen,
+        SameContextDistinctIPs,
+        SameContextDistinctResults,
+        ActorRecentFlowCount,
+        BaselineState,
+        BaselineFlows,
+        BaselineActiveDays,
+        BaselineFirst,
+        BaselineLast,
+        ExpectedContextDims,
+        ApplicableContextDims,
+        ScoredContextDims,
+        ModelCoverage,
+        ScoreConfidence,
+        RawContextBits,
+        AdjustedContextBits,
+        RawOutcomeBits,
+        AdjustedOutcomeBits,
+        RawAsnBits,
+        AdjustedAsnBits,
+        RawCountryBits,
+        AdjustedCountryBits,
+        RawDeviceBits,
+        AdjustedDeviceBits,
+        RawOsBits,
+        AdjustedOsBits,
+        RawBrowserBits,
+        AdjustedBrowserBits,
+        RawAppBits,
+        AdjustedAppBits,
+        RawProtocolBits,
+        AdjustedProtocolBits,
+        RawClientAppBits,
+        AdjustedClientAppBits,
+        RawResultBits,
+        AdjustedResultBits,
+        RawNetworkNovelCount,
+        RawClientNovelCount,
+        RawAccessNovelCount,
+        ActionableNetworkNovelCount,
+        ActionableClientNovelCount,
+        ActionableAccessNovelCount,
+        RawNoveltyPattern,
+        ActionableNoveltyPattern,
+        RawNovelDims,
+        ActionableNovelDims,
+        RawOutcomeNovel,
+        ActionableOutcomeNovel,
+        RawOutcomeNovelCount,
+        ActionableOutcomeNovelCount,
+        MissingDims,
+        NotApplicableDims,
+        UnmodelledDims,
+        EvidenceGaps,
+        DispositionState,
+        DispositionHits,
+        ControlFlags,
+        RarityBand,
+        Assessment,
+        IPAddress,
+        AutonomousSystemNumber,
+        Location,
+        DeviceId,
+        DeviceTrust,
+        DeviceCompliant,
+        Registered,
+        DimOs,
+        Browser = BrowserDisplay,
+        AppDisplayName,
+        AppId,
+        Protocol = DimProtocol,
+        ClientApp = DimClient,
+        AuthenticationRequirement = AuthRequirementDisplay,
+        AuthenticationMethods = AuthMethodsDisplay,
+        AuthMethodsSet,
+        AuthEvidenceState,
+        Result = DimResult,
+        ResultDescription,
+        ResultSet,
+        ConditionalAccessStatus,
+        RiskLevelDuringSignIn,
+        RiskEventTypes_V2,
+        RiskState,
+        RiskDetail,
+        CrossTenantAccessType,
+        HomeTenantId,
+        ResourceTenantId,
+        TokenProtectionStatusDetails,
+        FlowFirstIngestedAt,
+        FlowLastIngestedAt,
+        SourceRecordDelay
+);
+//
+// A successful query emits this run status. Absence is a caller-side failure.
+let BbhRunStatus = materialize(
+    print
+        RecordType = "run_status",
+        OutputOrder = int(0),
+        ExecutionState = BbhExecutionState,
+        HuntMode = "tenant_research_v1",
+        ModelVersion = BbhModelVersion,
+        ScoreMeaning = BbhScoreDisclaimer,
+        CrossActorScoreComparisonSupported = false,
+        SecurityFindingQualified = false,
+        DecisionEligible = false,
+        HuntStart = HuntStart,
+        HuntEnd = HuntEnd,
+        EvidenceAsOf = EvidenceAsOf,
+        EvidenceMode = BbhEvidenceMode,
+        IngestionTimeCutoffRequired = BbhRequireIngestionTimeCutoff,
+        ModelStart = BbhModelStart,
+        ModelEnd = BbhModelEnd,
+        PopulationCoverageState = BbhPopulationCoverageState,
+        PopulationComplete = BbhPopulationComplete,
+        RequiresMoreBatches = BbhRequiresMoreBatches,
+        BatchCoversWholeShard = BbhBatchCoversWholeShard,
+        BatchHasMore = BbhBatchHasMore,
+        ActorShardCount = BbhActorShardCount,
+        ActorShardIndex = BbhActorShardIndex,
+        ShardsAfterCurrent = BbhShardsAfterCurrent,
+        OtherShardsExcluded = BbhOtherShardsExcluded,
+        ActorOffset = BbhActorOffset,
+        ActorLimit = BbhActorLimit,
+        TenantRecentStableActorCount = BbhTenantRecentStableActorCount,
+        RecentRowsMissingUserId = BbhRecentRowsMissingUserId,
+        RecentMissingUserIdDistinctUPNs =
+            BbhRecentMissingUserIdDistinctUPNs,
+        RecentIngestionTimeMissingRows =
+            BbhRecentIngestionTimeMissingRows,
+        RecentRowsAfterEvidenceCutoff =
+            BbhRecentRowsAfterEvidenceCutoff,
+        SelectedRowsMissingIngestionTime =
+            BbhSelectedRowsMissingIngestionTime,
+        SelectedRowsAfterEvidenceCutoff =
+            BbhSelectedRowsAfterEvidenceCutoff,
+        ShardActorCount = BbhShardActorCount,
+        SelectedActorCount = BbhSelectedActorCount,
+        ActorsBeforeOffset = BbhActorsBeforeOffset,
+        ActorsAfterBatch = BbhActorsAfterBatch,
+        MaxFlowsPerActor = BbhMaxFlowsPerActor,
+        RawSigninRowCount = BbhRawSigninRowCount,
+        PreparedFlowCount = BbhPreparedFlowCount,
+        BaselineLongRowCount = BbhBaselineLongRowCount,
+        ModelRowCount = BbhModelRowCount,
+        ScoredLongRowCount = BbhScoredLongRowCount,
+        ExpectedScoredLongRowCount = BbhExpectedScoredLongRowCount,
+        NineRowsPerScoredFlow = BbhNineRowsPerScoredFlow,
+        ScoredFlowCount = BbhScoredFlowCount,
+        ExpectedActorStatusRows = BbhSelectedActorCount,
+        ExpectedFlowRows = BbhPerActorDisplayCount,
+        ExpectedOutputRows =
+            tolong(1) + tolong(BbhSelectedActorCount)
+                + tolong(BbhPerActorDisplayCount),
+        ReadyActorCount = BbhReadyActorCount,
+        ThinBaselineActorCount = BbhThinBaselineActorCount,
+        NoBaselineActorCount = BbhNoBaselineActorCount,
+        RequiredBaselineFlows = BbhMinBaselineEvents,
+        RequiredBaselineActiveDays = BbhMinBaselineActiveDays,
+        NoBaselineFloor = BbhNoBaselineFloor,
+        RequiredModelCoveragePct = BbhMinModelCoveragePct,
+        IngestionGrace = BbhIngestionGrace,
+        FlowMergeDurationThreshold = BbhFlowMergeDurationThreshold,
+        DiagnosticDistinctCountCap = tolong(1024)
+);
+let BabblerHuntOutput = materialize(
+    union kind=outer BbhRunStatus, BbhActorStatus, BabblerHuntWorkbench
+);
+//
+// Single live output head. Ordering is exploratory actor-relative novelty only.
+BabblerHuntOutput
+| sort by
+    OutputOrder asc,
+    ActorOrdinal asc nulls first,
+    ActorDisplayOrdinal asc nulls first,
+    EventTime desc nulls last,
+    UserId asc,
+    FlowKey asc
