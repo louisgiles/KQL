@@ -7,7 +7,7 @@ let EvidenceAsOf = BbhRunAnchor;
 //
 // ============================================================================
 // BABBLER HUNT WORKBENCH — TENANT RESEARCH V1
-// Draft version: tenant-research 0.1.0-rc1
+// Draft version: tenant-research 0.1.0-rc2
 // Scoring source: frozen Babbler incident section 0.1.0 / engine 0.3.1
 // GitHub blob: fa52de065f4335ef8c1b99b28e1ab1afe92e5269
 // Frozen local SHA-256:
@@ -28,10 +28,10 @@ let EvidenceAsOf = BbhRunAnchor;
 // TIME MODEL
 //   Score:    HuntStart <= EventTime < HuntEnd
 //   Baseline: HuntStart - BbhBaselineWindow <= EventTime < HuntStart
-//   EvidenceAsOf bounds ingestion_time(), so separately executed batches can
-//   share one evidence cutoff. Ingestion grace widens only the lower retrieval
-//   bound; it never admits future EventTime. Historical disposition replay is
-//   not supported until the ledger also carries an analyst-recorded timestamp.
+//   Live mode is the default: use rows already visible to Sentinel, bounded by
+//   EventTime and TimeGenerated. ingestion_time() remains diagnostic. Enforce
+//   EvidenceAsOf only after this table proves ingestion-time coverage. Historical
+//   disposition replay remains unsupported until the ledger carries RecordedAt.
 //
 // ACTOR MODEL
 //   Actors are selected from recent interactive rows with a stable UserId.
@@ -67,6 +67,13 @@ let BbhMinBaselineEvents = 25;
 let BbhMinBaselineActiveDays = 7;
 let BbhNoBaselineFloor = 5;
 let BbhMinModelCoveragePct = 75.0;
+// Default false: SigninLogs workspaces may return null from ingestion_time().
+// Set true only after proving complete coverage and freezing BbhRunAnchor.
+let BbhRequireIngestionTimeCutoff = false;
+let BbhEvidenceMode = iff(
+    BbhRequireIngestionTimeCutoff,
+    "ingestion_time_cutoff",
+    "live_visible_rows");
 // Bounded actor batching. Start with one shard; introduce 2/4/8/16 only after
 // the measured scale ladder requires it. Freeze BbhRunAnchor for a coherent
 // short sweep. Kusto hash() is not a durable roster contract across platform
@@ -93,7 +100,7 @@ let BbhBatchValid = BbhActorOffset >= 0
     and BbhActorLimit > 0 and BbhMaxFlowsPerActor > 0;
 let BbhScoreDisclaimer =
     "Actor-relative novelty only; not threat probability or a qualified finding.";
-let BbhModelVersion = "babbler-incident-0.3.1/tenant-research-0.1.0-rc1";
+let BbhModelVersion = "babbler-incident-0.3.1/tenant-research-0.1.0-rc2";
 //
 // Per-user verdict ledger. Copy the exact UserId/Dimension/Value tuple from the
 // scoring microscope. Raw bits remain historical; active entries adjust only
@@ -148,7 +155,8 @@ let BbhRecentRowsAfterEvidenceCutoff = toscalar(
                         and IngestedAt >= EvidenceAsOf));
 let BbhRecentInteractiveRows = (
     BbhRecentInteractiveSource
-    | where isnotnull(IngestedAt) and IngestedAt < EvidenceAsOf
+    | where BbhRequireIngestionTimeCutoff == false
+        or (isnotnull(IngestedAt) and IngestedAt < EvidenceAsOf)
 );
 let BbhRecentRowsMissingUserId = toscalar(
     BbhRecentInteractiveRows
@@ -256,7 +264,8 @@ let BbhSelectedRowsAfterEvidenceCutoff = toscalar(
                         and IngestedAt >= EvidenceAsOf));
 let BbhRawSigninRows = (
     BbhRawSigninCandidates
-    | where isnotnull(IngestedAt) and IngestedAt < EvidenceAsOf
+    | where BbhRequireIngestionTimeCutoff == false
+        or (isnotnull(IngestedAt) and IngestedAt < EvidenceAsOf)
 );
 //
 // === SECTION 2: collapse Azure Monitor rows into authentication flows ===
@@ -882,8 +891,9 @@ let BbhExecutionState = case(
     BbhHuntBoundsValid == false, "invalid_window",
     BbhShardValid == false, "invalid_shard",
     BbhBatchValid == false, "invalid_batch_controls",
-    BbhRecentIngestionTimeMissingRows > 0
-        or BbhSelectedRowsMissingIngestionTime > 0,
+    BbhRequireIngestionTimeCutoff
+        and (BbhRecentIngestionTimeMissingRows > 0
+             or BbhSelectedRowsMissingIngestionTime > 0),
         "degraded_missing_ingestion_time",
     BbhShardActorCount == 0, "no_recent_actors_in_shard",
     BbhSelectedActorCount == 0, "no_selected_actors",
@@ -900,12 +910,12 @@ let BbhPopulationComplete =
     and BbhBatchCoversWholeShard
     and BbhRecentRowsMissingUserId == 0;
 let BbhPopulationCoverageState = case(
-    BbhExecutionState !in ("ready", "degraded_missing_ingestion_time"),
+    BbhExecutionState != "ready",
         "not_assessed",
     BbhPopulationComplete, "complete_stable_actor_population",
     "bounded_partial_population");
 let BbhRequiresMoreBatches =
-    BbhExecutionState in ("ready", "degraded_missing_ingestion_time")
+    BbhExecutionState == "ready"
     and (BbhBatchHasMore or BbhShardsAfterCurrent > 0);
 let BbhPerActorDisplay = materialize(
     BbhScored
@@ -1001,6 +1011,8 @@ let BbhActorStatus = materialize(
         HuntStart,
         HuntEnd,
         EvidenceAsOf,
+        EvidenceMode = BbhEvidenceMode,
+        IngestionTimeCutoffRequired = BbhRequireIngestionTimeCutoff,
         ModelStart = BbhModelStart,
         ModelEnd = BbhModelEnd,
         PopulationCoverageState = BbhPopulationCoverageState,
@@ -1099,6 +1111,8 @@ let BabblerHuntWorkbench = materialize(
         HuntStart,
         HuntEnd,
         EvidenceAsOf,
+        EvidenceMode = BbhEvidenceMode,
+        IngestionTimeCutoffRequired = BbhRequireIngestionTimeCutoff,
         ModelStart = BbhModelStart,
         ModelEnd = BbhModelEnd,
         PopulationCoverageState = BbhPopulationCoverageState,
@@ -1260,6 +1274,8 @@ let BbhRunStatus = materialize(
         HuntStart = HuntStart,
         HuntEnd = HuntEnd,
         EvidenceAsOf = EvidenceAsOf,
+        EvidenceMode = BbhEvidenceMode,
+        IngestionTimeCutoffRequired = BbhRequireIngestionTimeCutoff,
         ModelStart = BbhModelStart,
         ModelEnd = BbhModelEnd,
         PopulationCoverageState = BbhPopulationCoverageState,
