@@ -1,0 +1,60 @@
+Solid hunt — the two-arm design with a shared 37-day materialised evidence set is the right shape. Before you triage results with it, though, there's one gap that will cost you confidence on exactly the hits you care most about.
+
+The blind spot
+
+Your network arm filters on InitiatingProcessFileName contains "cloudflared" — which means a renamed cloudflared egressing on 7844 is invisible to it, and IsRenamedCloudflared is hardcoded false there anyway. So the highest-fidelity signal in the process arm (deliberate evasion) is the one you can't corroborate with actual tunnel establishment.
+
+Port 7844 with ConnectionSuccess is already near-exclusive to Cloudflare Tunnel. Drop the process-name predicate entirely and let the port carry it:
+
+kql
+| where ActionType =~ "ConnectionSuccess"
+| where RemotePort == 7844 and Protocol in~ ("Tcp", "Udp")
+// no process filter — 7844 egress is the signal
+
+You'll pick up a handful of unattributed hits, but you'll also catch the renamed-binary egress, which is worth far more.
+
+Triage tiers
+
+Contain now — no benign explanation exists:
+
+IsRenamedCloudflared == true. Nobody renames this binary for a legitimate reason.
+Quick Tunnel (--url) where the target is RDP/SSH/SMB. Extract it: | extend ExposedTarget = extract(@"--url\s+(\S+)", 1, CommandLine). localhost:3389 or :22 is hands-on-keyboard remote access, not a dev preview.
+Service install + HasCredentialArgument on a server. A --token means the tunnel is bound to a Cloudflare account — and if it isn't yours, someone else owns the control plane.
+
+Investigate within SLA:
+
+Tunnel create/route/run where IsFirstSeenOnDevice == true and PriorSignalDevices is low. First appearance of a capability that nothing else in the estate does.
+Container invocation (docker run cloudflare/cloudflared) on anything that isn't a known build host.
+
+Probably benign — confirm and baseline:
+
+High PriorDeviceEvents, binary under Program Files, HasWranglerTunnelCommand on a developer endpoint.
+
+One caveat on IsUserWritablePath: winget and npm installs land in user-writable paths legitimately. %LOCALAPPDATA%\Microsoft\WinGet\Packages\ and AppData\Roaming\npm will both trip that flag. Check Detail for the parent — if it's winget or npm, downweight it rather than treating it as staging.
+
+Two pivots worth having ready
+
+Provenance is usually the fastest resolver — GitHub releases reads very differently from a paste site:
+
+kql
+let Sha = "<ProcessSHA256 from the hit>";
+DeviceFileEvents
+| where Timestamp > ago(30d)
+| where SHA256 == Sha
+| project Timestamp, DeviceName, ActionType, FolderPath, FileName,
+          FileOriginUrl, FileOriginReferrerUrl, InitiatingProcessFileName
+| sort by Timestamp asc
+
+And did the tunnel actually come up, or did it fail to reach the edge:
+
+kql
+let Key = "<ProcessKey from the hit>";
+DeviceNetworkEvents
+| where Timestamp > ago(7d)
+| where strcat(DeviceId, "|", tostring(InitiatingProcessId), "|",
+        tostring(InitiatingProcessCreationTime)) == Key
+| summarize Conns = count(), First = min(Timestamp), Last = max(Timestamp),
+            Ports = make_set(RemotePort), Remotes = make_set(RemoteUrl, 20)
+Minor: your sort buries the urgent stuff
+
+IsFirstSeenOnDevice desc, IsRenamedCloudflared desc floats novelty above severity — a service install on a domain controller with 40 prior events sorts below a benign first-seen wrangler command. Given how you approached scoring in the babbler work, you'd probably rather emit a weighted Priority column than sort on booleans. Happy to write that if useful.
