@@ -80,3 +80,14 @@ DeviceNetworkEvents
     LastSeen=max(Timestamp)
   by RemoteIP, RemoteUrl, RemotePort, Protocol
 | sort by Connections desc
+
+
+| where SourceTable == "DeviceProcessEvents"
+| summarize
+    Hits=count(),
+    Devices=dcount(DeviceId),
+    FirstSeen=min(EventTime),
+    LastSeen=max(EventTime),
+    DeviceNames=make_set(DeviceName, 20)
+  by ProcessFileName, ProcessPath, CommandLine, ProcessSHA256, Detail
+| order by Devices desc, Hits desc
