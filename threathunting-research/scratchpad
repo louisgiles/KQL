@@ -110,3 +110,7 @@ DeviceFileCertificateInfo
     Issuer,
     CertificateCreationTime,
     CertificateExpirationTime
+
+| summarize Hits=count()
+  by SourceTable, Signal, ProcessFileName, ProcessPath
+| order by Hits desc
