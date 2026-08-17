@@ -1,5 +1,5 @@
 // name:              Unexpected Cloudflare Tunnel Deployment Hunt
-// purpose:           Find new or unapproved Cloudflare Tunnel deployments using endpoint process, file, service-registry, and connector-network evidence rather than campaign-specific IOCs.
+// purpose:           Find new or unapproved Cloudflare Tunnel deployments in Microsoft Sentinel using endpoint process, file, service-registry, and connector-network evidence rather than campaign-specific IOCs.
 // starting_entities: HuntEnd/HuntWindow plus optional device or account filters; no CVE, IP, hash, or filename is required.
 // required_tables:   DeviceProcessEvents
 // optional_tables:   DeviceNetworkEvents, DeviceFileEvents, DeviceRegistryEvents (union isfuzzy=true; missing optional tables reduce evidence but do not invalidate process results)
@@ -13,10 +13,9 @@
 // evidence source, especially a renamed/user-path process plus persistence and
 // connector egress.
 //
-// Secret handling: remotely managed tunnel tokens can be present in process
-// command lines and Windows service ImagePath values. This query redacts common
-// token forms before output. Retrieve raw evidence only through the protected
-// endpoint timeline when incident handling requires it.
+// Evidence handling: command lines and Windows service ImagePath values are
+// deliberately preserved for authorised Sentinel hunters. They can contain
+// live Cloudflare credentials, so treat query results and exports as sensitive.
 
 let HuntEnd = now();
 let HuntWindow = 7d;
@@ -102,56 +101,6 @@ let GetTunnelInstanceKey = (Value:string) {
             strcat("credential-path|", tolower(CredentialPath)),
         HasRawTunnelToken(Text), "token-instance-unavailable",
         "unknown")
-};
-let RedactTunnelSecrets = (Value:string) {
-    let TokenFlagRedacted = replace_regex(
-        tostring(Value),
-        @"(?i)--token(?:=|\s+)\S+",
-        "--token <redacted>");
-    let EnvironmentTokenRedacted = replace_regex(
-        TokenFlagRedacted,
-        @"(?i)(?:CLOUDFLARE_)?TUNNEL_TOKEN\s*=\s*\S+",
-        "TUNNEL_TOKEN=<redacted>");
-    let ServiceTokenRedacted = replace_regex(
-        EnvironmentTokenRedacted,
-        @"(?i)service\s+install\s+\S+",
-        "service install <redacted>");
-    let ApiFlagRedacted = replace_regex(
-        ServiceTokenRedacted,
-        @"(?i)--api-token(?:=|\s+)\S+",
-        "--api-token <redacted>");
-    let ApiEnvironmentRedacted = replace_regex(
-        ApiFlagRedacted,
-        @"(?i)(?:CLOUDFLARE_API_TOKEN|CF_API_TOKEN)\s*=\s*\S+",
-        "CLOUDFLARE_API_TOKEN=<redacted>");
-    let ApiKeyFlagRedacted = replace_regex(
-        ApiEnvironmentRedacted,
-        @"(?i)--api-key(?:=|\s+)\S+",
-        "--api-key <redacted>");
-    let ApiKeyEnvironmentRedacted = replace_regex(
-        ApiKeyFlagRedacted,
-        @"(?i)(?:CLOUDFLARE_API_KEY|CF_API_KEY)\s*=\s*\S+",
-        "CLOUDFLARE_API_KEY=<redacted>");
-    let AccessSecretFlagRedacted = replace_regex(
-        ApiKeyEnvironmentRedacted,
-        @"(?i)--(?:service-token-secret|access-client-secret|client-secret)(?:=|\s+)\S+",
-        "--client-secret <redacted>");
-    let AccessSecretEnvironmentRedacted = replace_regex(
-        AccessSecretFlagRedacted,
-        @"(?i)(?:CLOUDFLARE_ACCESS_CLIENT_SECRET|CF_ACCESS_CLIENT_SECRET)\s*=\s*\S+",
-        "CF_ACCESS_CLIENT_SECRET=<redacted>");
-    let AuthorizationRedacted = replace_regex(
-        AccessSecretEnvironmentRedacted,
-        @"(?i)authorization\s*:\s*bearer\s+\S+",
-        "Authorization: Bearer <redacted>");
-    let XAuthKeyRedacted = replace_regex(
-        AuthorizationRedacted,
-        @"(?i)x-auth-key\s*:\s*\S+",
-        "X-Auth-Key: <redacted>");
-    replace_regex(
-        XAuthKeyRedacted,
-        @"eyJ[A-Za-z0-9_-]{20,}(?:\.[A-Za-z0-9_-]{20,}){1,2}",
-        "<token-like-value-redacted>")
 };
 let IsUserOrTempPath = (Value:string) {
     let Path = tolower(tostring(Value));
@@ -347,7 +296,7 @@ let AllEvidence = materialize(
             iff(isnotempty(SHA1), tolower(SHA1), tolower(Artifact)),
             "|", Signal,
             "|", InstanceKey,
-            "|", tolower(RedactTunnelSecrets(ProcessCommandLine)))
+            "|", tolower(tostring(ProcessCommandLine)))
         | extend ProcessCorrelationKey = case(
             tolong(ProcessId) > 0
                 and isnotempty(tostring(ProcessCreationTime)),
@@ -374,7 +323,7 @@ let AllEvidence = materialize(
             ProcessPath = tostring(FolderPath),
             ProcessSHA1 = tostring(SHA1),
             ArtifactSHA1 = tostring(SHA1),
-            SanitizedCommandLine = RedactTunnelSecrets(ProcessCommandLine),
+            ProcessCommandLineEvidence = tostring(ProcessCommandLine),
             RemoteHost = "",
             RemoteIP = "",
             RemotePort = tolong(""),
@@ -565,7 +514,7 @@ let AllEvidence = materialize(
             ProcessPath = tostring(InitiatingProcessFolderPath),
             ProcessSHA1 = tostring(InitiatingProcessSHA1),
             ArtifactSHA1 = "",
-            SanitizedCommandLine = RedactTunnelSecrets(InitiatingProcessCommandLine),
+            ProcessCommandLineEvidence = tostring(InitiatingProcessCommandLine),
             RemoteHost,
             RemoteIP = tostring(RemoteIP),
             RemotePort = tolong(RemotePort),
@@ -735,7 +684,7 @@ let AllEvidence = materialize(
             ProcessPath = tostring(InitiatingProcessFolderPath),
             ProcessSHA1 = tostring(InitiatingProcessSHA1),
             ArtifactSHA1 = tostring(SHA1),
-            SanitizedCommandLine = RedactTunnelSecrets(InitiatingProcessCommandLine),
+            ProcessCommandLineEvidence = tostring(InitiatingProcessCommandLine),
             RemoteHost = "",
             RemoteIP = "",
             RemotePort = tolong(""),
@@ -826,7 +775,7 @@ let AllEvidence = materialize(
             "registry|", RegistryKeyLower,
             "|", RegistryValueNameLower,
             "|", InstanceKey,
-            "|", tolower(RedactTunnelSecrets(RegistryValueData)))
+            "|", RegistryValueDataLower)
         | extend ProcessCorrelationKey = case(
             tolong(InitiatingProcessId) > 0
                 and isnotempty(tostring(InitiatingProcessCreationTime)),
@@ -860,13 +809,13 @@ let AllEvidence = materialize(
             ProcessPath = tostring(InitiatingProcessFolderPath),
             ProcessSHA1 = tostring(InitiatingProcessSHA1),
             ArtifactSHA1 = "",
-            SanitizedCommandLine = RedactTunnelSecrets(InitiatingProcessCommandLine),
+            ProcessCommandLineEvidence = tostring(InitiatingProcessCommandLine),
             RemoteHost = "",
             RemoteIP = "",
             RemotePort = tolong(""),
             Detail = strcat(
                 "action=", ActionType,
-                "; data=", RedactTunnelSecrets(RegistryValueData)),
+                "; data=", RegistryValueData),
             InstanceKey,
             EvidenceKey,
             ProcessCorrelationKey,
@@ -955,7 +904,7 @@ let CorrelatedSessions = materialize(
             ProcessPath,
             ProcessSHA1,
             ArtifactSHA1,
-            SanitizedCommandLine,
+            ProcessCommandLineEvidence,
             RemoteHost,
             RemoteIP,
             RemotePort,
@@ -1185,7 +1134,7 @@ CorrelatedSessions
     ArtifactSHA1,
     ObservedProcessSHA1s,
     ObservedArtifactSHA1s,
-    SanitizedCommandLine,
+    ProcessCommandLineEvidence,
     RemoteHost,
     RemoteIP,
     RemotePort,
@@ -1223,7 +1172,8 @@ CorrelatedSessions
 | project-away PriorityRank
 //
 // Coverage boundary and companion control:
-// - This query detects endpoint-side deployment and connector activity.
+// - This Sentinel hunt detects endpoint-side deployment and connector activity
+//   from the connected Device* telemetry tables.
 // - Cloudflare dashboard/API creation in an owned account requires Cloudflare
 //   audit-log ingestion. Hunt successful Tunnel Create/Update events, connector
 //   Registered events, and CNAME add events by unfamiliar actors/source IPs.
