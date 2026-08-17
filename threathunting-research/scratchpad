@@ -91,3 +91,22 @@ DeviceNetworkEvents
     DeviceNames=make_set(DeviceName, 20)
   by ProcessFileName, ProcessPath, CommandLine, ProcessSHA256, Detail
 | order by Devices desc, Hits desc
+
+let CloudflaredHashes =
+    DeviceProcessEvents
+    | where Timestamp > ago(30d)
+    | where FileName =~ "cloudflared.exe"
+    | distinct SHA1;
+DeviceFileCertificateInfo
+| where Timestamp > ago(90d)
+| where SHA1 in (CloudflaredHashes)
+| summarize arg_max(Timestamp, *) by SHA1
+| project
+    Timestamp,
+    SHA1,
+    IsSigned,
+    IsTrusted,
+    Signer,
+    Issuer,
+    CertificateCreationTime,
+    CertificateExpirationTime
