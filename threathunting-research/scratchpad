@@ -223,3 +223,37 @@ The hunt distinguished two genuine Cloudflare Tunnel deployments from one develo
 Testing also demonstrated that raw result volume is not an appropriate proxy for risk or deployment count. Direct executable identity, command intent, parent process, signature status, historical prevalence and connector egress must be considered together.
 
 The Client 3 results confirmed that the current generic command-reference logic is overly broad and can match source-code filenames propagated through wrapper processes. This is a query-quality finding rather than evidence of Cloudflare execution.
+
+Tenancy 4
+
+The 14-day hunt returned three DeviceNetworkEvents rows from one device, nfx-monitorlinks. No corresponding DeviceProcessEvents rows were returned.
+
+All three events represented successful TCP/7844 connector egress from cloudflared.exe. The network telemetry identified:
+
+* Execution as NT AUTHORITY\SYSTEM.
+* The standard C:\Program Files (x86)\cloudflared\cloudflared.exe path.
+* A named-tunnel command using tunnel run --token.
+* Connectivity to region2.v2.argotunnel.com at 198.41.200.53.
+* No renamed binary or user-writable execution path.
+
+The activity was not first seen. The 30-day baseline contained 30 previous Cloudflare-related events on the device, including 19 previous connector-egress events.
+
+Although no process-event rows were returned, the network telemetry retained the initiating executable, command line, hashes and process-creation context. This is therefore a telemetry gap rather than evidence that no process executed.
+
+The evidence is consistent with an established Cloudflare Tunnel connector communicating with documented Cloudflare infrastructure. No technical indicators of compromise were identified. The activity should be escalated for confirmation of the owning Cloudflare account, intended published service and business authorisation; containment is not recommended unless the deployment is unrecognised.
+
+Tenancy 5
+
+The 14-day hunt returned one DeviceProcessEvents row from mhs-syd-unifi03. No associated network-event rows were returned.
+
+The event showed a named Cloudflare Tunnel connector executing through the expected Windows service chain:
+
+NT AUTHORITY\SYSTEM → services.exe → cloudflared.exe tunnel run --token
+
+The executable ran from the standard C:\Program Files (x86)\cloudflared\cloudflared.exe path. It was not renamed, did not execute from a user-writable location and its hash returned no malicious reputation.
+
+The activity was not first seen. Two previous executions of the same signal were recorded on the device during the 30-day baseline, demonstrating earlier use of the connector. The absence of network rows means that connector egress was not captured by the hunt; it does not establish that the tunnel was inactive.
+
+The hostname suggests that the endpoint may host a UniFi controller. This makes an intentionally configured tunnel for remote administration plausible, but also increases the potential impact if the deployment is unauthorised because the published service may provide access to network-management infrastructure.
+
+No technical indicators of compromise were identified. The activity should be escalated to confirm that Cloudflare Tunnel is approved on this device, identify the published service and verify that access is protected through appropriate controls such as Cloudflare Access, SSO and MFA. Service removal or token revocation is not recommended unless the client confirms that the deployment is unrecognised.
