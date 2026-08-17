@@ -1,1196 +1,243 @@
-// name:              Unexpected Cloudflare Tunnel Deployment Hunt
-// purpose:           Find new or unapproved Cloudflare Tunnel deployments in Microsoft Sentinel using endpoint process, file, service-registry, and connector-network evidence rather than campaign-specific IOCs.
-// starting_entities: HuntEnd/HuntWindow plus optional device or account filters; no CVE, IP, hash, or filename is required.
+// name:              Cloudflare Tunnel Deployment Hunt
+// purpose:           Surface Cloudflare Tunnel deployment and execution evidence in Microsoft Sentinel without campaign-specific IOCs.
+// starting_entities: HuntEnd/HuntWindow plus optional DeviceNameToCheck or AccountToCheck filters.
 // required_tables:   DeviceProcessEvents
-// optional_tables:   DeviceNetworkEvents, DeviceFileEvents, DeviceRegistryEvents (union isfuzzy=true; missing optional tables reduce evidence but do not invalidate process results)
-// variables:         HuntEnd, HuntWindow, BaselineWindow, CorrelationMax, CorrelationGap, DeviceNameToCheck, AccountToCheck, ApprovedDeviceIds, ApprovedDeviceNames, ApprovedAccountUpns, ApprovedCloudflaredSHA1s, ApprovedProcessPaths, ApprovedInstanceKeys
-// done_criteria:     Every hit is checked for approval, owner/change window, target service, process path, persistence, connector egress, device/tenant prevalence, and Cloudflare control-plane evidence where available; the analyst records benign, precautionary benign, review required, or suspicious/escalate.
+// optional_tables:   DeviceNetworkEvents (union isfuzzy=true; a missing table only removes connector-egress context)
+// variables:         HuntEnd, HuntWindow, BaselineWindow, DeviceNameToCheck, AccountToCheck
+// done_criteria:     Review the raw command, binary identity/path, actor, first-seen context, and successful connector egress; confirm the owner and intended published service.
 // output_type:       analysis
 //
-// This is a deployment hunt, not a declaration that Cloudflare Tunnel is malicious.
-// Cloudflare Tunnel is a legitimate administration and development tool. The
-// strongest finding is a first-seen, unapproved deployment with more than one
-// evidence source, especially a renamed/user-path process plus persistence and
-// connector egress.
-//
-// Evidence handling: command lines and Windows service ImagePath values are
-// deliberately preserved for authorised Sentinel hunters. They can contain
-// live Cloudflare credentials, so treat query results and exports as sensitive.
+// Cloudflare Tunnel is a legitimate administration and development tool. This
+// query returns evidence for investigation; it does not assign a threat verdict.
+// Command lines and service values are intentionally unmodified for authorised
+// Sentinel hunters and may contain credentials. Treat results and exports as sensitive.
 
 let HuntEnd = now();
 let HuntWindow = 7d;
-// 21d baseline + 7d hunt stays inside the common 30d MDE retention boundary.
-// Increase only where the workspace has longer verified retention.
 let BaselineWindow = 21d;
-let CorrelationMax = 2h;
-let CorrelationGap = 30m;
 let DeviceNameToCheck = "";
 let AccountToCheck = "";
-// Keep string allowlist values lowercase. An approval requires the complete
-// device + actor + SHA1 + process-path + tunnel-instance tuple.
-// Approved results remain visible; the query never suppresses them.
-let ApprovedDeviceIds = dynamic([]);
-let ApprovedDeviceNames = dynamic([]);
-let ApprovedAccountUpns = dynamic([]);
-let ApprovedCloudflaredSHA1s = dynamic([]);
-let ApprovedProcessPaths = dynamic([]);
-// Instance keys are non-secret UUIDs, tunnel names, or credential/config paths
-// emitted by this query. Token-only and Quick Tunnel sessions cannot be approved.
-let ApprovedInstanceKeys = dynamic([]);
 //
 let HuntStart = HuntEnd - HuntWindow;
 let BaselineStart = HuntStart - BaselineWindow;
-let BoundsValid = HuntWindow > 0s and BaselineWindow > 0s and HuntStart < HuntEnd;
-//
-let HasRawTunnelToken = (Value:string) {
-    let Text = tolower(tostring(Value));
-    let ServiceInstallArgument = extract(
-        @"(?i)\bservice\s+install\s+([^\s]+)",
-        1,
-        tostring(Value));
-    Text contains "--token="
-        or Text matches regex @"(?i)--token\s+\S+"
-        or Text matches regex @"(?i)(?:cloudflare_)?tunnel_token\s*=\s*\S+"
-        or (
-            isnotempty(ServiceInstallArgument)
-            and not(ServiceInstallArgument startswith "-")
-        )
-};
-let HasRawCloudflareSecret = (Value:string) {
-    let Text = tolower(tostring(Value));
-    HasRawTunnelToken(Value)
-        or Text contains "--api-token="
-        or Text matches regex @"(?i)--api-token\s+\S+"
-        or Text contains "--api-key="
-        or Text matches regex @"(?i)--api-key\s+\S+"
-        or Text matches regex @"(?i)(?:cloudflare_api_token|cf_api_token)\s*=\s*\S+"
-        or Text matches regex @"(?i)(?:cloudflare_api_key|cf_api_key)\s*=\s*\S+"
-        or Text matches regex @"(?i)(?:cloudflare_access_client_secret|cf_access_client_secret)\s*=\s*\S+"
-        or Text matches regex @"(?i)--(?:service-token-secret|access-client-secret|client-secret)(?:=|\s+)\S+"
-        or Text matches regex @"(?i)authorization\s*:\s*bearer\s+\S+"
-        or Text matches regex @"(?i)x-auth-key\s*:\s*\S+"
-        or tostring(Value) matches regex @"eyJ[A-Za-z0-9_-]{20,}(?:\.[A-Za-z0-9_-]{20,}){1,2}"
-};
-let GetTunnelInstanceKey = (Value:string) {
-    let Text = tostring(Value);
-    let TunnelUuid = extract(
-        @"(?i)\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b",
-        0,
-        Text);
-    let TunnelNameCandidate = extract(
-        @"(?i)\btunnel\s+(?:run|create)\s+([^\s]+)",
-        1,
-        Text);
-    let TunnelName = iff(
-        TunnelNameCandidate startswith "-",
-        "",
-        TunnelNameCandidate);
-    let FlagPath = extract(
-        @"(?i)--(?:credentials-file|config|origincert|token-file)(?:=|\s+)([^\s]+)",
-        1,
-        Text);
-    let EnvironmentTokenFile = extract(
-        @"(?i)tunnel_token_file\s*=\s*([^\s]+)",
-        1,
-        Text);
-    let CredentialPath = coalesce(FlagPath, EnvironmentTokenFile, "");
+let ActorLabel = (Upn:string, Domain:string, Name:string) {
     case(
-        isnotempty(TunnelUuid), strcat("uuid|", tolower(TunnelUuid)),
-        isnotempty(TunnelName), strcat("name|", tolower(TunnelName)),
-        isnotempty(CredentialPath),
-            strcat("credential-path|", tolower(CredentialPath)),
-        HasRawTunnelToken(Text), "token-instance-unavailable",
-        "unknown")
+        isnotempty(Upn), Upn,
+        isnotempty(Domain), strcat(Domain, "\\", Name),
+        Name)
 };
-let IsUserOrTempPath = (Value:string) {
+let IsUserWritablePath = (Value:string) {
     let Path = tolower(tostring(Value));
     Path contains "\\users\\"
-        or Path contains "\\documents\\"
         or Path contains "\\downloads\\"
         or Path contains "\\appdata\\"
-        or Path contains "\\windows\\temp\\"
         or Path contains "\\temp\\"
         or Path contains "/home/"
         or Path contains "/users/"
         or Path contains "/tmp/"
         or Path contains "/var/tmp/"
 };
+let HasCredentialArgument = (Value:string) {
+    let Text = tolower(tostring(Value));
+    Text contains "--token"
+        or Text contains "--credentials-file"
+        or Text contains "tunnel_token"
+};
 //
-// One normalized evidence stream. Direct union branches allow isfuzzy=true to
-// retain DeviceProcessEvents results when an optional MDE table is unavailable.
+// Normalize candidate process events and narrowly scoped supporting evidence.
+// ProcessKey is retained as a pivot; this hunt deliberately does not sessionize
+// or turn device-wide activity into artificial corroboration.
 let AllEvidence = materialize(
     union isfuzzy=true
     (
         DeviceProcessEvents
-        | where BoundsValid
         | where Timestamp >= BaselineStart and Timestamp < HuntEnd
-        | where FileName contains "cloudflared"
-            or ProcessVersionInfoOriginalFileName contains "cloudflared"
-            or ProcessVersionInfoProductName contains "cloudflared"
-            or ProcessCommandLine contains "cloudflared"
-            or ProcessCommandLine contains "cloudflare/cloudflared"
-            or (ProcessCommandLine has "wrangler" and ProcessCommandLine has "tunnel")
-            or (
-                ProcessCommandLine has "tunnel"
-                and (
-                    ProcessCommandLine contains "--url"
-                    or ProcessCommandLine contains "--token"
-                    or ProcessCommandLine contains "credentials-file"
-                )
-            )
         | extend
             FileNameLower = tolower(tostring(FileName)),
             OriginalFileNameLower = tolower(tostring(ProcessVersionInfoOriginalFileName)),
             ProductNameLower = tolower(tostring(ProcessVersionInfoProductName)),
-            CommandLineLower = tolower(tostring(ProcessCommandLine)),
-            ProcessPathLower = tolower(tostring(FolderPath))
+            CommandLineLower = tolower(tostring(ProcessCommandLine))
         | extend
-            IsNamedCloudflared = FileNameLower == "cloudflared"
-                or FileNameLower == "cloudflared.exe"
-                or FileNameLower startswith "cloudflared-windows-"
-                or FileNameLower startswith "cloudflared-linux-"
-                or FileNameLower startswith "cloudflared-darwin-",
-            IsOriginalCloudflared = OriginalFileNameLower == "cloudflared"
-                or OriginalFileNameLower == "cloudflared.exe"
-                or OriginalFileNameLower startswith "cloudflared-",
-            IsProductCloudflared = ProductNameLower contains "cloudflared",
-            HasTunnelWord = CommandLineLower has "tunnel",
-            HasRunWord = CommandLineLower has "run",
-            HasContainerImage = CommandLineLower contains "cloudflare/cloudflared",
-            IsWranglerCapableProcess = FileNameLower in~ (
-                "wrangler", "wrangler.exe",
-                "node", "node.exe",
-                "npx", "npx.cmd",
-                "npm", "npm.cmd",
-                "bun", "bun.exe",
-                "cmd", "cmd.exe",
-                "powershell", "powershell.exe",
-                "pwsh", "pwsh.exe",
-                "bash", "sh", "zsh"
+            IsCloudflaredIdentity = FileNameLower contains "cloudflared"
+                or OriginalFileNameLower contains "cloudflared"
+                or ProductNameLower contains "cloudflared",
+            IsCommandWrapper = FileNameLower in~ (
+                "cmd", "cmd.exe", "powershell", "powershell.exe", "pwsh", "pwsh.exe",
+                "bash", "sh", "zsh", "docker", "podman", "nerdctl",
+                "node", "node.exe", "npm", "npm.cmd", "npx", "npx.cmd",
+                "bun", "bun.exe", "wrangler", "wrangler.exe",
+                "winget", "winget.exe", "choco", "choco.exe", "curl", "wget"
             )
         | extend
-            IsWranglerTunnelCommand = IsWranglerCapableProcess
+            HasCloudflaredInvocation = IsCommandWrapper
+                and CommandLineLower contains "cloudflared",
+            HasContainerInvocation = IsCommandWrapper
+                and CommandLineLower contains "cloudflare/cloudflared",
+            HasWranglerTunnelCommand = IsCommandWrapper
                 and CommandLineLower has "wrangler"
-                and CommandLineLower has "tunnel",
-            IsCloudflaredIdentity = IsNamedCloudflared
-                or IsOriginalCloudflared
-                or IsProductCloudflared
-        | extend
-            HasQuickTunnelSyntax = HasTunnelWord and CommandLineLower contains "--url",
-            HasWranglerQuickTunnelSyntax = IsWranglerTunnelCommand
-                and CommandLineLower contains "quick-start",
-            HasWranglerTunnelAdminSyntax = IsWranglerTunnelCommand
-                and CommandLineLower has_any ("create", "run"),
-            HasRemoteTokenSyntax = HasTunnelWord and HasRunWord
-                and HasRawTunnelToken(ProcessCommandLine)
-                and (IsCloudflaredIdentity or CommandLineLower contains "cloudflared"),
-            HasCredentialFileSyntax = HasTunnelWord and HasRunWord
-                and (CommandLineLower contains "credentials-file"
-                    or CommandLineLower contains "--token-file")
-                and (
-                    IsCloudflaredIdentity
-                    or CommandLineLower contains "cloudflared"
-                    or CommandLineLower contains ".cloudflared"
-                ),
-            HasLocalTunnelRunSyntax = HasTunnelWord and HasRunWord
-                and (IsCloudflaredIdentity
-                    or CommandLineLower contains "cloudflared"
-                    or CommandLineLower contains ".cloudflared"),
-            HasServiceInstallSyntax = CommandLineLower has "service"
-                and CommandLineLower has "install"
-                and (IsCloudflaredIdentity
-                    or CommandLineLower contains "cloudflared"),
-            HasTunnelCreateSyntax = (
-                (
-                    HasTunnelWord
-                    and CommandLineLower has "create"
-                )
-                or (
-                    CommandLineLower has "login"
-                    and not(CommandLineLower has "access")
-                )
-            )
-                and (IsCloudflaredIdentity or CommandLineLower contains "cloudflared"),
-            HasRouteSyntax = HasTunnelWord and CommandLineLower has "route"
-                and CommandLineLower has_any ("dns", "ip")
-                and (IsCloudflaredIdentity or CommandLineLower contains "cloudflared"),
-            HasPackageAction = CommandLineLower contains "cloudflared"
-                and CommandLineLower has_any ("install", "upgrade", "update", "download"),
-            HasContainerExecution = HasContainerImage
-                and CommandLineLower has_any ("docker", "podman", "nerdctl")
-                and CommandLineLower has "run"
-                and HasTunnelWord
-        | extend
-            HasTunnelExecution = (
-                    HasQuickTunnelSyntax
-                    and (
-                        IsCloudflaredIdentity
-                        or CommandLineLower contains "cloudflared"
-                    )
-                )
-                or HasWranglerQuickTunnelSyntax
-                or (HasWranglerTunnelAdminSyntax and HasRunWord)
-                or HasRemoteTokenSyntax
-                or HasCredentialFileSyntax
-                or HasLocalTunnelRunSyntax
-                or HasContainerExecution,
-            HasServicePersistence = HasServiceInstallSyntax,
-            TokenOnCommandLine = HasRawCloudflareSecret(ProcessCommandLine),
-            IsRenamedBinary = (IsOriginalCloudflared or IsProductCloudflared)
-                and not(IsNamedCloudflared),
-            IsUserWritablePath = IsUserOrTempPath(ProcessPathLower),
-            IsPrivilegedContext = AccountName in~ ("system", "root")
-                or ProcessTokenElevation =~ "TokenElevationTypeFull",
-            IsContainerDeployment = HasContainerExecution
+                and CommandLineLower has "tunnel"
+                and CommandLineLower has_any ("create", "run", "quick-start")
         | where IsCloudflaredIdentity
-            or HasTunnelExecution
-            or HasServicePersistence
-            or HasTunnelCreateSyntax
-            or HasRouteSyntax
-            or HasQuickTunnelSyntax
-            or HasWranglerQuickTunnelSyntax
-            or HasWranglerTunnelAdminSyntax
-            or HasContainerImage
-            or HasPackageAction
-        | extend Signal = case(
-            IsRenamedBinary and HasTunnelExecution,
-                "Renamed cloudflared-compatible process executed a tunnel",
-            HasWranglerQuickTunnelSyntax, "Wrangler Quick Tunnel publication command",
-            HasQuickTunnelSyntax
-                and (IsCloudflaredIdentity or CommandLineLower contains "cloudflared"),
-                "Quick Tunnel publication command",
-            HasQuickTunnelSyntax,
-                "Tunnel-like --url command requiring Cloudflare corroboration",
-            HasWranglerTunnelAdminSyntax, "Wrangler Cloudflare Tunnel creation or execution",
-            HasRemoteTokenSyntax, "Token-based Cloudflare Tunnel execution",
-            HasCredentialFileSyntax, "Credential-file-backed Cloudflare Tunnel execution",
-            HasServiceInstallSyntax, "Cloudflare Tunnel service installation",
-            HasContainerExecution, "Cloudflare Tunnel container deployment",
-            HasContainerImage, "Cloudflare Tunnel container image activity",
-            HasTunnelCreateSyntax, "Cloudflare Tunnel authentication or creation",
-            HasRouteSyntax, "Cloudflare Tunnel route creation",
-            HasPackageAction, "cloudflared installation or update",
-            HasLocalTunnelRunSyntax, "Cloudflare Tunnel execution",
-            IsRenamedBinary, "Renamed cloudflared-compatible binary execution",
-            "cloudflared process execution")
+            or HasCloudflaredInvocation
+            or HasContainerInvocation
+            or HasWranglerTunnelCommand
         | extend
-            Actor = case(
-                isnotempty(AccountUpn), tostring(AccountUpn),
-                isnotempty(AccountDomain), strcat(AccountDomain, "/", AccountName),
-                tostring(AccountName)),
-            Artifact = strcat(FolderPath, "/", FileName),
-            DetectionConfidence = iff(
-                IsCloudflaredIdentity
-                    or HasTunnelExecution
-                    or HasServiceInstallSyntax
-                    or HasTunnelCreateSyntax
-                    or HasRouteSyntax
-                    or HasWranglerQuickTunnelSyntax
-                    or HasWranglerTunnelAdminSyntax
-                    or HasContainerExecution,
-                "high",
-                "medium")
-        | extend InstanceKey = GetTunnelInstanceKey(ProcessCommandLine)
-        | extend EvidenceKey = strcat(
-            "process|",
-            iff(isnotempty(SHA1), tolower(SHA1), tolower(Artifact)),
-            "|", Signal,
-            "|", InstanceKey,
-            "|", tolower(tostring(ProcessCommandLine)))
-        | extend ProcessCorrelationKey = case(
-            tolong(ProcessId) > 0
-                and isnotempty(tostring(ProcessCreationTime)),
-                strcat(
-                    "pid|", tostring(ProcessId),
-                    "|", tostring(ProcessCreationTime)),
-            isnotempty(SHA1),
-                strcat(
-                    "sha1|", tolower(SHA1),
-                    "|", tolower(Artifact)),
-            isnotempty(Artifact), strcat("path|", tolower(Artifact)),
-            strcat("isolated|", EvidenceKey))
+            HasQuickTunnel = CommandLineLower has "tunnel"
+                and CommandLineLower contains "--url",
+            HasServiceInstall = CommandLineLower has "service"
+                and CommandLineLower has "install",
+            HasTunnelCreate = CommandLineLower has "tunnel"
+                and CommandLineLower has "create",
+            HasTunnelLogin = CommandLineLower has "login"
+                and not(CommandLineLower has "access"),
+            HasTunnelRoute = CommandLineLower has "tunnel"
+                and CommandLineLower has "route"
+                and CommandLineLower has_any ("dns", "ip"),
+            HasTunnelRun = CommandLineLower has "tunnel"
+                and CommandLineLower has "run",
+            IsRenamedCloudflared = (OriginalFileNameLower contains "cloudflared"
+                    or ProductNameLower contains "cloudflared")
+                and not(FileNameLower contains "cloudflared")
+        | extend Signal = case(
+            IsRenamedCloudflared, "Renamed cloudflared-compatible binary executed",
+            HasQuickTunnel, "Cloudflare Quick Tunnel command",
+            HasServiceInstall, "Cloudflare Tunnel service installation command",
+            HasContainerInvocation and HasTunnelRun, "Cloudflare Tunnel container execution",
+            HasWranglerTunnelCommand, "Wrangler Tunnel command",
+            HasTunnelCreate, "Cloudflare Tunnel creation command",
+            HasTunnelLogin, "Cloudflare Tunnel authentication command",
+            HasTunnelRoute, "Cloudflare Tunnel route command",
+            HasTunnelRun, "Cloudflare Tunnel execution command",
+            "cloudflared execution or command reference")
         | project
             EventTime = Timestamp,
-            DeviceId,
-            DeviceName,
-            Actor,
+            DeviceId = tostring(DeviceId),
+            DeviceName = tostring(DeviceName),
+            Actor = ActorLabel(AccountUpn, AccountDomain, AccountName),
             SourceTable = "DeviceProcessEvents",
-            EvidenceType = "process",
             Signal,
-            DetectionConfidence,
-            Artifact,
+            ActionType = tostring(ActionType),
+            Artifact = strcat(FolderPath, "/", FileName),
             ProcessFileName = tostring(FileName),
             ProcessPath = tostring(FolderPath),
             ProcessSHA1 = tostring(SHA1),
-            ArtifactSHA1 = tostring(SHA1),
-            ProcessCommandLineEvidence = tostring(ProcessCommandLine),
+            ProcessSHA256 = tostring(SHA256),
+            CommandLine = tostring(ProcessCommandLine),
             RemoteHost = "",
             RemoteIP = "",
-            RemotePort = tolong(""),
+            RemotePort = long(null),
             Detail = strcat(
                 "parent=", InitiatingProcessFileName,
-                "; elevation=", ProcessTokenElevation),
-            InstanceKey,
-            EvidenceKey,
-            ProcessCorrelationKey,
-            IsBaselineEligible = DetectionConfidence == "high",
-            HasTunnelExecution,
-            HasQuickTunnel = HasWranglerQuickTunnelSyntax
-                or (
-                    HasQuickTunnelSyntax
-                    and (
-                        IsCloudflaredIdentity
-                        or CommandLineLower contains "cloudflared"
-                    )
-                ),
-            HasServicePersistence,
-            TokenOnCommandLine,
-            IsRenamedBinary,
-            IsUserWritablePath,
-            IsPrivilegedContext,
-            IsContainerDeployment
+                "; parent_command_line=", InitiatingProcessCommandLine),
+            ProcessKey = strcat(
+                DeviceId, "|", tostring(ProcessId), "|", tostring(ProcessCreationTime)),
+            IsRenamedCloudflared,
+            IsUserWritablePath = IsUserWritablePath(FolderPath),
+            HasCredentialArgument = HasCredentialArgument(ProcessCommandLine)
     ),
     (
         DeviceNetworkEvents
-        | where BoundsValid
         | where Timestamp >= BaselineStart and Timestamp < HuntEnd
-        | where RemotePort == 7844
-            or RemoteUrl contains "argotunnel.com"
-            or RemoteUrl contains "cftunnel.com"
-            or RemoteUrl contains "cfargotunnel.com"
-            or RemoteUrl contains "trycloudflare.com"
-            or InitiatingProcessFileName contains "cloudflared"
-            or InitiatingProcessVersionInfoOriginalFileName contains "cloudflared"
-            or InitiatingProcessVersionInfoProductName contains "cloudflared"
+        | where ActionType =~ "ConnectionSuccess"
+        | where RemotePort == 7844 and Protocol in~ ("Tcp", "Udp")
+        | where InitiatingProcessFileName contains "cloudflared"
             or InitiatingProcessCommandLine contains "cloudflared"
-        | extend
-            RemoteHost = tolower(extract(
-                @"^(?:[a-z][a-z0-9+.-]*://)?([^/:?#]+)",
-                1,
-                tostring(RemoteUrl))),
-            ProcessFileNameLower = tolower(tostring(InitiatingProcessFileName)),
-            OriginalFileNameLower = tolower(tostring(column_ifexists(
-                "InitiatingProcessVersionInfoOriginalFileName", ""))),
-            ProductNameLower = tolower(tostring(column_ifexists(
-                "InitiatingProcessVersionInfoProductName", ""))),
-            CommandLineLower = tolower(tostring(InitiatingProcessCommandLine)),
-            ProcessPathLower = tolower(tostring(InitiatingProcessFolderPath)),
-            AccountUpnSafe = tostring(column_ifexists("InitiatingProcessAccountUpn", "")),
-            TokenElevationSafe = tostring(column_ifexists(
-                "InitiatingProcessTokenElevation", ""))
-        | extend
-            IsNamedCloudflared = ProcessFileNameLower == "cloudflared"
-                or ProcessFileNameLower == "cloudflared.exe"
-                or ProcessFileNameLower startswith "cloudflared-",
-            IsOriginalCloudflared = OriginalFileNameLower == "cloudflared"
-                or OriginalFileNameLower == "cloudflared.exe"
-                or OriginalFileNameLower startswith "cloudflared-",
-            IsProductCloudflared = ProductNameLower contains "cloudflared",
-            HasSpecificTunnelCommand = CommandLineLower has "tunnel"
-                and (CommandLineLower has "run"
-                    or CommandLineLower contains "--url"
-                    or HasRawTunnelToken(InitiatingProcessCommandLine)
-                    or CommandLineLower contains "--token-file"
-                    or CommandLineLower contains "credentials-file"),
-            HasContainerImage = CommandLineLower contains "cloudflare/cloudflared",
-            HasContainerExecution = CommandLineLower contains "cloudflare/cloudflared"
-                and CommandLineLower has_any ("docker", "podman", "nerdctl")
-                and CommandLineLower has "run"
-                and CommandLineLower has "tunnel",
-            IsConnectorHost = RemoteHost == "argotunnel.com"
-                or RemoteHost endswith ".argotunnel.com"
-                or RemoteHost == "cftunnel.com"
-                or RemoteHost endswith ".cftunnel.com",
-            IsPublishedRouteHost = RemoteHost == "cfargotunnel.com"
-                or RemoteHost endswith ".cfargotunnel.com",
-            IsQuickTunnelHost = RemoteHost == "trycloudflare.com"
-                or RemoteHost endswith ".trycloudflare.com",
-            IsTunnelTransportPort = tolong(RemotePort) == 7844,
-            IsTunnelTransportProtocol = Protocol in~ (
-                "Tcp", "Udp", "TcpV4", "TcpV6", "UdpV4", "UdpV6"),
-            IsSuccessfulConnection = ActionType =~ "ConnectionSuccess"
-        | extend ProcessLooksCloudflared = IsNamedCloudflared
-            or IsOriginalCloudflared
-            or IsProductCloudflared
-            or CommandLineLower contains "cloudflared"
-            or HasContainerExecution
-        | where IsTunnelTransportPort
-            or (IsConnectorHost and ProcessLooksCloudflared)
-            or ((IsPublishedRouteHost or IsQuickTunnelHost) and ProcessLooksCloudflared)
-        | extend
-            Signal = case(
-                IsSuccessfulConnection
-                    and IsQuickTunnelHost
-                    and ProcessLooksCloudflared,
-                    "Supporting public Quick Tunnel endpoint connection",
-                IsSuccessfulConnection
-                    and IsConnectorHost
-                    and IsTunnelTransportPort
-                    and IsTunnelTransportProtocol
-                    and ProcessLooksCloudflared,
-                    "Cloudflare Tunnel connector egress on port 7844",
-                IsSuccessfulConnection
-                    and IsTunnelTransportPort
-                    and IsTunnelTransportProtocol
-                    and ProcessLooksCloudflared,
-                    "cloudflared tunnel transport on port 7844",
-                IsTunnelTransportPort,
-                    "Supporting network evidence on tunnel transport port 7844",
-                "Supporting Cloudflare Tunnel endpoint evidence"),
-            Actor = case(
-                isnotempty(AccountUpnSafe), AccountUpnSafe,
-                isnotempty(InitiatingProcessAccountDomain),
-                    strcat(InitiatingProcessAccountDomain, "/", InitiatingProcessAccountName),
-                tostring(InitiatingProcessAccountName)),
-            Artifact = strcat(
-                iff(isnotempty(RemoteHost), RemoteHost, tostring(RemoteIP)),
-                ":", tostring(RemotePort)),
-            HasTunnelExecution = IsSuccessfulConnection
-                and IsTunnelTransportPort
-                and IsTunnelTransportProtocol
-                and ProcessLooksCloudflared,
-            HasQuickTunnel = IsSuccessfulConnection
-                and IsTunnelTransportPort
-                and IsTunnelTransportProtocol
-                and ProcessLooksCloudflared
-                and CommandLineLower has "tunnel"
-                and CommandLineLower contains "--url",
-            HasServicePersistence = false,
-            TokenOnCommandLine = HasRawCloudflareSecret(InitiatingProcessCommandLine),
-            IsRenamedBinary = (IsOriginalCloudflared or IsProductCloudflared)
-                and not(IsNamedCloudflared),
-            IsUserWritablePath = IsUserOrTempPath(ProcessPathLower),
-            IsPrivilegedContext = InitiatingProcessAccountName in~ ("system", "root")
-                or TokenElevationSafe =~ "TokenElevationTypeFull",
-            IsContainerDeployment = HasContainerExecution,
-            DetectionConfidence = case(
-                IsSuccessfulConnection
-                    and IsTunnelTransportPort
-                    and IsTunnelTransportProtocol
-                    and ProcessLooksCloudflared, "high",
-                ProcessLooksCloudflared
-                    or IsConnectorHost
-                    or IsPublishedRouteHost
-                    or IsQuickTunnelHost, "medium",
-                "low")
-        | extend InstanceKey = GetTunnelInstanceKey(
-            InitiatingProcessCommandLine)
-        | extend EvidenceKey = strcat(
-            "network|",
-            iff(isnotempty(RemoteHost), RemoteHost, tostring(RemoteIP)),
-            "|", InstanceKey,
-            "|", tolower(InitiatingProcessSHA1),
-            "|", tolower(InitiatingProcessFileName))
-        | extend ProcessCorrelationKey = case(
-            tolong(InitiatingProcessId) > 0
-                and isnotempty(tostring(InitiatingProcessCreationTime)),
-                strcat(
-                    "pid|", tostring(InitiatingProcessId),
-                    "|", tostring(InitiatingProcessCreationTime)),
-            isnotempty(InitiatingProcessSHA1),
-                strcat(
-                    "sha1|", tolower(InitiatingProcessSHA1),
-                    "|", tolower(strcat(
-                        InitiatingProcessFolderPath,
-                        "/", InitiatingProcessFileName))),
-            isnotempty(InitiatingProcessFolderPath)
-                or isnotempty(InitiatingProcessFileName),
-                strcat(
-                    "path|", tolower(strcat(
-                        InitiatingProcessFolderPath,
-                        "/", InitiatingProcessFileName))),
-            strcat("isolated|", EvidenceKey))
+            or InitiatingProcessCommandLine contains "cloudflare/cloudflared"
         | project
             EventTime = Timestamp,
-            DeviceId,
-            DeviceName,
-            Actor,
+            DeviceId = tostring(DeviceId),
+            DeviceName = tostring(DeviceName),
+            Actor = ActorLabel(
+                InitiatingProcessAccountUpn,
+                InitiatingProcessAccountDomain,
+                InitiatingProcessAccountName),
             SourceTable = "DeviceNetworkEvents",
-            EvidenceType = "network",
-            Signal,
-            DetectionConfidence,
-            Artifact,
+            Signal = "Successful Cloudflare Tunnel connector egress",
+            ActionType = tostring(ActionType),
+            Artifact = strcat(iff(isempty(RemoteUrl), RemoteIP, RemoteUrl), ":", RemotePort),
             ProcessFileName = tostring(InitiatingProcessFileName),
             ProcessPath = tostring(InitiatingProcessFolderPath),
             ProcessSHA1 = tostring(InitiatingProcessSHA1),
-            ArtifactSHA1 = "",
-            ProcessCommandLineEvidence = tostring(InitiatingProcessCommandLine),
-            RemoteHost,
+            ProcessSHA256 = tostring(InitiatingProcessSHA256),
+            CommandLine = tostring(InitiatingProcessCommandLine),
+            RemoteHost = tostring(RemoteUrl),
             RemoteIP = tostring(RemoteIP),
             RemotePort = tolong(RemotePort),
-            Detail = strcat("action=", ActionType, "; protocol=", Protocol),
-            InstanceKey,
-            EvidenceKey,
-            ProcessCorrelationKey,
-            IsBaselineEligible = DetectionConfidence == "high",
-            HasTunnelExecution,
-            HasQuickTunnel,
-            HasServicePersistence,
-            TokenOnCommandLine,
-            IsRenamedBinary,
-            IsUserWritablePath,
-            IsPrivilegedContext,
-            IsContainerDeployment
-    ),
-    (
-        DeviceFileEvents
-        | where BoundsValid
-        | where Timestamp >= BaselineStart and Timestamp < HuntEnd
-        | where ActionType in~ ("FileCreated", "FileModified", "FileRenamed")
-        | where FileName contains "cloudflared"
-            or PreviousFileName contains "cloudflared"
-            or FolderPath contains ".cloudflared"
-            or FolderPath contains "/etc/cloudflared"
-            or FolderPath contains "com.cloudflare.cloudflared"
-        | extend
-            FileNameLower = tolower(tostring(FileName)),
-            FolderPathLower = tolower(tostring(FolderPath)),
-            FullPath = strcat(
-                trim_end(@"[\\/]+", tostring(FolderPath)),
-                "/", FileName),
-            FullPathLower = tolower(strcat(
-                trim_end(@"[\\/]+", tostring(FolderPath)),
-                "/", FileName)),
-            CommandLineLower = tolower(tostring(InitiatingProcessCommandLine)),
-            ProcessPathLower = tolower(tostring(InitiatingProcessFolderPath)),
-            AccountUpnSafe = tostring(column_ifexists("InitiatingProcessAccountUpn", "")),
-            FileOriginHostSafe = tolower(extract(
-                @"^(?:[a-z][a-z0-9+.-]*://)?([^/:?#]+)",
-                1,
-                tostring(column_ifexists("FileOriginUrl", "")))),
-            PreviousFileNameLower = tolower(tostring(column_ifexists(
-                "PreviousFileName", ""))),
-            TokenElevationSafe = tostring(column_ifexists(
-                "InitiatingProcessTokenElevation", ""))
-        | extend
-            IsCloudflaredBinary = FileNameLower == "cloudflared"
-                or FileNameLower == "cloudflared.exe"
-                or FileNameLower startswith "cloudflared-windows-"
-                or FileNameLower startswith "cloudflared-linux-"
-                or FileNameLower startswith "cloudflared-darwin-",
-            IsCloudflaredServiceFileName = FileNameLower == "cloudflared.service"
-                or FileNameLower == "com.cloudflare.cloudflared.plist"
-                or FullPathLower in (
-                    "/etc/init.d/cloudflared",
-                    "/etc/conf.d/cloudflared"
-                ),
-            IsCloudflaredServicePath = FullPathLower in (
-                "/etc/systemd/system/cloudflared.service",
-                "/usr/lib/systemd/system/cloudflared.service",
-                "/lib/systemd/system/cloudflared.service",
-                "/etc/init.d/cloudflared",
-                "/etc/conf.d/cloudflared",
-                "/library/launchdaemons/com.cloudflare.cloudflared.plist"
-            )
-                or FullPathLower endswith "/library/launchagents/com.cloudflare.cloudflared.plist",
-            IsServiceInstallProcess = CommandLineLower has_all (
-                "cloudflared", "service", "install"),
-            IsRenamedCloudflaredFile = PreviousFileNameLower == "cloudflared"
-                or PreviousFileNameLower == "cloudflared.exe"
-                or PreviousFileNameLower startswith "cloudflared-",
-            IsCloudflaredConfigOrCredential = (
-                    FolderPathLower endswith "\\.cloudflared"
-                    or FolderPathLower contains "\\.cloudflared\\"
-                    or FolderPathLower endswith "/.cloudflared"
-                    or FolderPathLower contains "/.cloudflared/"
-                    or FolderPathLower == "/etc/cloudflared"
-                    or FolderPathLower startswith "/etc/cloudflared/"
-                    or FolderPathLower == "/usr/local/etc/cloudflared"
-                    or FolderPathLower startswith "/usr/local/etc/cloudflared/"
-                    or FolderPathLower contains "/library/application support/com.cloudflare.cloudflared"
-                )
-                and (
-                    FileNameLower in ("config.yml", "config.yaml", "cert.pem")
-                    or FileNameLower endswith ".json"
-                )
-        | extend IsCloudflaredServiceFile = IsCloudflaredServiceFileName
-            and (IsCloudflaredServicePath or IsServiceInstallProcess)
-        | where IsCloudflaredBinary
-            or IsCloudflaredServiceFile
-            or IsRenamedCloudflaredFile
-            or IsCloudflaredConfigOrCredential
-        | extend
-            Signal = case(
-                IsRenamedCloudflaredFile and not(IsCloudflaredBinary),
-                    "cloudflared binary renamed on disk",
-                IsCloudflaredServiceFile, "Cloudflare Tunnel service artifact written",
-                IsCloudflaredConfigOrCredential, "Cloudflare Tunnel configuration or credential written",
-                "cloudflared binary introduced or changed"),
-            Actor = case(
-                isnotempty(AccountUpnSafe), AccountUpnSafe,
-                isnotempty(InitiatingProcessAccountDomain),
-                    strcat(InitiatingProcessAccountDomain, "/", InitiatingProcessAccountName),
-                tostring(InitiatingProcessAccountName)),
-            Artifact = FullPath,
-            HasTunnelExecution = CommandLineLower has "tunnel"
-                and (CommandLineLower has "run" or CommandLineLower contains "--url"),
-            HasQuickTunnel = CommandLineLower has "tunnel"
-                and CommandLineLower contains "--url",
-            HasServicePersistence = IsCloudflaredServiceFile,
-            TokenOnCommandLine = HasRawCloudflareSecret(InitiatingProcessCommandLine),
-            IsRenamedBinary = IsRenamedCloudflaredFile and not(IsCloudflaredBinary),
-            IsUserWritablePath = IsUserOrTempPath(FullPathLower)
-                or IsUserOrTempPath(ProcessPathLower),
-            IsPrivilegedContext = InitiatingProcessAccountName in~ ("system", "root")
-                or TokenElevationSafe =~ "TokenElevationTypeFull",
-            IsContainerDeployment = false,
-            DetectionConfidence = iff(
-                IsRenamedCloudflaredFile
-                    or IsCloudflaredServiceFile
-                    or IsCloudflaredConfigOrCredential,
-                "high",
-                "medium")
-        | extend ProcessInstanceKey = GetTunnelInstanceKey(
-            InitiatingProcessCommandLine)
-        | extend InstanceKey = case(
-            ProcessInstanceKey != "unknown", ProcessInstanceKey,
-            IsCloudflaredServiceFile or IsCloudflaredConfigOrCredential,
-                strcat("artifact-path|", FullPathLower),
-            "unknown")
-        | extend EvidenceKey = strcat(
-            "file|", FullPathLower,
-            "|", InstanceKey,
-            "|", Signal)
-        | extend ProcessCorrelationKey = case(
-            tolong(InitiatingProcessId) > 0
-                and isnotempty(tostring(InitiatingProcessCreationTime)),
-                strcat(
-                    "pid|", tostring(InitiatingProcessId),
-                    "|", tostring(InitiatingProcessCreationTime)),
-            isnotempty(InitiatingProcessSHA1),
-                strcat(
-                    "sha1|", tolower(InitiatingProcessSHA1),
-                    "|", tolower(strcat(
-                        InitiatingProcessFolderPath,
-                        "/", InitiatingProcessFileName))),
-            isnotempty(InitiatingProcessFolderPath)
-                or isnotempty(InitiatingProcessFileName),
-                strcat(
-                    "path|", tolower(strcat(
-                        InitiatingProcessFolderPath,
-                        "/", InitiatingProcessFileName))),
-            strcat("isolated|", EvidenceKey))
-        | project
-            EventTime = Timestamp,
-            DeviceId,
-            DeviceName,
-            Actor,
-            SourceTable = "DeviceFileEvents",
-            EvidenceType = "file",
-            Signal,
-            DetectionConfidence,
-            Artifact,
-            ProcessFileName = tostring(InitiatingProcessFileName),
-            ProcessPath = tostring(InitiatingProcessFolderPath),
-            ProcessSHA1 = tostring(InitiatingProcessSHA1),
-            ArtifactSHA1 = tostring(SHA1),
-            ProcessCommandLineEvidence = tostring(InitiatingProcessCommandLine),
-            RemoteHost = "",
-            RemoteIP = "",
-            RemotePort = tolong(""),
-            Detail = strcat("action=", ActionType, "; origin_host=", FileOriginHostSafe),
-            InstanceKey,
-            EvidenceKey,
-            ProcessCorrelationKey,
-            IsBaselineEligible = DetectionConfidence == "high",
-            HasTunnelExecution,
-            HasQuickTunnel,
-            HasServicePersistence,
-            TokenOnCommandLine,
-            IsRenamedBinary,
-            IsUserWritablePath,
-            IsPrivilegedContext,
-            IsContainerDeployment
-    ),
-    (
-        DeviceRegistryEvents
-        | where BoundsValid
-        | where Timestamp >= BaselineStart and Timestamp < HuntEnd
-        | where not(ActionType contains "Delete")
-        | where RegistryKey contains "cloudflared"
-            or RegistryValueData contains "cloudflared"
-            or (
-                RegistryKey contains "\\system\\currentcontrolset\\services\\"
-                and RegistryValueData has "tunnel"
-            )
-        | extend
-            RegistryKeyLower = tolower(tostring(RegistryKey)),
-            RegistryValueNameLower = tolower(tostring(RegistryValueName)),
-            RegistryValueDataLower = tolower(tostring(RegistryValueData)),
-            CommandLineLower = tolower(tostring(InitiatingProcessCommandLine)),
-            ProcessPathLower = tolower(tostring(InitiatingProcessFolderPath)),
-            AccountUpnSafe = tostring(column_ifexists("InitiatingProcessAccountUpn", "")),
-            TokenElevationSafe = tostring(column_ifexists(
-                "InitiatingProcessTokenElevation", ""))
-        | extend
-            IsNamedCloudflaredService = RegistryKeyLower contains "\\system\\currentcontrolset\\services\\cloudflared",
-            IsAnyServiceImagePath = RegistryKeyLower contains "\\system\\currentcontrolset\\services\\"
-                and RegistryValueNameLower == "imagepath",
-            HasCloudflaredValue = RegistryValueDataLower contains "cloudflared"
-                or RegistryValueDataLower contains ".cloudflared",
-            HasTunnelValue = RegistryValueDataLower has "tunnel"
-                and (RegistryValueDataLower has "run"
-                    or RegistryValueDataLower contains "--url"
-                    or HasRawTunnelToken(RegistryValueData)
-                    or RegistryValueDataLower contains "--token-file"
-                    or RegistryValueDataLower contains "credentials-file")
-        | where IsNamedCloudflaredService
-            or (IsAnyServiceImagePath and (HasCloudflaredValue or HasTunnelValue))
-        | extend
-            Signal = iff(
-                IsNamedCloudflaredService,
-                "Cloudflare Tunnel Windows service registry activity",
-                "Tunnel-like Windows service ImagePath activity"),
-            Actor = case(
-                isnotempty(AccountUpnSafe), AccountUpnSafe,
-                isnotempty(InitiatingProcessAccountDomain),
-                    strcat(InitiatingProcessAccountDomain, "/", InitiatingProcessAccountName),
-                tostring(InitiatingProcessAccountName)),
-            Artifact = strcat(RegistryKey, "\\", RegistryValueName),
-            // An ImagePath proves configured persistence, not that the service
-            // successfully started or established connector transport.
-            HasTunnelExecution = false,
-            HasQuickTunnel = RegistryValueDataLower contains "--url"
-                and (IsNamedCloudflaredService or HasCloudflaredValue),
-            HasServicePersistence = true,
-            TokenOnCommandLine = HasRawCloudflareSecret(RegistryValueData),
-            IsRenamedBinary = false,
-            IsUserWritablePath = IsUserOrTempPath(RegistryValueDataLower)
-                or IsUserOrTempPath(ProcessPathLower),
-            IsPrivilegedContext = InitiatingProcessAccountName in~ ("system", "root")
-                or TokenElevationSafe =~ "TokenElevationTypeFull",
-            IsContainerDeployment = false,
-            DetectionConfidence = iff(
-                IsNamedCloudflaredService or HasCloudflaredValue,
-                "high",
-                "medium")
-        | extend RegistryInstanceKey = GetTunnelInstanceKey(
-            RegistryValueData)
-        | extend InstanceKey = case(
-            RegistryInstanceKey != "unknown", RegistryInstanceKey,
-            IsNamedCloudflaredService or HasCloudflaredValue,
-                strcat("service-path|", RegistryKeyLower),
-            "unknown")
-        | extend EvidenceKey = strcat(
-            "registry|", RegistryKeyLower,
-            "|", RegistryValueNameLower,
-            "|", InstanceKey,
-            "|", RegistryValueDataLower)
-        | extend ProcessCorrelationKey = case(
-            tolong(InitiatingProcessId) > 0
-                and isnotempty(tostring(InitiatingProcessCreationTime)),
-                strcat(
-                    "pid|", tostring(InitiatingProcessId),
-                    "|", tostring(InitiatingProcessCreationTime)),
-            isnotempty(InitiatingProcessSHA1),
-                strcat(
-                    "sha1|", tolower(InitiatingProcessSHA1),
-                    "|", tolower(strcat(
-                        InitiatingProcessFolderPath,
-                        "/", InitiatingProcessFileName))),
-            isnotempty(InitiatingProcessFolderPath)
-                or isnotempty(InitiatingProcessFileName),
-                strcat(
-                    "path|", tolower(strcat(
-                        InitiatingProcessFolderPath,
-                        "/", InitiatingProcessFileName))),
-            strcat("isolated|", EvidenceKey))
-        | project
-            EventTime = Timestamp,
-            DeviceId,
-            DeviceName,
-            Actor,
-            SourceTable = "DeviceRegistryEvents",
-            EvidenceType = "registry",
-            Signal,
-            DetectionConfidence,
-            Artifact,
-            ProcessFileName = tostring(InitiatingProcessFileName),
-            ProcessPath = tostring(InitiatingProcessFolderPath),
-            ProcessSHA1 = tostring(InitiatingProcessSHA1),
-            ArtifactSHA1 = "",
-            ProcessCommandLineEvidence = tostring(InitiatingProcessCommandLine),
-            RemoteHost = "",
-            RemoteIP = "",
-            RemotePort = tolong(""),
-            Detail = strcat(
-                "action=", ActionType,
-                "; data=", RegistryValueData),
-            InstanceKey,
-            EvidenceKey,
-            ProcessCorrelationKey,
-            IsBaselineEligible = DetectionConfidence == "high",
-            HasTunnelExecution,
-            HasQuickTunnel,
-            HasServicePersistence,
-            TokenOnCommandLine,
-            IsRenamedBinary,
-            IsUserWritablePath,
-            IsPrivilegedContext,
-            IsContainerDeployment
+            Detail = strcat("protocol=", Protocol),
+            ProcessKey = strcat(
+                DeviceId, "|", tostring(InitiatingProcessId), "|",
+                tostring(InitiatingProcessCreationTime)),
+            IsRenamedCloudflared = false,
+            IsUserWritablePath = IsUserWritablePath(InitiatingProcessFolderPath),
+            HasCredentialArgument = HasCredentialArgument(InitiatingProcessCommandLine)
     )
 );
 //
-// Baselines remain entity-unfiltered so optional starting entities cannot turn
-// a device/account slice into a misleading "tenant" baseline.
+// Baseline is deliberately simple: prior Cloudflare evidence on the device and
+// prior tenant prevalence for the same signal. It does not fingerprint complete
+// commands, edge hosts, or paths, which change during normal operations.
 let DeviceBaseline = materialize(
     AllEvidence
     | where EventTime >= BaselineStart and EventTime < HuntStart
-    // A bare/failed port-7844 row is supporting context, not proof that the
-    // device has an established Cloudflare Tunnel history.
-    | where IsBaselineEligible
     | summarize
-        DeviceBaselineEvents = count(),
-        DeviceBaselineFirstSeen = min(EventTime),
-        DeviceBaselineLastSeen = max(EventTime)
+        PriorDeviceEvents = count(),
+        PriorDeviceFirstSeen = min(EventTime),
+        PriorDeviceLastSeen = max(EventTime)
       by DeviceId
 );
-let TenantBaseline = materialize(
+let SignalBaseline = materialize(
     AllEvidence
     | where EventTime >= BaselineStart and EventTime < HuntStart
-    | where IsBaselineEligible
     | summarize
-        TenantBaselineEvents = count(),
-        TenantBaselineDevices = dcount(DeviceId),
-        TenantBaselineFirstSeen = min(EventTime),
-        TenantBaselineLastSeen = max(EventTime)
-    | extend ScopeKey = 1
+        PriorSignalEvents = count(),
+        PriorSignalDevices = dcount(DeviceId)
+      by Signal
 );
-let EvidenceKeyBaseline = materialize(
-    AllEvidence
-    | where EventTime >= BaselineStart and EventTime < HuntStart
-    | summarize EvidenceKeyBaselineEvents = count()
-      by DeviceId, EvidenceKey
-);
-// Apply optional entity filters only to current evidence. Historical device and
-// tenant prevalence above stays complete.
-let CurrentEvidence = materialize(
-    AllEvidence
-    | where EventTime >= HuntStart and EventTime < HuntEnd
-    | where isempty(DeviceNameToCheck) or DeviceName =~ DeviceNameToCheck
-    | where isempty(AccountToCheck) or Actor contains AccountToCheck
-    | join kind=leftouter EvidenceKeyBaseline on DeviceId, EvidenceKey
-    | extend
-        EvidenceKeyBaselineEvents = coalesce(EvidenceKeyBaselineEvents, 0),
-        IsFirstSeenEvidenceKeyOnDevice = coalesce(EvidenceKeyBaselineEvents, 0) == 0
-);
-// Corroboration is bounded to one device, one normalized process identity, and
-// a short activity session. PID plus process creation time is preferred; SHA1
-// and path are conservative fallbacks when process identity is unavailable.
-let CorrelatedSessions = materialize(
-    CurrentEvidence
-    | sort by DeviceId asc, ProcessCorrelationKey asc, EventTime asc
-    | serialize
-    | extend CorrelationStart = row_window_session(
-        EventTime,
-        CorrelationMax,
-        CorrelationGap,
-        DeviceId != prev(DeviceId)
-            or ProcessCorrelationKey != prev(ProcessCorrelationKey))
-    | summarize
-        HuntFirstSeen = min(EventTime),
-        HuntLastSeen = max(EventTime),
-        HuntEventCount = count(),
-        arg_max(
-            EventTime,
-            DeviceName,
-            Actor,
-            Signal,
-            EvidenceType,
-            SourceTable,
-            DetectionConfidence,
-            Artifact,
-            ProcessFileName,
-            ProcessPath,
-            ProcessSHA1,
-            ArtifactSHA1,
-            ProcessCommandLineEvidence,
-            RemoteHost,
-            RemoteIP,
-            RemotePort,
-            Detail,
-            InstanceKey,
-            EvidenceKey
-        ),
-        ObservedActors = make_set_if(tolower(Actor), isnotempty(Actor), 20),
-        ObservedPaths = make_set_if(Artifact, isnotempty(Artifact), 20),
-        ObservedProcessPaths = make_set_if(
-            tolower(strcat(
-                trim_end(@"[\\/]+", ProcessPath),
-                "/", ProcessFileName)),
-            isnotempty(ProcessPath) or isnotempty(ProcessFileName),
-            20),
-        ObservedProcessSHA1s = make_set_if(
-            tolower(ProcessSHA1),
-            isnotempty(ProcessSHA1),
-            20),
-        ObservedArtifactSHA1s = make_set_if(
-            tolower(ArtifactSHA1),
-            isnotempty(ArtifactSHA1),
-            20),
-        ObservedInstanceKeys = make_set_if(
-            tolower(InstanceKey),
-            InstanceKey !in ("unknown", "token-instance-unavailable"),
-            20),
-        UnresolvedTokenInstanceCount = countif(
-            InstanceKey == "token-instance-unavailable"),
-        EvidenceKeys = make_set(EvidenceKey, 50),
-        FirstSeenEvidenceKeyCount = dcountif(
-            EvidenceKey,
-            IsFirstSeenEvidenceKeyOnDevice),
-        DeviceEvidenceSourceCount = dcount(EvidenceType),
-        DeviceEvidenceTypes = make_set(EvidenceType, 4),
-        DeviceSignals = make_set(Signal, 20),
-        DeviceProcessEvidence = countif(EvidenceType == "process"),
-        DeviceNetworkEvidence = countif(EvidenceType == "network"),
-        DeviceFileEvidence = countif(EvidenceType == "file"),
-        DeviceRegistryEvidence = countif(EvidenceType == "registry"),
-        BaselineEligibleEvidenceCount = countif(IsBaselineEligible),
-        HighConfidenceEvidenceCount = countif(DetectionConfidence == "high"),
-        MediumConfidenceEvidenceCount = countif(DetectionConfidence == "medium"),
-        TunnelExecutionCount = countif(HasTunnelExecution),
-        QuickTunnelCount = countif(HasQuickTunnel),
-        ServicePersistenceCount = countif(HasServicePersistence),
-        RawTokenOnCommandLineCount = countif(TokenOnCommandLine),
-        RenamedBinaryCount = countif(IsRenamedBinary),
-        UserWritablePathCount = countif(IsUserWritablePath),
-        PrivilegedContextCount = countif(IsPrivilegedContext),
-        ContainerDeploymentCount = countif(IsContainerDeployment),
-        CreationSignalCount = countif(Signal in (
-            "Cloudflare Tunnel authentication or creation",
-            "Cloudflare Tunnel route creation",
-            "Wrangler Cloudflare Tunnel creation or execution"
-        )),
-        InstallationSignalCount = countif(Signal in (
-            "Cloudflare Tunnel service installation",
-            "Cloudflare Tunnel container deployment",
-            "cloudflared installation or update",
-            "cloudflared binary introduced or changed",
-            "Cloudflare Tunnel service artifact written"
-        ))
-      by DeviceId, ProcessCorrelationKey, CorrelationStart
-    | extend
-        HasHighConfidenceEvidence = HighConfidenceEvidenceCount > 0,
-        HasMediumConfidenceEvidence = MediumConfidenceEvidenceCount > 0,
-        AnyTunnelExecution = TunnelExecutionCount > 0,
-        AnyQuickTunnel = QuickTunnelCount > 0,
-        AnyServicePersistence = ServicePersistenceCount > 0,
-        AnyRawTokenOnCommandLine = RawTokenOnCommandLineCount > 0,
-        AnyRenamedBinary = RenamedBinaryCount > 0,
-        AnyUserWritablePath = UserWritablePathCount > 0,
-        AnyPrivilegedContext = PrivilegedContextCount > 0,
-        AnyContainerDeployment = ContainerDeploymentCount > 0,
-        HasCreationSignal = CreationSignalCount > 0,
-        HasInstallationSignal = InstallationSignalCount > 0
-);
-CorrelatedSessions
+AllEvidence
+| where EventTime >= HuntStart and EventTime < HuntEnd
+| where isempty(DeviceNameToCheck) or DeviceName =~ DeviceNameToCheck
+| where isempty(AccountToCheck) or Actor contains AccountToCheck
 | join kind=leftouter DeviceBaseline on DeviceId
-| extend ScopeKey = 1
-| join kind=leftouter TenantBaseline on ScopeKey
+| join kind=leftouter SignalBaseline on Signal
 | extend
-    DeviceBaselineEvents = coalesce(DeviceBaselineEvents, 0),
-    TenantBaselineEvents = coalesce(TenantBaselineEvents, 0),
-    TenantBaselineDevices = coalesce(TenantBaselineDevices, 0),
-    IsFirstSeenOnDevice = BaselineEligibleEvidenceCount > 0
-        and coalesce(DeviceBaselineEvents, 0) == 0,
-    IsFirstSeenInTenant = BaselineEligibleEvidenceCount > 0
-        and coalesce(TenantBaselineEvents, 0) == 0,
-    IsFirstSeenEvidenceKeyOnDevice = FirstSeenEvidenceKeyCount > 0,
-    DetectionConfidence = case(
-        HasHighConfidenceEvidence, "high",
-        HasMediumConfidenceEvidence, "medium",
-        "low")
+    PriorDeviceEvents = coalesce(PriorDeviceEvents, 0),
+    PriorSignalEvents = coalesce(PriorSignalEvents, 0),
+    PriorSignalDevices = coalesce(PriorSignalDevices, 0)
 | extend
-    IsApprovedDevice = set_has_element(ApprovedDeviceIds, tolower(DeviceId))
-        or set_has_element(ApprovedDeviceNames, tolower(DeviceName)),
-    IsApprovedAccount = array_length(ObservedActors) > 0
-        and array_length(
-            set_difference(ObservedActors, ApprovedAccountUpns)) == 0,
-    IsApprovedHash = (
-            array_length(ObservedProcessSHA1s)
-                + array_length(ObservedArtifactSHA1s)
-        ) > 0
-        and array_length(set_difference(
-            ObservedProcessSHA1s,
-            ApprovedCloudflaredSHA1s)) == 0
-        and array_length(set_difference(
-            ObservedArtifactSHA1s,
-            ApprovedCloudflaredSHA1s)) == 0,
-    IsApprovedPath = array_length(ObservedProcessPaths) > 0
-        and array_length(set_difference(
-            ObservedProcessPaths,
-            ApprovedProcessPaths)) == 0,
-    IsApprovedInstance = array_length(ObservedInstanceKeys) > 0
-        and UnresolvedTokenInstanceCount == 0
-        and array_length(set_difference(
-            ObservedInstanceKeys,
-            ApprovedInstanceKeys)) == 0
-| extend
-    // Token-only and Quick Tunnel sessions have no stable instance key and
-    // therefore cannot be approved. Results always remain visible.
-    IsApproved = IsApprovedDevice
-        and IsApprovedAccount
-        and IsApprovedHash
-        and IsApprovedPath
-        and IsApprovedInstance
-        and not(AnyQuickTunnel),
-    ApprovalReason = case(
-        IsApprovedDevice and IsApprovedAccount and IsApprovedHash
-            and IsApprovedPath and IsApprovedInstance
-            and not(AnyQuickTunnel),
-            "approved device, actor, SHA1, process path and tunnel instance; result retained",
-        AnyQuickTunnel,
-            "Quick Tunnel sessions are never approved by this query",
-        IsApprovedDevice and IsApprovedAccount and IsApprovedHash
-            and IsApprovedPath,
-            "device/actor/SHA1/path matched but tunnel instance did not",
-        IsApprovedDevice and IsApprovedAccount,
-            "device and actor matched but SHA1/path/instance did not",
-        IsApprovedDevice and IsApprovedHash,
-            "device and SHA1 matched but actor/path/instance did not",
-        IsApprovedAccount and IsApprovedHash,
-            "actor and SHA1 matched but device/path/instance did not",
-        IsApprovedDevice, "device matched but the complete tuple did not",
-        IsApprovedAccount, "actor matched but the complete tuple did not",
-        IsApprovedHash, "SHA1 matched but the complete tuple did not",
-        IsApprovedPath, "process path matched but the complete tuple did not",
-        IsApprovedInstance, "tunnel instance matched but the complete tuple did not",
-        "no approval match")
-| extend HasMultiSourceEvidence = DeviceEvidenceSourceCount >= 2
-| extend RiskFlags = trim_end(
-    @";\s*$",
-    strcat(
-        iff(AnyRenamedBinary, "renamed binary; ", ""),
-        iff(AnyUserWritablePath, "user/profile/temp path; ", ""),
-        iff(AnyQuickTunnel, "Quick Tunnel; ", ""),
-        iff(AnyRawTokenOnCommandLine,
-            "raw Cloudflare credential exposed in command line/service data; ", ""),
-        iff(AnyServicePersistence, "service persistence; ", ""),
-        iff(AnyPrivilegedContext, "SYSTEM/root/elevated context; ", ""),
-        iff(AnyContainerDeployment, "container deployment; ", ""),
-        iff(IsFirstSeenOnDevice, "first Cloudflare Tunnel evidence on device; ", ""),
-        iff(IsFirstSeenInTenant, "first Cloudflare Tunnel evidence in tenant baseline; ", ""),
-        iff(IsFirstSeenEvidenceKeyOnDevice, "new evidence pattern on device; ", ""),
-        iff(HasMultiSourceEvidence, "multiple evidence sources in bounded session; ", ""),
-        iff(IsApproved, "allowlist annotation matched; ", "")))
-| extend HasStrongDeploymentSignal = AnyRenamedBinary
-    or AnyQuickTunnel
-    or (HasCreationSignal and IsFirstSeenOnDevice)
-    or (
-        AnyServicePersistence
-        and IsFirstSeenOnDevice
-        and HasHighConfidenceEvidence
-    )
-    or (
-        AnyTunnelExecution
-        and AnyUserWritablePath
-        and (HasHighConfidenceEvidence or HasMultiSourceEvidence)
-    )
-    or (HasMultiSourceEvidence and IsFirstSeenOnDevice)
-| extend IsApprovalContradicted = AnyRenamedBinary
-| extend TriagePriority = case(
-    IsApproved and not(IsApprovalContradicted), "Approved",
-    HasStrongDeploymentSignal, "High",
-    IsFirstSeenOnDevice
-        and (HasHighConfidenceEvidence or HasInstallationSignal), "Medium",
-    HasMultiSourceEvidence or HasHighConfidenceEvidence, "Medium",
-    "Low")
-| extend DispositionGuide = case(
-    TriagePriority == "Approved",
-        "Expected established deployment tuple matched; result retained for review and drift detection.",
-    TriagePriority == "High",
-        "Suspicious / escalate until the owner, change, tunnel ID and exposed target service are confirmed.",
-    TriagePriority == "Medium",
-        "Review required: validate owner, intended target service, deployment path and change window.",
-    "Precautionary benign only after validating established and authorised use.")
-| extend PriorityRank = case(
-    TriagePriority == "High", 1,
-    TriagePriority == "Medium", 2,
-    TriagePriority == "Low", 3,
-    4)
+    IsFirstSeenOnDevice = PriorDeviceEvents == 0,
+    IsFirstSeenSignalInTenant = PriorSignalEvents == 0
 | project
-    TriagePriority,
-    DispositionGuide,
-    RiskFlags,
-    CorrelationStart,
-    ProcessCorrelationKey,
-    HuntFirstSeen,
-    HuntLastSeen,
-    HuntEventCount,
+    EventTime,
     DeviceName,
     DeviceId,
     Actor,
-    ObservedActors,
     Signal,
-    EvidenceType,
     SourceTable,
-    DetectionConfidence,
+    ActionType,
     Artifact,
-    ObservedPaths,
-    ObservedProcessPaths,
     ProcessFileName,
     ProcessPath,
     ProcessSHA1,
-    ArtifactSHA1,
-    ObservedProcessSHA1s,
-    ObservedArtifactSHA1s,
-    ProcessCommandLineEvidence,
+    ProcessSHA256,
+    CommandLine,
     RemoteHost,
     RemoteIP,
     RemotePort,
     Detail,
-    InstanceKey,
-    ObservedInstanceKeys,
-    UnresolvedTokenInstanceCount,
-    IsApproved,
-    IsApprovedPath,
-    IsApprovedInstance,
-    IsApprovalContradicted,
-    ApprovalReason,
+    ProcessKey,
+    IsRenamedCloudflared,
+    IsUserWritablePath,
+    HasCredentialArgument,
     IsFirstSeenOnDevice,
-    IsFirstSeenInTenant,
-    IsFirstSeenEvidenceKeyOnDevice,
-    FirstSeenEvidenceKeyCount,
-    DeviceBaselineEvents,
-    DeviceBaselineFirstSeen,
-    DeviceBaselineLastSeen,
-    TenantBaselineEvents,
-    TenantBaselineDevices,
-    TenantBaselineFirstSeen,
-    TenantBaselineLastSeen,
-    DeviceEvidenceSourceCount,
-    DeviceEvidenceTypes,
-    DeviceSignals,
-    DeviceProcessEvidence,
-    DeviceNetworkEvidence,
-    DeviceFileEvidence,
-    DeviceRegistryEvidence,
-    EvidenceKey,
-    EvidenceKeys,
-    PriorityRank
-| sort by PriorityRank asc, HuntLastSeen desc
-| project-away PriorityRank
+    IsFirstSeenSignalInTenant,
+    PriorDeviceEvents,
+    PriorDeviceFirstSeen,
+    PriorDeviceLastSeen,
+    PriorSignalEvents,
+    PriorSignalDevices
+| sort by IsFirstSeenOnDevice desc, IsRenamedCloudflared desc, EventTime desc
 //
-// Coverage boundary and companion control:
-// - This Sentinel hunt detects endpoint-side deployment and connector activity
-//   from the connected Device* telemetry tables.
-// - Cloudflare dashboard/API creation in an owned account requires Cloudflare
-//   audit-log ingestion. Hunt successful Tunnel Create/Update events, connector
-//   Registered events, and CNAME add events by unfamiliar actors/source IPs.
-//   No portable table name exists: normalize the tenant's Logpush/custom-table
-//   mapping before adding that companion query.
-// - An attacker-owned account or anonymous Quick Tunnel will not appear in the
-//   victim's Cloudflare account logs, so endpoint evidence remains required.
-//
-// Primary references:
-// https://developers.cloudflare.com/cloudflare-one/networks/connectors/cloudflare-tunnel/do-more-with-tunnels/trycloudflare/
-// https://developers.cloudflare.com/workers/wrangler/commands/tunnel/
-// https://developers.cloudflare.com/workers/wrangler/system-environment-variables/
-// https://developers.cloudflare.com/cloudflare-one/networks/connectors/cloudflare-tunnel/do-more-with-tunnels/local-management/as-a-service/windows/
-// https://developers.cloudflare.com/cloudflare-one/networks/connectors/cloudflare-tunnel/do-more-with-tunnels/local-management/as-a-service/linux/
-// https://developers.cloudflare.com/cloudflare-one/networks/connectors/cloudflare-tunnel/do-more-with-tunnels/local-management/as-a-service/macos/
-// https://developers.cloudflare.com/cloudflare-one/networks/connectors/cloudflare-tunnel/configure-tunnels/run-parameters/
-// https://developers.cloudflare.com/cloudflare-one/networks/connectors/cloudflare-tunnel/configure-tunnels/tunnel-with-firewall/
-// https://developers.cloudflare.com/cloudflare-one/insights/logs/dashboard-logs/tunnel-audit-logs/
-// https://learn.microsoft.com/en-us/defender-xdr/advanced-hunting-deviceprocessevents-table
-// https://learn.microsoft.com/en-us/defender-xdr/advanced-hunting-devicenetworkevents-table
+// Coverage boundary: endpoint telemetry cannot show a dashboard/API-only tunnel
+// creation until a connector or local artifact appears. If Cloudflare audit logs
+// are ingested, hunt their tenant-specific table separately for tunnel create,
+// update, connector registration, and route/CNAME changes by unfamiliar actors.
