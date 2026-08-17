@@ -58,3 +58,25 @@ DeviceNetworkEvents
 Minor: your sort buries the urgent stuff
 
 IsFirstSeenOnDevice desc, IsRenamedCloudflared desc floats novelty above severity — a service install on a domain controller with 40 prior events sorts below a benign first-seen wrangler command. Given how you approached scoring in the babbler work, you'd probably rather emit a weighted Priority column than sort on booleans. Happy to write that if useful.
+
+
+let TargetSHA1 = "<copy ProcessSHA1>";
+DeviceFileCertificateInfo
+| where SHA1 == TargetSHA1
+| summarize arg_max(Timestamp, *) by SHA1
+| project Timestamp, SHA1, IsSigned, IsTrusted, Signer, Issuer,
+          CertificateCreationTime, CertificateExpirationTime
+
+let TargetDeviceId = "<copy DeviceId>";
+let TargetSHA1 = "<copy ProcessSHA1>";
+DeviceNetworkEvents
+| where Timestamp > ago(30d)
+| where DeviceId == TargetDeviceId
+| where InitiatingProcessSHA1 == TargetSHA1
+| where ActionType =~ "ConnectionSuccess"
+| summarize
+    Connections=count(),
+    FirstSeen=min(Timestamp),
+    LastSeen=max(Timestamp)
+  by RemoteIP, RemoteUrl, RemotePort, Protocol
+| sort by Connections desc
