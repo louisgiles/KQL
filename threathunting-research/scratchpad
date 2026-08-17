@@ -114,3 +114,112 @@ DeviceFileCertificateInfo
 | summarize Hits=count()
   by SourceTable, Signal, ProcessFileName, ProcessPath
 | order by Hits desc
+
+ASE-2021 – Cloudflare Tunnel threat hunt
+
+Query purpose
+
+The query was developed to identify endpoint evidence of Cloudflare Tunnel deployment and execution without relying on indicators associated with a single vulnerability or threat campaign.
+
+Cloudflare Tunnel is a legitimate administrative and development technology, but it can also provide persistent remote connectivity into an environment. The query therefore returns evidence for analyst investigation rather than automatically classifying activity as malicious or benign.
+
+Query structure
+
+The query examines a seven-day hunting period against the immediately preceding 21-day baseline, providing 28 days of context. Optional device and account parameters can be used to narrow an investigation.
+
+DeviceProcessEvents provides the primary evidence. The process branch identifies:
+
+* Executables named cloudflared.
+* Renamed binaries whose original filename or product metadata identifies them as Cloudflare.
+* Shells, scripting engines, package managers and container tools invoking or referencing cloudflared.
+* Wrangler Tunnel commands.
+* Quick Tunnel, service installation, tunnel creation, authentication, routing and execution commands.
+
+Each process event is assigned one descriptive signal. This represents the strongest matching behaviour according to a fixed order of precedence; it is not a severity rating or threat verdict.
+
+For each result, the query retains the actor, executable path, hashes, raw command line, parent-process information and a composite ProcessKey that can be used for further correlation. It also identifies renamed binaries, user-writable execution paths and command lines containing token or credential-file arguments.
+
+HasCredentialArgument indicates that credential-related syntax such as --token or --credentials-file was present. It does not by itself indicate that a credential was exposed or used maliciously.
+
+DeviceNetworkEvents provides optional supporting evidence. This branch returns successful TCP or UDP connections to remote port 7844 where the initiating process or command line is associated with cloudflared. This identifies likely Cloudflare connector egress without treating port 7844 alone as proof of Cloudflare activity.
+
+The process and network branches are normalised into a common event-level output. Command lines are intentionally retained without redaction because invocation arguments are important during triage. Query results and exports should consequently be treated as sensitive.
+
+Baseline and result interpretation
+
+The baseline provides two forms of context:
+
+* Previous Cloudflare-related evidence on the same device, including the first and last observation within the baseline.
+* Previous occurrences of the same signal across the tenant.
+
+IsFirstSeenOnDevice means that no Cloudflare-related process or network evidence was observed on that device during the preceding 21 days. IsFirstSeenSignalInTenant means that the same classified signal was not observed elsewhere in the tenant during that period.
+
+These fields provide prioritisation context but do not prove that software has just been installed or that activity is malicious. The available baseline is not a complete historical inventory.
+
+The output is event-level rather than deployment-level. Consequently:
+
+* Persistent connectors can generate numerous recurring network rows.
+* Service restarts can generate repeated process rows.
+* A single command can produce separate results for its shell, interpreter and child process.
+* PriorDeviceEvents combines process and network telemetry; it is not a count of tunnels or deployments.
+
+The number of returned rows should therefore not be interpreted as the number of Cloudflare Tunnels created.
+
+Observed results
+
+Client 1
+
+The results identified an established, token-backed Cloudflare Tunnel connector running as NT AUTHORITY\SYSTEM.
+
+The expected process chain was observed:
+
+services.exe → cloudflared.exe tunnel run --token
+
+The executable ran from the standard C:\Program Files (x86)\cloudflared\ installation path. It was not renamed, did not execute from a user-writable location and was not first seen within the available baseline.
+
+The binary was signed and trusted by Cloudflare, Inc.. Repeated successful TCP/7844 connections were also observed to documented Cloudflare Tunnel infrastructure, including argotunnel.com and cftunnel.com destinations, alongside expected Cloudflare API and update traffic.
+
+The recurring process and network events represented an established connector maintaining edge connectivity rather than repeated tunnel deployments. No technical indicators of compromise were identified, and the activity was closed following confirmation of the deployment.
+
+Client 2
+
+The query returned 97 evidence rows across six devices:
+
+* 52 process events.
+* 45 successful connector-egress events.
+
+Direct execution followed the expected service pattern, with cloudflared.exe tunnel run --token launched by services.exe from the standard Program Files (x86) installation path.
+
+Additional process events showed Atera executing a package named CloudFlared Agent Restart.ps1. The associated activity included PowerShell, command-shell and cloudflared.exe update execution consistent with centrally managed restart and update operations.
+
+Three separate cloudflared.exe hashes were identified. All three were signed, trusted and issued to Cloudflare, Inc. through DigiCert.
+
+No renamed binaries, user-writable execution paths or first-seen anomalies were identified. The result volume primarily represented service execution, connector traffic and Atera maintenance activity across the fleet rather than 97 separate deployments.
+
+The technical evidence was consistent with Cloudflare Tunnel being intentionally maintained through Atera. The remaining question was confirmation of business ownership and authorisation rather than executable legitimacy.
+
+Client 3
+
+The query returned 27 process rows from one macOS device:
+
+* Nine sh events.
+* Nine bash events.
+* Nine Nix-installed node events.
+
+Review established that these were nine repetitions of the same pre-commit workflow. Node and Prettier were formatting repository content that included the file:
+
+deploy/ansible/playbooks/cloudflared_tunnel.yml
+
+The term cloudflared appeared only within the repository filename. No cloudflared executable, tunnel command, credential argument or associated network activity was present.
+
+The shell, interpreter and Node process were each returned because the generic command-reference condition followed the same filename through the wrapper chain. This explains why nine development operations produced 27 query rows.
+
+The activity was classified as benign development activity and a query false positive.
+
+Overall findings
+
+The hunt distinguished two genuine Cloudflare Tunnel deployments from one development-related command reference. No technical evidence of malicious Cloudflare Tunnel deployment was identified across the three clients.
+
+Testing also demonstrated that raw result volume is not an appropriate proxy for risk or deployment count. Direct executable identity, command intent, parent process, signature status, historical prevalence and connector egress must be considered together.
+
+The Client 3 results confirmed that the current generic command-reference logic is overly broad and can match source-code filenames propagated through wrapper processes. This is a query-quality finding rather than evidence of Cloudflare execution.
