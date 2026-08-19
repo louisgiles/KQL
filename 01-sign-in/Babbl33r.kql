@@ -1,0 +1,977 @@
+// name:              Babbler identity-posture scorer
+// purpose:           Score one user's pre-anchor interactive sign-in context against a bounded 90-day baseline and emit a fail-open Stage 20 evidence section.
+// starting_entities: TargetUPN, AnchorTime, AssessmentCutoffUTC
+// required_tables:   SigninLogs
+// optional_tables:   None
+// variables:         TargetUPN, AnchorTime, AssessmentCutoffUTC
+// done_criteria:     One status row reports ready only when inputs, replay cutoff, baseline, score-window coverage, flow identity, and result completeness are all safe; findings are bounded and union-safe.
+// output_type:       analysis
+//
+// Section version: 0.2.0
+// Point-in-time contract: ingestion_time() is the availability boundary;
+// CreatedDateTime (falling back to TimeGenerated) is the event boundary, and
+// TimeGenerated is retained as an indexed source-time pruning predicate.
+let TargetUPN = "<upn>";
+let AnchorTime = now();
+let AssessmentCutoffUTC = AnchorTime;
+// ============================================================
+// SECTION INPUT ADAPTER. Parent owns all three public inputs when assembled.
+// ============================================================
+let IdpTargetUPN             = TargetUPN;
+let IdpAnchorTime            = AnchorTime;
+let IdpAssessmentCutoffUTC   = AssessmentCutoffUTC;
+let IdpSectionOrder          = 20;
+let IdpScoreWindow           = 1d;
+let IdpBaselineWindow        = 90d;
+let IdpIngestionGrace        = 2d;
+let IdpMinBaselineEvents     = 25;
+let IdpMinBaselineActiveDays = 7;
+let IdpNoBaselineFloor       = 5;
+let IdpMinModelCoveragePct   = 75.0;
+let IdpMaxFindings           = 20;
+let IdpTargetConfigured      =
+    isnotempty(IdpTargetUPN) and IdpTargetUPN != "<upn>";
+let IdpAnchorConfigured      = isnotnull(IdpAnchorTime);
+let IdpAssessmentCutoffConfigured = isnotnull(IdpAssessmentCutoffUTC);
+let IdpAssessmentCutoffValid =
+    IdpAssessmentCutoffConfigured
+    and IdpAnchorConfigured
+    and IdpAssessmentCutoffUTC >= IdpAnchorTime;
+let IdpScoreEnd              = IdpAnchorTime;
+let IdpScoreStart            = IdpScoreEnd - IdpScoreWindow;
+let IdpModelEnd              = IdpScoreStart;
+let IdpModelStart            = IdpModelEnd - IdpBaselineWindow;
+// The caller may admit late-arriving evidence, but never evidence that was not
+// available at its immutable assessment cutoff or more than two days late.
+let IdpAvailabilityCutoffUTC = iff(
+    IdpAssessmentCutoffValid,
+    min_of(IdpAssessmentCutoffUTC, IdpAnchorTime + IdpIngestionGrace),
+    datetime(null));
+//
+// Per-user verdict ledger. Copy the exact UserId/Dimension/Value tuple from the
+// finding Evidence bag. Raw bits remain historical; active entries adjust only
+// the actionable view.
+let IdpDispositioned = datatable(
+    UserId: string,
+    Dimension: string,
+    Value: string,
+    ValidFrom: datetime,
+    ExpiresOn: datetime,
+    CaseId: string,
+    DispositionNote: string
+)[
+    // "00000000-0000-0000-0000-000000000000", "asn", "12576",
+    // datetime(2026-08-01), datetime(2026-09-01), "CASE-12345",
+    // "Confirmed corporate/mobile egress"
+];
+//
+// Resolve duplicate disposition tuples before scoring so lookup cannot
+// multiply scoring rows.
+let IdpDispositionedResolved =
+    IdpDispositioned
+    | extend DispositionSelectionKey = strcat(
+        format_datetime(
+            coalesce(ValidFrom, datetime(0001-01-01)),
+            "yyyy-MM-ddTHH:mm:ss.fffffffZ"),
+        "|", hash_sha256(strcat(
+            tostring(ExpiresOn), "|", tostring(CaseId), "|",
+            tostring(DispositionNote))))
+    | summarize arg_max(
+        DispositionSelectionKey,
+        ValidFrom,
+        ExpiresOn,
+        CaseId,
+        DispositionNote)
+      by UserId, Dimension, Value;
+//
+// ============================================================
+// SCORING ENGINE. Namespaced.
+// ============================================================
+// === SECTION 1: resolve the analyst-friendly UPN to stable UserId ===
+let IdpResolverRows = materialize(
+    SigninLogs
+    // Keep a broad indexed source-time predicate alongside ingestion_time().
+    | where TimeGenerated >= IdpModelStart - IdpIngestionGrace
+    | where TimeGenerated < IdpScoreEnd + IdpIngestionGrace
+    | where IsInteractive == true
+    | extend ResolverEventTime = coalesce(CreatedDateTime, TimeGenerated)
+    | where ResolverEventTime >= IdpModelStart
+        and ResolverEventTime < IdpScoreEnd
+    | where UserPrincipalName =~ IdpTargetUPN
+    | where isnotempty(UserId)
+    | extend RecordAvailableUTC = ingestion_time()
+    | project
+        ResolverEventTime, TimeGenerated, RecordAvailableUTC, UserId
+);
+let IdpResolverNullAvailabilityRowCount = toscalar(
+    IdpResolverRows
+    | summarize Count = countif(isnull(RecordAvailableUTC))
+    | project Count);
+let IdpResolvedUserId = toscalar(
+    IdpResolverRows
+    | where isnotnull(RecordAvailableUTC)
+        and RecordAvailableUTC <= IdpAvailabilityCutoffUTC
+    | extend ResolverSelectionKey = strcat(
+        format_datetime(
+            ResolverEventTime, "yyyy-MM-ddTHH:mm:ss.fffffffZ"),
+        "|", format_datetime(
+            TimeGenerated, "yyyy-MM-ddTHH:mm:ss.fffffffZ"),
+        "|", tostring(UserId))
+    | summarize arg_max(ResolverSelectionKey, UserId)
+    | project UserId
+);
+//
+// === SECTION 2: scoped raw rows, with event time distinct from ingestion ===
+// The trailing edge is clamped to the immutable assessment cutoff. Resolver
+// and scoring rows also stay strictly pre-anchor by event time.
+let IdpRawSigninCandidates = materialize(
+    SigninLogs
+    | where TimeGenerated >= IdpModelStart - IdpIngestionGrace
+    | where TimeGenerated < IdpScoreEnd + IdpIngestionGrace
+    | where IsInteractive == true
+    | where iff(isnotempty(IdpResolvedUserId),
+                UserId == IdpResolvedUserId,
+                UserPrincipalName =~ IdpTargetUPN)
+    | extend EventTime = coalesce(CreatedDateTime, TimeGenerated)
+    | where EventTime >= IdpModelStart and EventTime < IdpScoreEnd
+    | extend RecordAvailableUTC = ingestion_time()
+    | project
+        EventTime, TimeGenerated, RecordAvailableUTC, Id,
+        OriginalRequestId, CorrelationId, SessionId, UserId,
+        UserPrincipalName, IPAddress, AutonomousSystemNumber, Location,
+        LocationDetails, DeviceDetail, AppId, AppDisplayName,
+        AuthenticationProtocol, AuthenticationRequirement,
+        AuthenticationMethodsUsed, ClientAppUsed, ResultType,
+        ResultDescription, ConditionalAccessStatus, RiskLevelDuringSignIn,
+        RiskEventTypes_V2, IsRisky, CrossTenantAccessType
+);
+let IdpNullAvailabilityRowCount = toscalar(
+    IdpRawSigninCandidates
+    | summarize Count = countif(isnull(RecordAvailableUTC))
+    | project Count);
+let IdpRawSigninRows = materialize(
+    IdpRawSigninCandidates
+    | where isnotnull(RecordAvailableUTC)
+        and RecordAvailableUTC <= IdpAvailabilityCutoffUTC
+    // Azure Monitor may emit several MFA line items for one authentication.
+    // Prefer the request/sequence identifiers used by the validated Stage 20
+    // scorer and namespace each source so unlike identifiers cannot collide.
+    | extend FlowKeySource = case(
+        isnotempty(OriginalRequestId), "original_request_id",
+        isnotempty(CorrelationId), "correlation_id",
+        isnotempty(Id), "id",
+        "deterministic_fallback")
+    | extend FlowKey = case(
+        FlowKeySource == "original_request_id",
+            strcat("original:", tostring(OriginalRequestId)),
+        FlowKeySource == "correlation_id",
+            strcat("correlation:", tostring(CorrelationId)),
+        FlowKeySource == "id", strcat("id:", tostring(Id)),
+        strcat(
+            "fallback:",
+            format_datetime(EventTime, "yyyy-MM-ddTHH:mm:ss.fffffffZ"), "|",
+            tostring(UserId), "|", tostring(IPAddress), "|",
+            tostring(AppId), "|", tostring(ResultType), "|",
+            tostring(SessionId)))
+    | extend RowSelectionTieBreaker = hash_sha256(strcat(
+        tostring(UserId), "|", tostring(UserPrincipalName), "|",
+        tostring(IPAddress), "|", tostring(AutonomousSystemNumber), "|",
+        tostring(Location), "|", tostring(LocationDetails), "|",
+        tostring(DeviceDetail), "|", tostring(AppId), "|",
+        tostring(AppDisplayName), "|", tostring(AuthenticationProtocol), "|",
+        tostring(AuthenticationRequirement), "|",
+        tostring(AuthenticationMethodsUsed), "|", tostring(ClientAppUsed), "|",
+        tostring(ResultType), "|", tostring(ResultDescription), "|",
+        tostring(ConditionalAccessStatus), "|",
+        tostring(RiskLevelDuringSignIn), "|", tostring(RiskEventTypes_V2), "|",
+        tostring(IsRisky), "|", tostring(CrossTenantAccessType), "|",
+        tostring(SessionId)))
+    | extend RowSelectionKey = strcat(
+        format_datetime(
+            EventTime, "yyyy-MM-ddTHH:mm:ss.fffffffZ"),
+        "|", format_datetime(
+            TimeGenerated, "yyyy-MM-ddTHH:mm:ss.fffffffZ"),
+        "|", tostring(Id), "|", tostring(ResultType), "|",
+        RowSelectionTieBreaker)
+    | project
+        EventTime, TimeGenerated, RecordAvailableUTC, RowSelectionKey,
+        FlowKey, FlowKeySource, Id,
+        OriginalRequestId, CorrelationId, SessionId, UserId,
+        UserPrincipalName, IPAddress, AutonomousSystemNumber, Location, LocationDetails,
+        DeviceDetail, AppId, AppDisplayName, AuthenticationProtocol,
+        AuthenticationRequirement, AuthenticationMethodsUsed,
+        ClientAppUsed, ResultType, ResultDescription,
+        ConditionalAccessStatus, RiskLevelDuringSignIn,
+        RiskEventTypes_V2, IsRisky, CrossTenantAccessType
+);
+//
+// === SECTION 3: collapse duplicate ingestion rows, one row per sign-in ===
+let IdpPrep = materialize(
+    IdpRawSigninRows
+    | summarize
+        RawRecordCount = count(),
+        arg_max(
+            RowSelectionKey,
+            TimeGenerated, RecordAvailableUTC, EventTime, FlowKeySource, Id,
+            OriginalRequestId, CorrelationId,
+            SessionId, UserId, UserPrincipalName,
+            IPAddress, AutonomousSystemNumber, Location, LocationDetails,
+            DeviceDetail, AppId, AppDisplayName, AuthenticationProtocol,
+            AuthenticationRequirement, AuthenticationMethodsUsed,
+            ClientAppUsed, ResultType, ResultDescription,
+            ConditionalAccessStatus, RiskLevelDuringSignIn,
+            RiskEventTypes_V2, IsRisky, CrossTenantAccessType)
+      by FlowKey
+    | extend Dev = DeviceDetail, Loc = LocationDetails
+    | extend
+        OsRaw = tostring(Dev.operatingSystem),
+        BrowserRaw = tostring(Dev.browser),
+        ProtocolRaw = tostring(AuthenticationProtocol),
+        AuthMethodsRaw = tostring(AuthenticationMethodsUsed)
+    | extend
+        DimAsn = iff(isempty(tostring(AutonomousSystemNumber)),
+                     "<missing>", tostring(AutonomousSystemNumber)),
+        DimCountry = toupper(coalesce(
+                         Location,
+                         tostring(Loc.countryOrRegion),
+                         "<missing>")),
+        DeviceId = iff(isempty(tostring(Dev.deviceId)),
+                       "<unregistered>", tostring(Dev.deviceId)),
+        DeviceTrust = iff(isempty(tostring(Dev.trustType)),
+                          "<none>", tostring(Dev.trustType)),
+        DeviceCompliant = iff(isempty(tostring(Dev.isCompliant)),
+                              "<unknown>", tostring(Dev.isCompliant)),
+        DimOs = tolower(replace_regex(
+                    iff(isempty(OsRaw), "<missing>", OsRaw),
+                    @'[0-9]+([.][0-9]+)*', "#")),
+        DimBrowser = tolower(replace_regex(
+                         iff(isempty(BrowserRaw), "<missing>", BrowserRaw),
+                         @'[0-9]+([.][0-9]+)*', "#")),
+        DimApp = coalesce(AppId, AppDisplayName, "<missing>"),
+        DimProtocol = tolower(iff(
+                          isempty(ProtocolRaw), "<missing>", ProtocolRaw)),
+        DimClient = coalesce(ClientAppUsed, "<missing>"),
+        DimResult = iff(isempty(tostring(ResultType)),
+                        "<missing>", tostring(ResultType)),
+        BrowserExpected = ClientAppUsed has "Browser",
+        AuthMethodsObserved = isnotempty(AuthMethodsRaw)
+                              and AuthMethodsRaw != "[]",
+        SourceDelay = TimeGenerated - EventTime,
+        IngestionDelay = RecordAvailableUTC - EventTime
+    | extend
+        BrowserApplicable = BrowserExpected or isnotempty(BrowserRaw),
+        BrowserMissing = BrowserExpected and isempty(BrowserRaw),
+        AuthRequirementDisplay = iff(
+            isempty(AuthenticationRequirement),
+            "<not_reported>", AuthenticationRequirement),
+        AuthMethodsDisplay = iff(
+            AuthMethodsObserved, AuthMethodsRaw, "<not_reported>"),
+        AuthEvidenceState = case(
+            AuthMethodsObserved, "observed",
+            AuthenticationProtocol in~ ("saml20", "wsFederation"),
+                "federated_upstream",
+            AuthenticationRequirement =~ "multiFactorAuthentication",
+                "missing_expected",
+            "not_reported")
+    | extend
+        DimDevice = DeviceId,
+        Registered = iff(DeviceId == "<unregistered>",
+                         "unregistered device", "registered device"),
+        // CONTROL flags: a control was absent, bypassed, or fired. Event-like,
+        // low volume, always worth an analyst's eye. Drives Priority 4.
+        ControlFlagsUnsorted = set_difference(
+            pack_array(
+                iff(tolower(ConditionalAccessStatus) == "failure",
+                    "conditional_access_failure", ""),
+                iff(AuthenticationProtocol =~ "ropc"
+                    or ClientAppUsed in~
+                       ("Exchange ActiveSync", "IMAP", "MAPI", "SMTP", "POP"),
+                    "legacy_auth", ""),
+                iff(IsRisky == true
+                    or RiskLevelDuringSignIn in~ ("medium", "high"),
+                    "entra_risk_signal", ""),
+                iff(isnotempty(CrossTenantAccessType)
+                    and CrossTenantAccessType !~ "none",
+                    "cross_tenant", "")),
+            dynamic([""])),
+        // POSTURE flags: an ambient device-estate state. High volume in any
+        // tenant with imperfect enrolment. Hygiene on its own; escalates to
+        // Priority 4 only when it coincides with actionable novelty.
+        PostureFlagsUnsorted = set_difference(
+            pack_array(
+                iff(DeviceId == "<unregistered>",
+                    "unregistered_device", ""),
+                iff(tolower(DeviceCompliant) == "false",
+                    "noncompliant_device", "")),
+            dynamic([""]))
+    | extend
+        ControlFlags = array_sort_asc(ControlFlagsUnsorted),
+        PostureFlags = array_sort_asc(PostureFlagsUnsorted)
+    | project-away ControlFlagsUnsorted, PostureFlagsUnsorted
+);
+//
+// === SECTION 4: long form, one row per sign-in + dimension + value ===
+let IdpPrepLong = (start: datetime, stop: datetime) {
+    IdpPrep
+    | where EventTime >= start and EventTime < stop
+    | extend Dims = pack_array(
+        bag_pack("d", "asn",       "p", "network", "context", true,
+                 "v", DimAsn,      "a", true,
+                 "m", DimAsn == "<missing>"),
+        bag_pack("d", "country",   "p", "network", "context", true,
+                 "v", DimCountry,  "a", true,
+                 "m", DimCountry == "<missing>"),
+        bag_pack("d", "device",    "p", "client",  "context", true,
+                 "v", DimDevice,   "a", true, "m", false),
+        bag_pack("d", "os",        "p", "client",  "context", true,
+                 "v", DimOs,       "a", true,
+                 "m", DimOs == "<missing>"),
+        bag_pack("d", "browser",   "p", "client",  "context", true,
+                 "v", DimBrowser,  "a", BrowserApplicable,
+                 "m", BrowserMissing),
+        bag_pack("d", "app",       "p", "access",  "context", true,
+                 "v", DimApp,      "a", true,
+                 "m", DimApp == "<missing>"),
+        bag_pack("d", "protocol",  "p", "access",  "context", true,
+                 "v", DimProtocol, "a", true,
+                 "m", DimProtocol == "<missing>"),
+        bag_pack("d", "clientapp", "p", "access",  "context", true,
+                 "v", DimClient,   "a", true,
+                 "m", DimClient == "<missing>"),
+        bag_pack("d", "result",    "p", "outcome", "context", false,
+                 "v", DimResult,   "a", true,
+                 "m", DimResult == "<missing>"))
+    | mv-expand D = Dims
+    | extend
+        Dimension = tostring(D.d),
+        Plane = tostring(D.p),
+        IncludeContext = tobool(D.context),
+        Value = tostring(D.v),
+        Applicable = tobool(D.a),
+        Missing = tobool(D.m)
+    | project-away D, Dims
+};
+//
+// === SECTION 5: baseline health, measured on successful terminal flows ===
+let IdpBaselineHealth = materialize(
+    IdpPrep
+    | where EventTime >= IdpModelStart and EventTime < IdpModelEnd
+    | where DimResult == "0"
+    | summarize
+        BaselineFlows = count(),
+        BaselineActiveDays = dcount(startofday(EventTime)),
+        BaselineFirst = min(EventTime),
+        BaselineLast = max(EventTime)
+);
+let IdpBaselineN = toscalar(
+    IdpBaselineHealth | project BaselineFlows);
+let IdpBaselineDays = toscalar(
+    IdpBaselineHealth | project BaselineActiveDays);
+let IdpBaselineStateScalar = case(
+    IdpTargetConfigured == false, "target_not_set",
+    IdpAnchorConfigured == false, "anchor_not_set",
+    IdpAssessmentCutoffConfigured == false, "assessment_cutoff_not_set",
+    IdpAssessmentCutoffValid == false, "assessment_cutoff_before_anchor",
+    IdpBaselineN < IdpNoBaselineFloor, "no_baseline",
+    IdpBaselineN < IdpMinBaselineEvents
+        or IdpBaselineDays < IdpMinBaselineActiveDays,
+        "thin_baseline",
+    "ready");
+//
+// === SECTION 6: per-dimension vocabularies ===
+// Context dimensions learn successful flows. Outcome learns all flows.
+let IdpModel = materialize(
+    IdpPrepLong(IdpModelStart, IdpModelEnd)
+    | where Applicable == true
+    | where Missing == false
+    | where IncludeContext == false or DimResult == "0"
+    | summarize ValueCount = count() by Dimension, Value
+);
+//
+// === SECTION 7: coherent, smoothed unseen-bucket price ===
+let IdpDimStats =
+    IdpModel
+    | summarize
+        DimTotal = sum(ValueCount),
+        Singletons = countif(ValueCount == 1)
+      by Dimension
+    | extend PUnseen = (todouble(Singletons) + 0.5)
+                       / (todouble(DimTotal) + 1.0)
+    | project Dimension, DimTotal, PUnseen;
+//
+// === SECTION 8: score the recent sign-ins ===
+let IdpScoredLong =
+    IdpPrepLong(IdpScoreStart, IdpScoreEnd)
+    | lookup kind=leftouter IdpModel on Dimension, Value
+    | lookup kind=leftouter IdpDimStats on Dimension
+    | lookup kind=leftouter IdpDispositionedResolved on UserId, Dimension, Value
+    | extend HasModel = isnotnull(DimTotal) and DimTotal > 0
+    | extend Novel = Applicable and Missing == false
+                     and HasModel and isnull(ValueCount)
+    | extend Probability = case(
+        Applicable == false or Missing or HasModel == false, real(null),
+        Novel, PUnseen,
+        (1.0 - PUnseen)
+            * todouble(ValueCount)
+            / todouble(DimTotal))
+    | extend RawBits = case(
+        IdpBaselineStateScalar != "ready" or isnull(Probability), real(null),
+        -log2(Probability))
+    | extend DispositionApplies =
+        isnotempty(DispositionNote)
+        and Applicable and Missing == false
+        and (isnull(ValidFrom) or EventTime >= ValidFrom)
+        and (isnull(ExpiresOn) or EventTime < ExpiresOn)
+    | extend ActionableNovel = Novel and DispositionApplies == false
+    | extend AdjustedBits = case(
+        isnull(RawBits), real(null),
+        DispositionApplies, 0.0,
+        RawBits);
+//
+// === SECTION 9: one analyst-facing row per sign-in ===
+let IdpScored = materialize(
+    IdpScoredLong
+    | summarize
+        RawContextBitsCalc = sumif(RawBits, IncludeContext),
+        AdjustedContextBitsCalc = sumif(AdjustedBits, IncludeContext),
+        RawOutcomeBitsCalc = sumif(RawBits, IncludeContext == false),
+        AdjustedOutcomeBitsCalc = sumif(
+            AdjustedBits, IncludeContext == false),
+        // A sorted array keeps the per-dimension breakdown replay-stable.
+        DimensionBitsUnsorted = make_set_if(
+            strcat(Dimension, "=", tostring(round(RawBits, 1))),
+            isnotnull(RawBits)),
+        ResultScoreCount = countif(
+            Dimension == "result" and isnotnull(RawBits)),
+        ApplicableContextDims = countif(IncludeContext and Applicable),
+        ScoredContextDims = countif(IncludeContext and isnotnull(RawBits)),
+        ActionableNetworkNovelCount = countif(
+            ActionableNovel and IncludeContext and Plane == "network"),
+        ActionableClientNovelCount = countif(
+            ActionableNovel and IncludeContext and Plane == "client"),
+        ActionableAccessNovelCount = countif(
+            ActionableNovel and IncludeContext and Plane == "access"),
+        RawOutcomeNovelCount = countif(
+            Novel and IncludeContext == false),
+        ActionableOutcomeNovelCount = countif(
+            ActionableNovel and IncludeContext == false),
+        RawNovelDimsUnsorted = make_set_if(
+            Dimension, Novel and IncludeContext),
+        ActionableNovelDimsUnsorted = make_set_if(
+            Dimension, ActionableNovel and IncludeContext),
+        MissingDimsUnsorted = make_set_if(
+            Dimension, Applicable and Missing),
+        UnmodelledDimsUnsorted = make_set_if(
+            Dimension,
+            Applicable and Missing == false and HasModel == false),
+        DispositionHitsUnsorted = make_set_if(
+            strcat(Dimension, "=", Value, " [", CaseId, "]"),
+            DispositionApplies),
+        take_any(
+            UserId, IPAddress, AutonomousSystemNumber, Location,
+            AppDisplayName, AppId, DeviceId, DeviceTrust, DeviceCompliant,
+            Registered, DimOs, DimBrowser, BrowserApplicable, DimProtocol,
+            DimClient, DimResult, AuthRequirementDisplay, AuthMethodsDisplay,
+            AuthEvidenceState, ResultDescription, ConditionalAccessStatus,
+            RiskLevelDuringSignIn, RiskEventTypes_V2, CrossTenantAccessType,
+            SessionId, Id, OriginalRequestId, CorrelationId, FlowKeySource,
+            RecordAvailableUTC, RawRecordCount, SourceDelay, IngestionDelay,
+            ControlFlags, PostureFlags)
+      by FlowKey, EventTime
+    | extend
+        RawNovelDims = array_sort_asc(RawNovelDimsUnsorted),
+        ActionableNovelDims = array_sort_asc(ActionableNovelDimsUnsorted),
+        MissingDims = array_sort_asc(MissingDimsUnsorted),
+        UnmodelledDims = array_sort_asc(UnmodelledDimsUnsorted),
+        DispositionHits = array_sort_asc(DispositionHitsUnsorted),
+        DimensionBits = array_sort_asc(DimensionBitsUnsorted),
+        RawContextBits = iff(
+            IdpBaselineStateScalar == "ready" and ScoredContextDims > 0,
+            round(RawContextBitsCalc, 1), real(null)),
+        AdjustedContextBits = iff(
+            IdpBaselineStateScalar == "ready" and ScoredContextDims > 0,
+            round(AdjustedContextBitsCalc, 1), real(null)),
+        RawOutcomeBits = iff(
+            IdpBaselineStateScalar == "ready" and ResultScoreCount > 0,
+            round(RawOutcomeBitsCalc, 1), real(null)),
+        AdjustedOutcomeBits = iff(
+            IdpBaselineStateScalar == "ready" and ResultScoreCount > 0,
+            round(AdjustedOutcomeBitsCalc, 1), real(null)),
+        ModelCoverage = iff(
+            ApplicableContextDims > 0,
+            round(
+                100.0 * todouble(ScoredContextDims)
+                / todouble(ApplicableContextDims), 1),
+            real(null))
+    | extend
+        ActionableMultiContextPlane =
+            (ActionableNetworkNovelCount > 0
+             and ActionableClientNovelCount > 0)
+            or (ActionableNetworkNovelCount > 0
+                and ActionableAccessNovelCount > 0)
+            or (ActionableClientNovelCount > 0
+                and ActionableAccessNovelCount > 0)
+    | extend
+        BaselineState = IdpBaselineStateScalar,
+        BaselineFlows = IdpBaselineN,
+        BaselineActiveDays = IdpBaselineDays,
+        ActionableNoveltyPattern = case(
+            IdpBaselineStateScalar != "ready", "not_assessed",
+            array_length(RawNovelDims) > 0
+                and array_length(ActionableNovelDims) == 0,
+                "fully_dispositioned",
+            ActionableMultiContextPlane, "multi_plane",
+            ActionableNetworkNovelCount > 0, "network",
+            ActionableClientNovelCount > 0, "client",
+            ActionableAccessNovelCount > 0, "access",
+            "all_context_values_seen"),
+        RawOutcomeNovel =
+            IdpBaselineStateScalar == "ready"
+            and RawOutcomeNovelCount > 0,
+        ActionableOutcomeNovel =
+            IdpBaselineStateScalar == "ready"
+            and ActionableOutcomeNovelCount > 0
+    | extend
+        ActionableContextNovel = ActionableNoveltyPattern !in
+            ("all_context_values_seen", "fully_dispositioned",
+             "not_assessed"),
+        ScoreConfidence = case(
+            IdpBaselineStateScalar != "ready", "not_scored",
+            isnull(ModelCoverage)
+                or ModelCoverage < IdpMinModelCoveragePct,
+                "low_model_coverage",
+            array_length(MissingDims) > 0
+                or AuthEvidenceState == "missing_expected",
+                "reduced_missing_telemetry",
+            "standard")
+    // Priority ladder. Control flags are event-like and always top tier.
+    // Posture flags are ambient and only reach the top tier when they
+    // coincide with novelty; alone they are a hygiene finding.
+    // Control and posture flags are deterministic: they do not depend on the
+    // model, so they keep their tier even when the baseline is not ready.
+    // Every novelty condition below already resolves false in that state.
+    | extend NotePriority = case(
+        array_length(ControlFlags) > 0, 4,
+        array_length(PostureFlags) > 0
+            and (ActionableContextNovel or ActionableOutcomeNovel), 4,
+        ActionableOutcomeNovel, 3,
+        ActionableNoveltyPattern == "multi_plane", 3,
+        ActionableNoveltyPattern in ("network", "client", "access"), 2,
+        array_length(PostureFlags) > 0, 1,
+        ActionableNoveltyPattern == "fully_dispositioned", 1,
+        RawOutcomeNovel, 1,
+        ScoreConfidence != "standard", 1,
+        0)
+    | extend NoteWorthy =
+        array_length(ControlFlags) > 0
+        or array_length(PostureFlags) > 0
+        or (BaselineState == "ready"
+            and (RawOutcomeNovel or array_length(RawNovelDims) > 0))
+    | extend Assessment = case(
+        BaselineState == "target_not_set",
+            "Not assessed: set parent TargetUPN.",
+        BaselineState == "anchor_not_set",
+            "Not assessed: set parent AnchorTime.",
+        BaselineState == "no_baseline",
+            "Not assessed: fewer than the no-baseline floor of successful flows.",
+        BaselineState == "thin_baseline",
+            "Not assessed: baseline is too thin for confident bits.",
+        array_length(ControlFlags) > 0
+            and (ActionableContextNovel or ActionableOutcomeNovel),
+            "Novel identity context with one or more control flags; investigate.",
+        array_length(ControlFlags) > 0,
+            "Known identity context with one or more control flags; review the flags.",
+        array_length(PostureFlags) > 0
+            and (ActionableContextNovel or ActionableOutcomeNovel),
+            "Novel identity context from a device with a posture gap; investigate.",
+        ActionableOutcomeNovel,
+            "Novel authentication outcome; compromise is not established.",
+        ActionableContextNovel,
+            "Novel identity context observed; compromise is not established.",
+        ActionableNoveltyPattern == "fully_dispositioned",
+            "Raw novelty observed; active dispositions removed it from the actionable view.",
+        array_length(PostureFlags) > 0,
+            "Known identity context from a device with a posture gap; hygiene finding.",
+        "All scored context values were previously observed; compromise is not excluded.")
+    | project-away
+        RawContextBitsCalc, AdjustedContextBitsCalc,
+        RawOutcomeBitsCalc, AdjustedOutcomeBitsCalc,
+        RawNovelDimsUnsorted, ActionableNovelDimsUnsorted,
+        MissingDimsUnsorted, UnmodelledDimsUnsorted,
+        DispositionHitsUnsorted, DimensionBitsUnsorted,
+        ResultScoreCount,
+        ActionableNetworkNovelCount, ActionableClientNovelCount,
+        ActionableAccessNovelCount,
+        RawOutcomeNovelCount, ActionableOutcomeNovelCount,
+        ActionableMultiContextPlane
+);
+//
+// ============================================================
+// PRODUCTION ADAPTER. Bounded, union-safe investigation rows.
+// ============================================================
+// Sort on adjusted bits first so an actively dispositioned sign-in cannot
+// outrank a live one for a scarce detail slot within the same tier.
+let IdpFindingCandidates = materialize(
+    IdpScored
+    | where NoteWorthy
+    | sort by
+        NotePriority desc,
+        AdjustedContextBits desc nulls last,
+        RawContextBits desc nulls last,
+        EventTime desc,
+        FlowKey asc
+    | extend CandidateRank = row_number()
+);
+let IdpFlowSummary = materialize(
+    IdpScored
+    | summarize
+        TotalFlows = count(),
+        ActionableNovelFlows = countif(ActionableContextNovel),
+        MultiPlaneNovelFlows = countif(
+            ActionableNoveltyPattern == "multi_plane"),
+        ActionableOutcomeNovelFlows = countif(ActionableOutcomeNovel),
+        FullyDispositionedFlows = countif(
+            ActionableNoveltyPattern == "fully_dispositioned"),
+        ControlFlaggedFlows = countif(array_length(ControlFlags) > 0),
+        PostureFlaggedFlows = countif(array_length(PostureFlags) > 0),
+        RawNovelOutcomeFlows = countif(RawOutcomeNovel),
+        ReducedConfidenceFlows = countif(ScoreConfidence != "standard"),
+        FallbackFlowKeyFlows = countif(
+            FlowKeySource == "deterministic_fallback"),
+        DetailedCandidates = countif(NoteWorthy)
+);
+let IdpTotalScoreFlows = toscalar(
+    IdpFlowSummary | project TotalFlows);
+let IdpReducedConfidenceFlows = toscalar(
+    IdpFlowSummary | project ReducedConfidenceFlows);
+let IdpFallbackFlowKeyFlows = toscalar(
+    IdpFlowSummary | project FallbackFlowKeyFlows);
+let IdpAllWindowFallbackFlowKeyFlows = toscalar(
+    IdpPrep
+    | summarize FallbackFlows = countif(
+        FlowKeySource == "deterministic_fallback")
+    | project FallbackFlows);
+let IdpDetailedCandidateCount = toscalar(
+    IdpFlowSummary | project DetailedCandidates);
+// Baseline readiness alone is not evidence completeness. Empty score windows,
+// ambiguous flow identity, query-owned truncation, and reduced telemetry all
+// remain visible and fail open for any closure consumer.
+let IdpSectionStateScalar = case(
+    IdpNullAvailabilityRowCount > 0
+        or IdpResolverNullAvailabilityRowCount > 0,
+        "availability_time_unavailable",
+    IdpBaselineStateScalar != "ready", IdpBaselineStateScalar,
+    IdpTotalScoreFlows == 0, "no_score_window_flows",
+    IdpAllWindowFallbackFlowKeyFlows > 0, "fallback_flow_identity",
+    IdpDetailedCandidateCount > IdpMaxFindings, "truncated",
+    IdpReducedConfidenceFlows > 0, "reduced_telemetry_coverage",
+    "ready");
+let IdpStatusOutput =
+    IdpBaselineHealth
+    | project
+        SectionOrder = toint(IdpSectionOrder),
+        FindingOrder = tolong(0),
+        Section = "identity_posture",
+        RecordType = "section_status",
+        Priority = toint(
+            iff(IdpSectionStateScalar == "ready", 0, 3)),
+        EventTime = IdpAnchorTime,
+        Entity = tostring(IdpTargetUPN),
+        FindingKey = strcat(
+            "identity:",
+            coalesce(IdpResolvedUserId, IdpTargetUPN),
+            ":status"),
+        Title = iff(
+            IdpSectionStateScalar == "ready",
+            "Identity posture model ready",
+            strcat(
+                "Identity posture incomplete: ",
+                IdpSectionStateScalar)),
+        Note = strcat(
+            "Identity posture, ", IdpTargetUPN, ": ",
+            format_datetime(IdpScoreStart, "yyyy-MM-dd HH:mm"), " to ",
+            format_datetime(IdpScoreEnd, "yyyy-MM-dd HH:mm"),
+            " UTC scored against the preceding ",
+            toint(IdpBaselineWindow / 1d), " days (",
+            BaselineFlows, " successful baseline flows across ",
+            BaselineActiveDays, " active days; ",
+            IdpTotalScoreFlows, " score-window flows; section state ",
+            IdpSectionStateScalar, "; evidence available through ",
+            format_datetime(
+                IdpAvailabilityCutoffUTC, "yyyy-MM-dd HH:mm:ss"),
+            " UTC)."),
+        Evidence = bag_pack(
+            "target_upn", IdpTargetUPN,
+            "resolved_user_id", IdpResolvedUserId,
+            "anchor_time_utc", IdpAnchorTime,
+            "assessment_cutoff_utc", IdpAssessmentCutoffUTC,
+            "availability_cutoff_utc", IdpAvailabilityCutoffUTC,
+            "availability_time_field", "ingestion_time()",
+            "source_time_field", "TimeGenerated",
+            "event_time_field", "coalesce(CreatedDateTime, TimeGenerated)",
+            "model_start_utc", IdpModelStart,
+            "model_end_utc", IdpModelEnd,
+            "score_start_utc", IdpScoreStart,
+            "score_end_utc", IdpScoreEnd,
+            "baseline_flows", BaselineFlows,
+            "baseline_active_days", BaselineActiveDays,
+            "baseline_first_utc", BaselineFirst,
+            "baseline_last_utc", BaselineLast,
+            "baseline_state", IdpBaselineStateScalar,
+            "section_state", IdpSectionStateScalar,
+            "score_window_state", iff(
+                IdpTotalScoreFlows > 0, "observed", "empty"),
+            "score_window_flows", IdpTotalScoreFlows,
+            "availability_time_complete",
+                IdpNullAvailabilityRowCount == 0
+                and IdpResolverNullAvailabilityRowCount == 0,
+            "fallback_flow_key_flows", IdpAllWindowFallbackFlowKeyFlows,
+            "score_window_fallback_flow_key_flows",
+                IdpFallbackFlowKeyFlows,
+            "reduced_confidence_flows", IdpReducedConfidenceFlows,
+            "detailed_candidates", IdpDetailedCandidateCount,
+            "maximum_detailed_findings", IdpMaxFindings,
+            "required_events", IdpMinBaselineEvents,
+            "required_active_days", IdpMinBaselineActiveDays,
+            "required_coverage_pct", IdpMinModelCoveragePct);
+let IdpSummaryOutput =
+    IdpFlowSummary
+    | project
+        SectionOrder = toint(IdpSectionOrder),
+        FindingOrder = tolong(10),
+        Section = "identity_posture",
+        RecordType = "section_summary",
+        Priority = toint(case(
+            ControlFlaggedFlows > 0, 4,
+            PostureFlaggedFlows > 0
+                and (ActionableNovelFlows > 0
+                     or ActionableOutcomeNovelFlows > 0), 4,
+            IdpSectionStateScalar != "ready", 3,
+            ActionableOutcomeNovelFlows > 0
+                or MultiPlaneNovelFlows > 0, 3,
+            ActionableNovelFlows > 0, 2,
+            PostureFlaggedFlows > 0
+                or RawNovelOutcomeFlows > 0
+                or FullyDispositionedFlows > 0
+                or ReducedConfidenceFlows > 0, 1,
+            0)),
+        EventTime = IdpAnchorTime,
+        Entity = tostring(IdpTargetUPN),
+        FindingKey = strcat(
+            "identity:",
+            coalesce(IdpResolvedUserId, IdpTargetUPN),
+            ":summary"),
+        Title = "Identity posture flow summary",
+        Note = strcat(
+            "Flow summary: ", TotalFlows, " total; ",
+            ActionableNovelFlows, " actionable novel; ",
+            MultiPlaneNovelFlows, " multi-plane novel; ",
+            ActionableOutcomeNovelFlows, " actionable novel outcomes; ",
+            FullyDispositionedFlows, " fully dispositioned; ",
+            ControlFlaggedFlows, " control-flagged; ",
+            PostureFlaggedFlows, " posture-flagged; ",
+            RawNovelOutcomeFlows, " raw novel outcomes; ",
+            ReducedConfidenceFlows, " reduced-confidence; ",
+            FallbackFlowKeyFlows, " fallback-keyed; ",
+            DetailedCandidates,
+            " detailed candidates (showing at most ",
+            IdpMaxFindings, ")."),
+        Evidence = bag_pack(
+            "total_flows", TotalFlows,
+            "actionable_novel_flows", ActionableNovelFlows,
+            "multi_plane_novel_flows", MultiPlaneNovelFlows,
+            "actionable_novel_outcome_flows", ActionableOutcomeNovelFlows,
+            "fully_dispositioned_flows", FullyDispositionedFlows,
+            "control_flagged_flows", ControlFlaggedFlows,
+            "posture_flagged_flows", PostureFlaggedFlows,
+            "raw_novel_outcome_flows", RawNovelOutcomeFlows,
+            "reduced_confidence_flows", ReducedConfidenceFlows,
+            "fallback_flow_key_flows", IdpAllWindowFallbackFlowKeyFlows,
+            "score_window_fallback_flow_key_flows", FallbackFlowKeyFlows,
+            "detailed_candidates", DetailedCandidates,
+            "maximum_detailed_findings", IdpMaxFindings,
+            "baseline_state", IdpBaselineStateScalar,
+            "section_state", IdpSectionStateScalar,
+            "assessment_cutoff_utc", IdpAssessmentCutoffUTC,
+            "availability_cutoff_utc", IdpAvailabilityCutoffUTC,
+            "availability_time_complete",
+                IdpNullAvailabilityRowCount == 0
+                and IdpResolverNullAvailabilityRowCount == 0);
+let IdpDetailOutput =
+    IdpFindingCandidates
+    | where CandidateRank <= IdpMaxFindings
+    | extend
+        BrowserText = iff(
+            BrowserApplicable, DimBrowser, "<not_applicable>"),
+        ScoreText = iff(
+            isnull(RawContextBits),
+            strcat("not scored (", BaselineState, ")"),
+            strcat(
+                RawContextBits, " raw / ",
+                AdjustedContextBits, " adjusted context bits; ",
+                RawOutcomeBits, " raw / ",
+                AdjustedOutcomeBits, " adjusted outcome bits")),
+        FindingTitle = case(
+            array_length(ControlFlags) > 0
+                and (ActionableContextNovel or ActionableOutcomeNovel),
+                "Control flags with novel identity context",
+            array_length(ControlFlags) > 0,
+                "Control flags in known identity context",
+            array_length(PostureFlags) > 0
+                and (ActionableContextNovel or ActionableOutcomeNovel),
+                "Novel identity context from a device with a posture gap",
+            ActionableOutcomeNovel,
+                "Novel authentication outcome",
+            ActionableNoveltyPattern == "multi_plane",
+                "Novel identity context across multiple planes",
+            ActionableNoveltyPattern in ("network", "client", "access"),
+                strcat("Novel identity context: ", ActionableNoveltyPattern),
+            ActionableNoveltyPattern == "fully_dispositioned",
+                "Dispositioned identity novelty",
+            RawOutcomeNovel,
+                "Raw authentication-outcome novelty",
+            array_length(PostureFlags) > 0,
+                "Device posture gap in known identity context",
+            "Identity posture candidate")
+    | project
+        SectionOrder = toint(IdpSectionOrder),
+        FindingOrder = tolong(100) + CandidateRank,
+        Section = "identity_posture",
+        RecordType = "finding",
+        Priority = toint(NotePriority),
+        EventTime = EventTime,
+        Entity = tostring(IdpTargetUPN),
+        FindingKey = strcat("identity:", FlowKey),
+        Title = FindingTitle,
+        Note = strcat(
+            format_datetime(EventTime, "yyyy-MM-dd HH:mm"), " UTC | ",
+            ScoreText,
+            " | bits ", tostring(DimensionBits),
+            " | actionable pattern ", ActionableNoveltyPattern,
+            " | confidence ", ScoreConfidence,
+            " (", ModelCoverage, "% coverage)",
+            " | IP ", IPAddress,
+            " (AS", AutonomousSystemNumber, ", ", Location, ")",
+            " | ", DimOs, " / ", BrowserText,
+            " | ", Registered,
+            " | app ", AppDisplayName, " [", AppId, "]",
+            " | protocol ", DimProtocol,
+            " | requirement ", AuthRequirementDisplay,
+            " | methods ", AuthMethodsDisplay,
+            " (", AuthEvidenceState, ")",
+            " | result ", DimResult,
+            " | control flags ", tostring(ControlFlags),
+            " | posture flags ", tostring(PostureFlags),
+            " | raw novel ", tostring(RawNovelDims),
+            " | actionable novel ", tostring(ActionableNovelDims),
+            " | missing ", tostring(MissingDims),
+            " | unmodelled ", tostring(UnmodelledDims),
+            " | flow ", FlowKey,
+            " | ", Assessment),
+        Evidence = bag_pack(
+            "flow_key", FlowKey,
+            "flow_key_source", FlowKeySource,
+            "sign_in_id", Id,
+            "original_request_id", OriginalRequestId,
+            "user_id", UserId,
+            "event_time_utc", EventTime,
+            "record_available_utc", RecordAvailableUTC,
+            "assessment_cutoff_utc", IdpAssessmentCutoffUTC,
+            "availability_cutoff_utc", IdpAvailabilityCutoffUTC,
+            "section_state", IdpSectionStateScalar,
+            "raw_context_bits", RawContextBits,
+            "adjusted_context_bits", AdjustedContextBits,
+            "raw_outcome_bits", RawOutcomeBits,
+            "adjusted_outcome_bits", AdjustedOutcomeBits,
+            "dimension_bits", DimensionBits,
+            "actionable_novelty_pattern", ActionableNoveltyPattern,
+            "raw_novel_dimensions", RawNovelDims,
+            "actionable_novel_dimensions", ActionableNovelDims,
+            "raw_outcome_novel", RawOutcomeNovel,
+            "actionable_outcome_novel", ActionableOutcomeNovel,
+            "score_confidence", ScoreConfidence,
+            "model_coverage_pct", ModelCoverage,
+            "missing_dimensions", MissingDims,
+            "unmodelled_dimensions", UnmodelledDims,
+            "auth_evidence_state", AuthEvidenceState,
+            "disposition_hits", DispositionHits,
+            "control_flags", ControlFlags,
+            "posture_flags", PostureFlags,
+            "ip_address", IPAddress,
+            "asn", AutonomousSystemNumber,
+            "country", Location,
+            "registered", Registered,
+            "device_id", DeviceId,
+            "device_trust", DeviceTrust,
+            "device_compliant", DeviceCompliant,
+            "os", DimOs,
+            "browser", BrowserText,
+            "app_display_name", AppDisplayName,
+            "app_id", AppId,
+            "protocol", DimProtocol,
+            "client_app", DimClient,
+            "auth_requirement", AuthRequirementDisplay,
+            "auth_methods", AuthMethodsDisplay,
+            "result", DimResult,
+            "result_description", ResultDescription,
+            "conditional_access_status", ConditionalAccessStatus,
+            "risk_level_during_signin", RiskLevelDuringSignIn,
+            "risk_event_types_v2", RiskEventTypes_V2,
+            "cross_tenant_access_type", CrossTenantAccessType,
+            "correlation_id", CorrelationId,
+            "session_id", SessionId,
+            "raw_record_count", RawRecordCount,
+            "source_delay", SourceDelay,
+            "ingestion_delay", IngestionDelay,
+            "assessment", Assessment);
+let IdpTruncationOutput =
+    IdpFlowSummary
+    | where DetailedCandidates > IdpMaxFindings
+    | project
+        SectionOrder = toint(IdpSectionOrder),
+        FindingOrder = tolong(1000000),
+        Section = "identity_posture",
+        RecordType = "truncation",
+        Priority = toint(3),
+        EventTime = IdpAnchorTime,
+        Entity = tostring(IdpTargetUPN),
+        FindingKey = strcat(
+            "identity:",
+            coalesce(IdpResolvedUserId, IdpTargetUPN),
+            ":truncation"),
+        Title = "Identity posture findings truncated",
+        Note = strcat(
+            "Detail truncated: ",
+            DetailedCandidates - IdpMaxFindings,
+            " additional identity candidate flow(s) omitted."),
+        Evidence = bag_pack(
+            "detailed_candidates", DetailedCandidates,
+            "maximum_detailed_findings", IdpMaxFindings,
+            "omitted_findings", DetailedCandidates - IdpMaxFindings,
+            "baseline_state", IdpBaselineStateScalar,
+            "section_state", "truncated",
+            "assessment_cutoff_utc", IdpAssessmentCutoffUTC,
+            "availability_cutoff_utc", IdpAvailabilityCutoffUTC);
+let IdentityPostureSection =
+    union
+        IdpStatusOutput,
+        IdpSummaryOutput,
+        IdpDetailOutput,
+        IdpTruncationOutput
+    | project
+        SectionOrder,
+        FindingOrder,
+        Section,
+        RecordType,
+        Priority,
+        EventTime,
+        Entity,
+        FindingKey,
+        Title,
+        Note,
+        Evidence;
+//
+// Standalone section output. In the complete one-shot query, replace these final
+// two lines with the parent union across all investigation sections.
+IdentityPostureSection
+| sort by SectionOrder asc, FindingOrder asc
