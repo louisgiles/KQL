@@ -80,3 +80,48 @@ but are called from the same triage flow.
    logs".
    *Fill in:* UPN placeholder, IP, country, audit-log operation name,
    timestamp.
+
+## Babbl33r identity-posture section 0.2.0
+
+`Babbl33r.kql` is the bounded Stage 20 identity-posture section. It emits
+the shared 11-column evidence schema and at most 23 rows: status, summary, up
+to 20 findings, and an optional truncation sentinel.
+
+The three public inputs are `TargetUPN`, `AnchorTime`, and the immutable
+`AssessmentCutoffUTC`. Event membership is based on
+`coalesce(CreatedDateTime, TimeGenerated)`; historical availability is based
+on `ingestion_time()`. Rows unavailable at the assessment cutoff are excluded,
+and a missing ingestion timestamp makes `Evidence.section_state` non-ready.
+Request/correlation identifiers are preferred over sign-in ID so multi-line MFA
+records collapse to one authentication flow. Any fallback-keyed flow also makes
+the section non-ready.
+
+Agentic callers must supply all inputs explicitly. The runner's indexed
+`TimeGenerated` range must cover `[AnchorTime - 93d, AnchorTime + 2d)`;
+`max_rows` must be at least 23. A consumer must prefer
+`Evidence.section_state` over `baseline_state` and treat either
+`RecordType == "truncation"` or `omitted_findings > 0` as incomplete
+evidence. Do not expose this query to an actioning model until its manifest
+pins the exact blob, its maximum result-character budget is measured, and the
+workspace gates below pass.
+
+### Validation cases
+
+1. **Point-in-time replay.** Add a pre-anchor event ingested after the frozen
+   cutoff and a post-anchor sign-in for the same UPN with a different UserId.
+   Expected: neither affects the selected UserId, baseline, score, or emitted
+   evidence for the frozen run.
+2. **Authentication flow grouping.** Use a known multi-line MFA sequence with
+   shared `OriginalRequestId` or `CorrelationId`, plus a row missing all
+   stable identifiers. Expected: the MFA sequence is one flow; the missing-key
+   case reports `fallback_flow_identity` and remains ineligible.
+3. **Coverage and bounds.** Use a ready baseline with no score-window flows,
+   then a case with more than 20 noteworthy flows. Expected: states are
+   `no_score_window_flows` and `truncated`, respectively; the latter also
+   emits a Priority-3 truncation row and neither is closure-eligible.
+
+Before promotion, parse the file in CI, compile and execute it against a real
+SigninLogs workspace, confirm `ingestion_time()` is populated, validate all
+referenced columns, measure worst-case rows/characters, and demonstrate
+runtime <=100 seconds with p95 <=60 seconds on representative high-volume
+users. Until those checks are recorded, use is calibration-only.
