@@ -107,10 +107,18 @@ let IdpResolverNullAvailabilityRowCount = toscalar(
     IdpResolverRows
     | summarize Count = countif(isnull(RecordAvailableUTC))
     | project Count);
-let IdpResolvedUserId = toscalar(
+let IdpEligibleResolverRows = materialize(
     IdpResolverRows
     | where isnotnull(RecordAvailableUTC)
         and RecordAvailableUTC <= IdpAvailabilityCutoffUTC
+);
+let IdpResolvedUserIdCount = toscalar(
+    IdpEligibleResolverRows
+    | summarize by UserId
+    | summarize Count = count()
+    | project Count);
+let IdpResolvedUserId = toscalar(
+    IdpEligibleResolverRows
     | extend ResolverSelectionKey = strcat(
         format_datetime(
             ResolverEventTime, "yyyy-MM-ddTHH:mm:ss.fffffffZ"),
@@ -176,14 +184,20 @@ let IdpRawSigninRows = materialize(
     | extend RowSelectionTieBreaker = hash_sha256(strcat(
         tostring(UserId), "|", tostring(UserPrincipalName), "|",
         tostring(IPAddress), "|", tostring(AutonomousSystemNumber), "|",
-        tostring(Location), "|", tostring(LocationDetails), "|",
-        tostring(DeviceDetail), "|", tostring(AppId), "|",
+        tostring(Location), "|",
+        tostring(LocationDetails.countryOrRegion), "|",
+        tostring(DeviceDetail.deviceId), "|",
+        tostring(DeviceDetail.operatingSystem), "|",
+        tostring(DeviceDetail.browser), "|",
+        tostring(DeviceDetail.trustType), "|",
+        tostring(DeviceDetail.isCompliant), "|", tostring(AppId), "|",
         tostring(AppDisplayName), "|", tostring(AuthenticationProtocol), "|",
         tostring(AuthenticationRequirement), "|",
         tostring(AuthenticationMethodsUsed), "|", tostring(ClientAppUsed), "|",
         tostring(ResultType), "|", tostring(ResultDescription), "|",
         tostring(ConditionalAccessStatus), "|",
-        tostring(RiskLevelDuringSignIn), "|", tostring(RiskEventTypes_V2), "|",
+        tostring(RiskLevelDuringSignIn), "|",
+        tostring(array_sort_asc(RiskEventTypes_V2)), "|",
         tostring(IsRisky), "|", tostring(CrossTenantAccessType), "|",
         tostring(SessionId)))
     | extend RowSelectionKey = strcat(
@@ -222,6 +236,7 @@ let IdpPrep = materialize(
             ConditionalAccessStatus, RiskLevelDuringSignIn,
             RiskEventTypes_V2, IsRisky, CrossTenantAccessType)
       by FlowKey
+    | extend RiskEventTypes_V2 = array_sort_asc(RiskEventTypes_V2)
     | extend Dev = DeviceDetail, Loc = LocationDetails
     | extend
         OsRaw = tostring(Dev.operatingSystem),
@@ -660,6 +675,12 @@ let IdpSectionStateScalar = case(
     IdpNullAvailabilityRowCount > 0
         or IdpResolverNullAvailabilityRowCount > 0,
         "availability_time_unavailable",
+    IdpBaselineStateScalar in (
+        "target_not_set", "anchor_not_set", "assessment_cutoff_not_set",
+        "assessment_cutoff_before_anchor"),
+        IdpBaselineStateScalar,
+    IdpResolvedUserIdCount == 0, "user_id_not_resolved",
+    IdpResolvedUserIdCount > 1, "multiple_user_ids_for_upn",
     IdpBaselineStateScalar != "ready", IdpBaselineStateScalar,
     IdpTotalScoreFlows == 0, "no_score_window_flows",
     IdpAllWindowFallbackFlowKeyFlows > 0, "fallback_flow_identity",
@@ -703,6 +724,7 @@ let IdpStatusOutput =
         Evidence = bag_pack(
             "target_upn", IdpTargetUPN,
             "resolved_user_id", IdpResolvedUserId,
+            "resolved_user_id_count", IdpResolvedUserIdCount,
             "anchor_time_utc", IdpAnchorTime,
             "assessment_cutoff_utc", IdpAssessmentCutoffUTC,
             "availability_cutoff_utc", IdpAvailabilityCutoffUTC,
