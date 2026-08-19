@@ -93,8 +93,8 @@ The three public inputs are `TargetUPN`, `AnchorTime`, and the immutable
 on `ingestion_time()`. Rows unavailable at the assessment cutoff are excluded,
 and a missing ingestion timestamp makes `Evidence.section_state` non-ready.
 Request/correlation identifiers are preferred over sign-in ID so multi-line MFA
-records collapse to one authentication flow. Any fallback-keyed flow also makes
-the section non-ready.
+records collapse to one authentication flow. Zero or multiple eligible UserIds
+for the supplied UPN, or any fallback-keyed flow, makes the section non-ready.
 
 Agentic callers must supply all inputs explicitly. The runner's indexed
 `TimeGenerated` range must cover `[AnchorTime - 93d, AnchorTime + 2d)`;
@@ -110,7 +110,8 @@ workspace gates below pass.
 1. **Point-in-time replay.** Add a pre-anchor event ingested after the frozen
    cutoff and a post-anchor sign-in for the same UPN with a different UserId.
    Expected: neither affects the selected UserId, baseline, score, or emitted
-   evidence for the frozen run.
+   evidence for the frozen run. Two distinct pre-anchor, cutoff-eligible UserIds
+   must instead report `multiple_user_ids_for_upn`.
 2. **Authentication flow grouping.** Use a known multi-line MFA sequence with
    shared `OriginalRequestId` or `CorrelationId`, plus a row missing all
    stable identifiers. Expected: the MFA sequence is one flow; the missing-key
