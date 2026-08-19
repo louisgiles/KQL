@@ -143,6 +143,14 @@ let IdpRawSigninCandidates = materialize(
     | extend EventTime = coalesce(CreatedDateTime, TimeGenerated)
     | where EventTime >= IdpModelStart and EventTime < IdpScoreEnd
     | extend RecordAvailableUTC = ingestion_time()
+    // SigninLogs stores RiskEventTypes_V2 as a JSON string. Canonicalize valid
+    // arrays; preserve an unexpected scalar as a one-item array for review.
+    | extend RiskEventsParsed = parse_json(iff(
+        isempty(RiskEventTypes_V2), "[]", RiskEventTypes_V2))
+    | extend RiskEventTypes_V2 = case(
+        gettype(RiskEventsParsed) == "array",
+            array_sort_asc(RiskEventsParsed),
+        pack_array(tostring(RiskEventTypes_V2)))
     | project
         EventTime, TimeGenerated, RecordAvailableUTC, Id,
         OriginalRequestId, CorrelationId, SessionId, UserId,
@@ -197,7 +205,7 @@ let IdpRawSigninRows = materialize(
         tostring(ResultType), "|", tostring(ResultDescription), "|",
         tostring(ConditionalAccessStatus), "|",
         tostring(RiskLevelDuringSignIn), "|",
-        tostring(array_sort_asc(RiskEventTypes_V2)), "|",
+        tostring(RiskEventTypes_V2), "|",
         tostring(IsRisky), "|", tostring(CrossTenantAccessType), "|",
         tostring(SessionId)))
     | extend RowSelectionKey = strcat(
@@ -236,7 +244,6 @@ let IdpPrep = materialize(
             ConditionalAccessStatus, RiskLevelDuringSignIn,
             RiskEventTypes_V2, IsRisky, CrossTenantAccessType)
       by FlowKey
-    | extend RiskEventTypes_V2 = array_sort_asc(RiskEventTypes_V2)
     | extend Dev = DeviceDetail, Loc = LocationDetails
     | extend
         OsRaw = tostring(Dev.operatingSystem),
