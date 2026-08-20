@@ -1,10 +1,25 @@
+// name:              Babbler identity-posture scorer
+// purpose:           Score one user's pre-anchor interactive sign-in context against a bounded 90-day baseline and emit a fail-open Stage 20 evidence section.
+// starting_entities: TargetUPN, AnchorTime, AssessmentCutoffUTC
+// required_tables:   SigninLogs
+// optional_tables:   None
+// variables:         TargetUPN, AnchorTime, AssessmentCutoffUTC
+// done_criteria:     One status row reports ready only when inputs, replay cutoff, baseline, score-window coverage, flow identity, and result completeness are all safe; findings are bounded and union-safe.
+// output_type:       analysis
+//
+// Section version: 0.2.0
+// Point-in-time contract: ingestion_time() is the availability boundary;
+// CreatedDateTime (falling back to TimeGenerated) is the event boundary, and
+// TimeGenerated is retained as an indexed source-time pruning predicate.
 let TargetUPN = "<upn>";
 let AnchorTime = now();
+let AssessmentCutoffUTC = AnchorTime;
 // ============================================================
-// SECTION INPUT ADAPTER. Parent owns TargetUPN and AnchorTime.
+// SECTION INPUT ADAPTER. Parent owns all three public inputs when assembled.
 // ============================================================
 let IdpTargetUPN             = TargetUPN;
 let IdpAnchorTime            = AnchorTime;
+let IdpAssessmentCutoffUTC   = AssessmentCutoffUTC;
 let IdpSectionOrder          = 20;
 let IdpScoreWindow           = 1d;
 let IdpBaselineWindow        = 90d;
@@ -17,10 +32,21 @@ let IdpMaxFindings           = 20;
 let IdpTargetConfigured      =
     isnotempty(IdpTargetUPN) and IdpTargetUPN != "<upn>";
 let IdpAnchorConfigured      = isnotnull(IdpAnchorTime);
+let IdpAssessmentCutoffConfigured = isnotnull(IdpAssessmentCutoffUTC);
+let IdpAssessmentCutoffValid =
+    IdpAssessmentCutoffConfigured
+    and IdpAnchorConfigured
+    and IdpAssessmentCutoffUTC >= IdpAnchorTime;
 let IdpScoreEnd              = IdpAnchorTime;
 let IdpScoreStart            = IdpScoreEnd - IdpScoreWindow;
 let IdpModelEnd              = IdpScoreStart;
 let IdpModelStart            = IdpModelEnd - IdpBaselineWindow;
+// The caller may admit late-arriving evidence, but never evidence that was not
+// available at its immutable assessment cutoff or more than two days late.
+let IdpAvailabilityCutoffUTC = iff(
+    IdpAssessmentCutoffValid,
+    min_of(IdpAssessmentCutoffUTC, IdpAnchorTime + IdpIngestionGrace),
+    datetime(null));
 //
 // Per-user verdict ledger. Copy the exact UserId/Dimension/Value tuple from the
 // finding Evidence bag. Raw bits remain historical; active entries adjust only
@@ -43,7 +69,15 @@ let IdpDispositioned = datatable(
 // multiply scoring rows.
 let IdpDispositionedResolved =
     IdpDispositioned
+    | extend DispositionSelectionKey = strcat(
+        format_datetime(
+            coalesce(ValidFrom, datetime(0001-01-01)),
+            "yyyy-MM-ddTHH:mm:ss.fffffffZ"),
+        "|", hash_sha256(strcat(
+            tostring(ExpiresOn), "|", tostring(CaseId), "|",
+            tostring(DispositionNote))))
     | summarize arg_max(
+        DispositionSelectionKey,
         ValidFrom,
         ExpiresOn,
         CaseId,
@@ -54,40 +88,144 @@ let IdpDispositionedResolved =
 // SCORING ENGINE. Namespaced.
 // ============================================================
 // === SECTION 1: resolve the analyst-friendly UPN to stable UserId ===
-let IdpResolvedUserId = toscalar(
+let IdpResolverRows = materialize(
     SigninLogs
-    | where TimeGenerated >= IdpModelStart
-    | where TimeGenerated < IdpAnchorTime + IdpIngestionGrace
+    // Keep a broad indexed source-time predicate alongside ingestion_time().
+    | where TimeGenerated >= IdpModelStart - IdpIngestionGrace
+    | where TimeGenerated < IdpScoreEnd + IdpIngestionGrace
+    | where IsInteractive == true
+    | extend ResolverEventTime = coalesce(CreatedDateTime, TimeGenerated)
+    | where ResolverEventTime >= IdpModelStart
+        and ResolverEventTime < IdpScoreEnd
     | where UserPrincipalName =~ IdpTargetUPN
     | where isnotempty(UserId)
-    | summarize arg_max(TimeGenerated, UserId)
+    | extend RecordAvailableUTC = ingestion_time()
+    | project
+        ResolverEventTime, TimeGenerated, RecordAvailableUTC, UserId
+);
+let IdpResolverNullAvailabilityRowCount = toscalar(
+    IdpResolverRows
+    | summarize Count = countif(isnull(RecordAvailableUTC))
+    | project Count);
+let IdpEligibleResolverRows = materialize(
+    IdpResolverRows
+    | where isnotnull(RecordAvailableUTC)
+        and RecordAvailableUTC <= IdpAvailabilityCutoffUTC
+);
+let IdpResolvedUserIdCount = toscalar(
+    IdpEligibleResolverRows
+    | summarize by UserId
+    | summarize Count = count()
+    | project Count);
+let IdpResolvedUserId = toscalar(
+    IdpEligibleResolverRows
+    | extend ResolverSelectionKey = strcat(
+        format_datetime(
+            ResolverEventTime, "yyyy-MM-ddTHH:mm:ss.fffffffZ"),
+        "|", format_datetime(
+            TimeGenerated, "yyyy-MM-ddTHH:mm:ss.fffffffZ"),
+        "|", tostring(UserId))
+    | summarize arg_max(ResolverSelectionKey, UserId)
     | project UserId
 );
 //
 // === SECTION 2: scoped raw rows, with event time distinct from ingestion ===
-// Ingestion grace is applied to the TRAILING edge. A row whose EventTime is in
-// window but whose TimeGenerated lands after the anchor is late, not absent.
-// On a live run (anchor = now) this is a no-op; on a historical anchor it is
-// the difference between a complete window and a silently short one.
-let IdpRawSigninRows =
+// The trailing edge is clamped to the immutable assessment cutoff. Resolver
+// and scoring rows also stay strictly pre-anchor by event time.
+let IdpRawSigninCandidates = materialize(
     SigninLogs
-    | where TimeGenerated >= IdpModelStart
-    | where TimeGenerated < IdpAnchorTime + IdpIngestionGrace
+    | where TimeGenerated >= IdpModelStart - IdpIngestionGrace
+    | where TimeGenerated < IdpScoreEnd + IdpIngestionGrace
     | where IsInteractive == true
     | where iff(isnotempty(IdpResolvedUserId),
                 UserId == IdpResolvedUserId,
                 UserPrincipalName =~ IdpTargetUPN)
     | extend EventTime = coalesce(CreatedDateTime, TimeGenerated)
     | where EventTime >= IdpModelStart and EventTime < IdpScoreEnd
-    | extend FlowKey = tostring(Id)
+    | extend RecordAvailableUTC = ingestion_time()
+    // SigninLogs stores RiskEventTypes_V2 as a JSON string. Canonicalize valid
+    // arrays; preserve an unexpected scalar as a one-item array for review.
+    | extend RiskEventsParsed = parse_json(iff(
+        isempty(RiskEventTypes_V2), "[]", RiskEventTypes_V2))
+    | extend RiskEventTypes_V2 = case(
+        gettype(RiskEventsParsed) == "array",
+            array_sort_asc(RiskEventsParsed),
+        pack_array(tostring(RiskEventTypes_V2)))
     | project
-        EventTime, TimeGenerated, FlowKey, CorrelationId, SessionId, UserId,
-        IPAddress, AutonomousSystemNumber, Location, LocationDetails,
+        EventTime, TimeGenerated, RecordAvailableUTC, Id,
+        OriginalRequestId, CorrelationId, SessionId, UserId,
+        UserPrincipalName, IPAddress, AutonomousSystemNumber, Location,
+        LocationDetails, DeviceDetail, AppId, AppDisplayName,
+        AuthenticationProtocol, AuthenticationRequirement,
+        AuthenticationMethodsUsed, ClientAppUsed, ResultType,
+        ResultDescription, ConditionalAccessStatus, RiskLevelDuringSignIn,
+        RiskEventTypes_V2, IsRisky, CrossTenantAccessType
+);
+let IdpNullAvailabilityRowCount = toscalar(
+    IdpRawSigninCandidates
+    | summarize Count = countif(isnull(RecordAvailableUTC))
+    | project Count);
+let IdpRawSigninRows = materialize(
+    IdpRawSigninCandidates
+    | where isnotnull(RecordAvailableUTC)
+        and RecordAvailableUTC <= IdpAvailabilityCutoffUTC
+    // Azure Monitor may emit several MFA line items for one authentication.
+    // Prefer the request/sequence identifiers used by the validated Stage 20
+    // scorer and namespace each source so unlike identifiers cannot collide.
+    | extend FlowKeySource = case(
+        isnotempty(OriginalRequestId), "original_request_id",
+        isnotempty(CorrelationId), "correlation_id",
+        isnotempty(Id), "id",
+        "deterministic_fallback")
+    | extend FlowKey = case(
+        FlowKeySource == "original_request_id",
+            strcat("original:", tostring(OriginalRequestId)),
+        FlowKeySource == "correlation_id",
+            strcat("correlation:", tostring(CorrelationId)),
+        FlowKeySource == "id", strcat("id:", tostring(Id)),
+        strcat(
+            "fallback:",
+            format_datetime(EventTime, "yyyy-MM-ddTHH:mm:ss.fffffffZ"), "|",
+            tostring(UserId), "|", tostring(IPAddress), "|",
+            tostring(AppId), "|", tostring(ResultType), "|",
+            tostring(SessionId)))
+    | extend RowSelectionTieBreaker = hash_sha256(strcat(
+        tostring(UserId), "|", tostring(UserPrincipalName), "|",
+        tostring(IPAddress), "|", tostring(AutonomousSystemNumber), "|",
+        tostring(Location), "|",
+        tostring(LocationDetails.countryOrRegion), "|",
+        tostring(DeviceDetail.deviceId), "|",
+        tostring(DeviceDetail.operatingSystem), "|",
+        tostring(DeviceDetail.browser), "|",
+        tostring(DeviceDetail.trustType), "|",
+        tostring(DeviceDetail.isCompliant), "|", tostring(AppId), "|",
+        tostring(AppDisplayName), "|", tostring(AuthenticationProtocol), "|",
+        tostring(AuthenticationRequirement), "|",
+        tostring(AuthenticationMethodsUsed), "|", tostring(ClientAppUsed), "|",
+        tostring(ResultType), "|", tostring(ResultDescription), "|",
+        tostring(ConditionalAccessStatus), "|",
+        tostring(RiskLevelDuringSignIn), "|",
+        tostring(RiskEventTypes_V2), "|",
+        tostring(IsRisky), "|", tostring(CrossTenantAccessType), "|",
+        tostring(SessionId)))
+    | extend RowSelectionKey = strcat(
+        format_datetime(
+            EventTime, "yyyy-MM-ddTHH:mm:ss.fffffffZ"),
+        "|", format_datetime(
+            TimeGenerated, "yyyy-MM-ddTHH:mm:ss.fffffffZ"),
+        "|", tostring(Id), "|", tostring(ResultType), "|",
+        RowSelectionTieBreaker)
+    | project
+        EventTime, TimeGenerated, RecordAvailableUTC, RowSelectionKey,
+        FlowKey, FlowKeySource, Id,
+        OriginalRequestId, CorrelationId, SessionId, UserId,
+        UserPrincipalName, IPAddress, AutonomousSystemNumber, Location, LocationDetails,
         DeviceDetail, AppId, AppDisplayName, AuthenticationProtocol,
         AuthenticationRequirement, AuthenticationMethodsUsed,
         ClientAppUsed, ResultType, ResultDescription,
         ConditionalAccessStatus, RiskLevelDuringSignIn,
-        RiskEventTypes_V2, IsRisky, CrossTenantAccessType;
+        RiskEventTypes_V2, IsRisky, CrossTenantAccessType
+);
 //
 // === SECTION 3: collapse duplicate ingestion rows, one row per sign-in ===
 let IdpPrep = materialize(
@@ -95,8 +233,10 @@ let IdpPrep = materialize(
     | summarize
         RawRecordCount = count(),
         arg_max(
-            TimeGenerated,
-            EventTime, CorrelationId, SessionId, UserId,
+            RowSelectionKey,
+            TimeGenerated, RecordAvailableUTC, EventTime, FlowKeySource, Id,
+            OriginalRequestId, CorrelationId,
+            SessionId, UserId, UserPrincipalName,
             IPAddress, AutonomousSystemNumber, Location, LocationDetails,
             DeviceDetail, AppId, AppDisplayName, AuthenticationProtocol,
             AuthenticationRequirement, AuthenticationMethodsUsed,
@@ -138,7 +278,8 @@ let IdpPrep = materialize(
         BrowserExpected = ClientAppUsed has "Browser",
         AuthMethodsObserved = isnotempty(AuthMethodsRaw)
                               and AuthMethodsRaw != "[]",
-        IngestionDelay = TimeGenerated - EventTime
+        SourceDelay = TimeGenerated - EventTime,
+        IngestionDelay = RecordAvailableUTC - EventTime
     | extend
         BrowserApplicable = BrowserExpected or isnotempty(BrowserRaw),
         BrowserMissing = BrowserExpected and isempty(BrowserRaw),
@@ -160,7 +301,7 @@ let IdpPrep = materialize(
                          "unregistered device", "registered device"),
         // CONTROL flags: a control was absent, bypassed, or fired. Event-like,
         // low volume, always worth an analyst's eye. Drives Priority 4.
-        ControlFlags = set_difference(
+        ControlFlagsUnsorted = set_difference(
             pack_array(
                 iff(tolower(ConditionalAccessStatus) == "failure",
                     "conditional_access_failure", ""),
@@ -178,13 +319,17 @@ let IdpPrep = materialize(
         // POSTURE flags: an ambient device-estate state. High volume in any
         // tenant with imperfect enrolment. Hygiene on its own; escalates to
         // Priority 4 only when it coincides with actionable novelty.
-        PostureFlags = set_difference(
+        PostureFlagsUnsorted = set_difference(
             pack_array(
                 iff(DeviceId == "<unregistered>",
                     "unregistered_device", ""),
                 iff(tolower(DeviceCompliant) == "false",
                     "noncompliant_device", "")),
             dynamic([""]))
+    | extend
+        ControlFlags = array_sort_asc(ControlFlagsUnsorted),
+        PostureFlags = array_sort_asc(PostureFlagsUnsorted)
+    | project-away ControlFlagsUnsorted, PostureFlagsUnsorted
 );
 //
 // === SECTION 4: long form, one row per sign-in + dimension + value ===
@@ -247,6 +392,8 @@ let IdpBaselineDays = toscalar(
 let IdpBaselineStateScalar = case(
     IdpTargetConfigured == false, "target_not_set",
     IdpAnchorConfigured == false, "anchor_not_set",
+    IdpAssessmentCutoffConfigured == false, "assessment_cutoff_not_set",
+    IdpAssessmentCutoffValid == false, "assessment_cutoff_before_anchor",
     IdpBaselineN < IdpNoBaselineFloor, "no_baseline",
     IdpBaselineN < IdpMinBaselineEvents
         or IdpBaselineDays < IdpMinBaselineActiveDays,
@@ -312,10 +459,10 @@ let IdpScored = materialize(
         RawOutcomeBitsCalc = sumif(RawBits, IncludeContext == false),
         AdjustedOutcomeBitsCalc = sumif(
             AdjustedBits, IncludeContext == false),
-        // One bag replaces eighteen per-dimension columns. This is the
-        // "which plane moved" breakdown; it is the point of the scorer.
-        DimensionBits = make_bag_if(
-            bag_pack(Dimension, round(RawBits, 1)), isnotnull(RawBits)),
+        // A sorted array keeps the per-dimension breakdown replay-stable.
+        DimensionBitsUnsorted = make_set_if(
+            strcat(Dimension, "=", tostring(round(RawBits, 1))),
+            isnotnull(RawBits)),
         ResultScoreCount = countif(
             Dimension == "result" and isnotnull(RawBits)),
         ApplicableContextDims = countif(IncludeContext and Applicable),
@@ -330,16 +477,16 @@ let IdpScored = materialize(
             Novel and IncludeContext == false),
         ActionableOutcomeNovelCount = countif(
             ActionableNovel and IncludeContext == false),
-        RawNovelDims = make_set_if(
+        RawNovelDimsUnsorted = make_set_if(
             Dimension, Novel and IncludeContext),
-        ActionableNovelDims = make_set_if(
+        ActionableNovelDimsUnsorted = make_set_if(
             Dimension, ActionableNovel and IncludeContext),
-        MissingDims = make_set_if(
+        MissingDimsUnsorted = make_set_if(
             Dimension, Applicable and Missing),
-        UnmodelledDims = make_set_if(
+        UnmodelledDimsUnsorted = make_set_if(
             Dimension,
             Applicable and Missing == false and HasModel == false),
-        DispositionHits = make_set_if(
+        DispositionHitsUnsorted = make_set_if(
             strcat(Dimension, "=", Value, " [", CaseId, "]"),
             DispositionApplies),
         take_any(
@@ -349,10 +496,17 @@ let IdpScored = materialize(
             DimClient, DimResult, AuthRequirementDisplay, AuthMethodsDisplay,
             AuthEvidenceState, ResultDescription, ConditionalAccessStatus,
             RiskLevelDuringSignIn, RiskEventTypes_V2, CrossTenantAccessType,
-            SessionId, CorrelationId, RawRecordCount, IngestionDelay,
+            SessionId, Id, OriginalRequestId, CorrelationId, FlowKeySource,
+            RecordAvailableUTC, RawRecordCount, SourceDelay, IngestionDelay,
             ControlFlags, PostureFlags)
       by FlowKey, EventTime
     | extend
+        RawNovelDims = array_sort_asc(RawNovelDimsUnsorted),
+        ActionableNovelDims = array_sort_asc(ActionableNovelDimsUnsorted),
+        MissingDims = array_sort_asc(MissingDimsUnsorted),
+        UnmodelledDims = array_sort_asc(UnmodelledDimsUnsorted),
+        DispositionHits = array_sort_asc(DispositionHitsUnsorted),
+        DimensionBits = array_sort_asc(DimensionBitsUnsorted),
         RawContextBits = iff(
             IdpBaselineStateScalar == "ready" and ScoredContextDims > 0,
             round(RawContextBitsCalc, 1), real(null)),
@@ -464,6 +618,9 @@ let IdpScored = materialize(
     | project-away
         RawContextBitsCalc, AdjustedContextBitsCalc,
         RawOutcomeBitsCalc, AdjustedOutcomeBitsCalc,
+        RawNovelDimsUnsorted, ActionableNovelDimsUnsorted,
+        MissingDimsUnsorted, UnmodelledDimsUnsorted,
+        DispositionHitsUnsorted, DimensionBitsUnsorted,
         ResultScoreCount,
         ActionableNetworkNovelCount, ActionableClientNovelCount,
         ActionableAccessNovelCount,
@@ -483,7 +640,8 @@ let IdpFindingCandidates = materialize(
         NotePriority desc,
         AdjustedContextBits desc nulls last,
         RawContextBits desc nulls last,
-        EventTime desc
+        EventTime desc,
+        FlowKey asc
     | extend CandidateRank = row_number()
 );
 let IdpFlowSummary = materialize(
@@ -500,8 +658,42 @@ let IdpFlowSummary = materialize(
         PostureFlaggedFlows = countif(array_length(PostureFlags) > 0),
         RawNovelOutcomeFlows = countif(RawOutcomeNovel),
         ReducedConfidenceFlows = countif(ScoreConfidence != "standard"),
+        FallbackFlowKeyFlows = countif(
+            FlowKeySource == "deterministic_fallback"),
         DetailedCandidates = countif(NoteWorthy)
 );
+let IdpTotalScoreFlows = toscalar(
+    IdpFlowSummary | project TotalFlows);
+let IdpReducedConfidenceFlows = toscalar(
+    IdpFlowSummary | project ReducedConfidenceFlows);
+let IdpFallbackFlowKeyFlows = toscalar(
+    IdpFlowSummary | project FallbackFlowKeyFlows);
+let IdpAllWindowFallbackFlowKeyFlows = toscalar(
+    IdpPrep
+    | summarize FallbackFlows = countif(
+        FlowKeySource == "deterministic_fallback")
+    | project FallbackFlows);
+let IdpDetailedCandidateCount = toscalar(
+    IdpFlowSummary | project DetailedCandidates);
+// Baseline readiness alone is not evidence completeness. Empty score windows,
+// ambiguous flow identity, query-owned truncation, and reduced telemetry all
+// remain visible and fail open for any closure consumer.
+let IdpSectionStateScalar = case(
+    IdpNullAvailabilityRowCount > 0
+        or IdpResolverNullAvailabilityRowCount > 0,
+        "availability_time_unavailable",
+    IdpBaselineStateScalar in (
+        "target_not_set", "anchor_not_set", "assessment_cutoff_not_set",
+        "assessment_cutoff_before_anchor"),
+        IdpBaselineStateScalar,
+    IdpResolvedUserIdCount == 0, "user_id_not_resolved",
+    IdpResolvedUserIdCount > 1, "multiple_user_ids_for_upn",
+    IdpBaselineStateScalar != "ready", IdpBaselineStateScalar,
+    IdpTotalScoreFlows == 0, "no_score_window_flows",
+    IdpAllWindowFallbackFlowKeyFlows > 0, "fallback_flow_identity",
+    IdpDetailedCandidateCount > IdpMaxFindings, "truncated",
+    IdpReducedConfidenceFlows > 0, "reduced_telemetry_coverage",
+    "ready");
 let IdpStatusOutput =
     IdpBaselineHealth
     | project
@@ -510,7 +702,7 @@ let IdpStatusOutput =
         Section = "identity_posture",
         RecordType = "section_status",
         Priority = toint(
-            iff(IdpBaselineStateScalar == "ready", 0, 3)),
+            iff(IdpSectionStateScalar == "ready", 0, 3)),
         EventTime = IdpAnchorTime,
         Entity = tostring(IdpTargetUPN),
         FindingKey = strcat(
@@ -518,11 +710,11 @@ let IdpStatusOutput =
             coalesce(IdpResolvedUserId, IdpTargetUPN),
             ":status"),
         Title = iff(
-            IdpBaselineStateScalar == "ready",
+            IdpSectionStateScalar == "ready",
             "Identity posture model ready",
             strcat(
-                "Identity posture not assessed: ",
-                IdpBaselineStateScalar)),
+                "Identity posture incomplete: ",
+                IdpSectionStateScalar)),
         Note = strcat(
             "Identity posture, ", IdpTargetUPN, ": ",
             format_datetime(IdpScoreStart, "yyyy-MM-dd HH:mm"), " to ",
@@ -530,12 +722,22 @@ let IdpStatusOutput =
             " UTC scored against the preceding ",
             toint(IdpBaselineWindow / 1d), " days (",
             BaselineFlows, " successful baseline flows across ",
-            BaselineActiveDays, " active days; state ",
-            IdpBaselineStateScalar, ")."),
+            BaselineActiveDays, " active days; ",
+            IdpTotalScoreFlows, " score-window flows; section state ",
+            IdpSectionStateScalar, "; evidence available through ",
+            format_datetime(
+                IdpAvailabilityCutoffUTC, "yyyy-MM-dd HH:mm:ss"),
+            " UTC)."),
         Evidence = bag_pack(
             "target_upn", IdpTargetUPN,
             "resolved_user_id", IdpResolvedUserId,
+            "resolved_user_id_count", IdpResolvedUserIdCount,
             "anchor_time_utc", IdpAnchorTime,
+            "assessment_cutoff_utc", IdpAssessmentCutoffUTC,
+            "availability_cutoff_utc", IdpAvailabilityCutoffUTC,
+            "availability_time_field", "ingestion_time()",
+            "source_time_field", "TimeGenerated",
+            "event_time_field", "coalesce(CreatedDateTime, TimeGenerated)",
             "model_start_utc", IdpModelStart,
             "model_end_utc", IdpModelEnd,
             "score_start_utc", IdpScoreStart,
@@ -545,6 +747,19 @@ let IdpStatusOutput =
             "baseline_first_utc", BaselineFirst,
             "baseline_last_utc", BaselineLast,
             "baseline_state", IdpBaselineStateScalar,
+            "section_state", IdpSectionStateScalar,
+            "score_window_state", iff(
+                IdpTotalScoreFlows > 0, "observed", "empty"),
+            "score_window_flows", IdpTotalScoreFlows,
+            "availability_time_complete",
+                IdpNullAvailabilityRowCount == 0
+                and IdpResolverNullAvailabilityRowCount == 0,
+            "fallback_flow_key_flows", IdpAllWindowFallbackFlowKeyFlows,
+            "score_window_fallback_flow_key_flows",
+                IdpFallbackFlowKeyFlows,
+            "reduced_confidence_flows", IdpReducedConfidenceFlows,
+            "detailed_candidates", IdpDetailedCandidateCount,
+            "maximum_detailed_findings", IdpMaxFindings,
             "required_events", IdpMinBaselineEvents,
             "required_active_days", IdpMinBaselineActiveDays,
             "required_coverage_pct", IdpMinModelCoveragePct);
@@ -560,7 +775,7 @@ let IdpSummaryOutput =
             PostureFlaggedFlows > 0
                 and (ActionableNovelFlows > 0
                      or ActionableOutcomeNovelFlows > 0), 4,
-            IdpBaselineStateScalar != "ready", 3,
+            IdpSectionStateScalar != "ready", 3,
             ActionableOutcomeNovelFlows > 0
                 or MultiPlaneNovelFlows > 0, 3,
             ActionableNovelFlows > 0, 2,
@@ -586,6 +801,7 @@ let IdpSummaryOutput =
             PostureFlaggedFlows, " posture-flagged; ",
             RawNovelOutcomeFlows, " raw novel outcomes; ",
             ReducedConfidenceFlows, " reduced-confidence; ",
+            FallbackFlowKeyFlows, " fallback-keyed; ",
             DetailedCandidates,
             " detailed candidates (showing at most ",
             IdpMaxFindings, ")."),
@@ -599,9 +815,17 @@ let IdpSummaryOutput =
             "posture_flagged_flows", PostureFlaggedFlows,
             "raw_novel_outcome_flows", RawNovelOutcomeFlows,
             "reduced_confidence_flows", ReducedConfidenceFlows,
+            "fallback_flow_key_flows", IdpAllWindowFallbackFlowKeyFlows,
+            "score_window_fallback_flow_key_flows", FallbackFlowKeyFlows,
             "detailed_candidates", DetailedCandidates,
             "maximum_detailed_findings", IdpMaxFindings,
-            "baseline_state", IdpBaselineStateScalar);
+            "baseline_state", IdpBaselineStateScalar,
+            "section_state", IdpSectionStateScalar,
+            "assessment_cutoff_utc", IdpAssessmentCutoffUTC,
+            "availability_cutoff_utc", IdpAvailabilityCutoffUTC,
+            "availability_time_complete",
+                IdpNullAvailabilityRowCount == 0
+                and IdpResolverNullAvailabilityRowCount == 0);
 let IdpDetailOutput =
     IdpFindingCandidates
     | where CandidateRank <= IdpMaxFindings
@@ -675,8 +899,15 @@ let IdpDetailOutput =
             " | ", Assessment),
         Evidence = bag_pack(
             "flow_key", FlowKey,
+            "flow_key_source", FlowKeySource,
+            "sign_in_id", Id,
+            "original_request_id", OriginalRequestId,
             "user_id", UserId,
             "event_time_utc", EventTime,
+            "record_available_utc", RecordAvailableUTC,
+            "assessment_cutoff_utc", IdpAssessmentCutoffUTC,
+            "availability_cutoff_utc", IdpAvailabilityCutoffUTC,
+            "section_state", IdpSectionStateScalar,
             "raw_context_bits", RawContextBits,
             "adjusted_context_bits", AdjustedContextBits,
             "raw_outcome_bits", RawOutcomeBits,
@@ -719,6 +950,7 @@ let IdpDetailOutput =
             "correlation_id", CorrelationId,
             "session_id", SessionId,
             "raw_record_count", RawRecordCount,
+            "source_delay", SourceDelay,
             "ingestion_delay", IngestionDelay,
             "assessment", Assessment);
 let IdpTruncationOutput =
@@ -729,7 +961,7 @@ let IdpTruncationOutput =
         FindingOrder = tolong(1000000),
         Section = "identity_posture",
         RecordType = "truncation",
-        Priority = toint(1),
+        Priority = toint(3),
         EventTime = IdpAnchorTime,
         Entity = tostring(IdpTargetUPN),
         FindingKey = strcat(
@@ -744,7 +976,11 @@ let IdpTruncationOutput =
         Evidence = bag_pack(
             "detailed_candidates", DetailedCandidates,
             "maximum_detailed_findings", IdpMaxFindings,
-            "omitted_findings", DetailedCandidates - IdpMaxFindings);
+            "omitted_findings", DetailedCandidates - IdpMaxFindings,
+            "baseline_state", IdpBaselineStateScalar,
+            "section_state", "truncated",
+            "assessment_cutoff_utc", IdpAssessmentCutoffUTC,
+            "availability_cutoff_utc", IdpAvailabilityCutoffUTC);
 let IdentityPostureSection =
     union
         IdpStatusOutput,
