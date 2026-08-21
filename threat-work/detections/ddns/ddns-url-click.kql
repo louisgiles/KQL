@@ -1,3 +1,14 @@
+// name:              DDNS URL click
+// purpose:           Surface user clicks through to subdomains of known dynamic-DNS providers and enrich them with message context.
+// starting_entities: none; population detection
+// required_tables:   UrlClickEvents, EmailEvents
+// optional_tables:   DDNS_Domains watchlist when replacing the externaldata fallback
+// variables:         lookback, ddns_all
+// time_window:       1h click window with up to 7d of email context
+// done_criteria:     Review the user, clicked URL, Safe Links action, sender/message context, and any follow-on identity or endpoint evidence; progress unresolved or risky clicks to incident investigation.
+// artifact_type:     detection
+// output_type:       analysis
+//
 // Severity: Medium (raise to High if correlated with a risky sign-in for the same user).
 // Frequency: hourly/1h. Tables: UrlClickEvents + EmailEvents (Defender for Office).
 let lookback = 1h;

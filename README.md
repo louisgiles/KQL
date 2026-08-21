@@ -20,9 +20,10 @@ threat research, and detection engineering in Microsoft Sentinel and Defender.
 | [`threat-work/research/`](threat-work/research/) | Source-backed research and hunt or detection candidates. |
 | [`threat-work/detections/`](threat-work/detections/) | Reusable detection-engineering logic and production rule packages. |
 
-This change establishes the active base only. The queued consolidation and
-investigation-structure tasks will populate it; no legacy query is silently
-promoted by appearing beside the new folders.
+The active `threat-work/` tree now contains the audited threat-hunt, research,
+and detection-engineering material migrated from the legacy roots. The
+`investigation/` tree remains the canonical front door but is intentionally
+unpopulated until its separate objective-based migration task runs.
 
 ## Choose the right area
 
@@ -39,10 +40,15 @@ The authoritative requirements for active content are in
 
 ## Migration boundary
 
-The numbered investigation families plus `cross-family/`, `detectionlogic/`,
-`scratchpad/`, `threathunting/`, and `threathunting-research/` are frozen
-legacy locations pending their queued, audited migration. Existing content
-remains available, but new work must use the canonical v2 roots above.
+The numbered investigation families plus `cross-family/` and `scratchpad/`
+remain frozen legacy locations pending their audited migration into
+`investigation/`.
+
+The old `detectionlogic/` and `threathunting-research/` roots have been retired
+from active `main` after their useful content was consolidated beneath
+`threat-work/`. The remaining `threathunting/` content is Babbler-derived
+research only; it stays temporarily in place until the queued `oneshots`
+migration verifies the destination copy.
 
 The exact pre-reset tree is preserved at
 [`archive/legacy-2026-08-20`](https://github.com/louisgiles/KQL/tree/archive/legacy-2026-08-20)
@@ -50,9 +56,8 @@ at commit `409ff36da16d8b43e0248e17d2a81f65d8a07db2`. The unmerged high-volume
 URL file-pull hunt from PR #13 is separately preserved at
 [`archive/pr-13-highvol-url-filepull-2026-08-20`](https://github.com/louisgiles/KQL/tree/archive/pr-13-highvol-url-filepull-2026-08-20).
 
-Babbler and one-shot source material stays in place until its destination in
-`louisgiles/oneshots` has been verified. No legacy file is deleted as part of
-this scaffold.
+Babbler and one-shot source material stays recoverable in KQL until its
+destination in `louisgiles/oneshots` has been verified.
 
 ## Validation
 

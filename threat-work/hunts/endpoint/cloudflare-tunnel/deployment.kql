@@ -4,7 +4,9 @@
 // required_tables:   DeviceProcessEvents
 // optional_tables:   DeviceNetworkEvents (union isfuzzy=true; a missing table only removes connector-egress context)
 // variables:         HuntEnd, HuntWindow, BaselineWindow, DeviceNameToCheck, AccountToCheck
+// time_window:       7d hunt window plus the immediately preceding 21d baseline, both bounded by HuntEnd.
 // done_criteria:     Review the raw command, binary identity/path, actor, first-seen context, and successful connector egress; confirm the owner and intended published service.
+// artifact_type:     hunt
 // output_type:       analysis
 //
 // Cloudflare Tunnel is a legitimate administration and development tool. This
