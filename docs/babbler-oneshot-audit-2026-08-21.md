@@ -167,7 +167,7 @@ Outstanding v0.2.0 tenant gates are concrete:
    post-anchor identity mappings.
 3. Prove MFA sequence collapse and fail-open behavior when stable keys are
    unavailable.
-4. Exercise empty score-window, zero/multiple `UserId), missing ingestion
+4. Exercise empty score-window, zero/multiple `UserId`, missing ingestion
    coverage, and internal truncation.
 5. Re-run known AitM positive and device-code cases under the pinned 0.2.0
    semantics.
