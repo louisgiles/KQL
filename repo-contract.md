@@ -11,10 +11,12 @@ This contract applies to:
 - `investigation/**`
 - `threat-work/**`
 
-The numbered families and the legacy `cross-family/`, `detectionlogic/`,
-`scratchpad/`, `threathunting/`, and `threathunting-research/` roots are frozen
-pending audited migration. Do not add new work there. Their presence does not
-make them part of the active v2 layout.
+The numbered investigation families plus legacy `cross-family/` and
+`scratchpad/` remain frozen pending their audited migration. The remaining
+`threathunting/` content is a temporary Babbler/one-shot holding area only and
+must not receive new threat-hunt work. The retired `detectionlogic/` and
+`threathunting-research/` roots remain recoverable from the named legacy
+archive, not as active v2 locations.
 
 ## Canonical layout
 
@@ -133,6 +135,10 @@ A production-ready detection package must keep its KQL with a local README,
 analytic-rule YAML where applicable, tuning guidance, and a validation or test
 fixture reference. Detailed naming and packaging conventions may strengthen
 this baseline in the queued folder-contract task.
+
+Migrated legacy detection logic may remain explicitly marked as a candidate
+while its semantics, dependencies, and tuning are revalidated; migration into
+`threat-work/detections/` is not by itself a production-readiness claim.
 
 ## One-shot boundary
 

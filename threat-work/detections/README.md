@@ -12,6 +12,14 @@ Keep per-incident pivots in `../../investigation/` and agentic one-shot or
 Babbler pipeline logic in the separate
 [`louisgiles/oneshots`](https://github.com/louisgiles/oneshots) repository.
 
-Future detection packages must follow the
-[`repository contract`](../../repo-contract.md). This folder is currently a
-scaffold; no legacy detection was migrated by this change.
+## Current modules
+
+- [`ddns/`](ddns/) — migrated DDNS detection candidates covering bulletproof-hosting ranges, DDNS subdomains, DDNS URL clicks, and non-browser DDNS egress.
+
+These files were structurally consolidated from the legacy `detectionlogic/`
+root and given active-tree metadata, but migration is not a production-readiness
+claim. The module README records inherited dependency and tuning gaps that must
+be resolved before deployment.
+
+Detection packages follow the
+[`repository contract`](../../repo-contract.md).

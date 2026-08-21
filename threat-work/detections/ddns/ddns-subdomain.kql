@@ -1,3 +1,14 @@
+// name:              DDNS subdomain connection
+// purpose:           Surface successful endpoint connections to subdomains of known dynamic-DNS providers and prioritise risky process/path context.
+// starting_entities: none; population detection
+// required_tables:   DeviceNetworkEvents
+// optional_tables:   DDNS_Domains watchlist when replacing the externaldata fallback
+// variables:         lookback, ddns_all
+// time_window:       1h default
+// done_criteria:     Review the affected device/user, process provenance, DDNS hostname, remote IPs, and severity context; confirm expected software or progress to incident investigation.
+// artifact_type:     detection
+// output_type:       analysis
+//
 // Severity: Informational. Deploy a 2nd instance at Low/Med by uncommenting the
 //   SevScore filter near the end. Frequency: hourly/1h (or daily for a hunt feed).
 // Table: DeviceNetworkEvents.

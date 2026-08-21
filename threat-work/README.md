@@ -14,11 +14,18 @@ inform a detection, but promotion between areas is always explicit and
 reviewed. Do not treat proximity in the repository as proof of production
 readiness.
 
+The audited legacy threat-work material is now consolidated here:
+
+- `hunts/endpoint/cloudflare-tunnel/` — Cloudflare Tunnel deployment/execution hunt plus preserved analysis notes.
+- `research/2026/` — dated threat-hunting candidates and CVE research.
+- `detections/ddns/` — migrated DDNS detection candidates and their dependency/validation notes.
+
 All executable content follows the
 [`repository contract`](../repo-contract.md). Agentic one-shots and Babbler
 pipeline logic remain in the separate
 [`louisgiles/oneshots`](https://github.com/louisgiles/oneshots) repository.
 
-This is a scaffold only. Consolidation of the frozen `threathunting/`,
-`threathunting-research/`, and `detectionlogic/` roots is a separate queued
-task; no legacy artifact was migrated here.
+The only remaining legacy `threathunting/` artifact on active `main` is the
+Babbler-derived tenant research file that is explicitly queued for migration to
+`oneshots`. The original pre-consolidation roots remain recoverable from the
+named archive branch.

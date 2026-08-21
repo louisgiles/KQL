@@ -1,3 +1,14 @@
+// name:              DDNS bulletproof infrastructure connection
+// purpose:           Surface successful endpoint connections to TI-maintained bulletproof-hosting IPv4 ranges.
+// starting_entities: none; population detection
+// required_tables:   DeviceNetworkEvents
+// optional_tables:   BPH_Ranges watchlist when promoted from the fallback seed
+// variables:         lookback, bph_ranges
+// time_window:       1h default
+// done_criteria:     Review the initiating device/user/process and validate that the matched range feed is current before treating a connection as actionable.
+// artifact_type:     detection
+// output_type:       analysis
+//
 // Severity: High — treat ConnectionSuccess as an incident. Frequency: hourly/1h.
 // Table: DeviceNetworkEvents.
 // MAINTENANCE: BPH operators re-home ASNs to dodge sanctions (Aeza moved

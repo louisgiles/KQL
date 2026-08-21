@@ -1,3 +1,14 @@
+// name:              Non-browser DDNS egress
+// purpose:           Surface successful non-browser endpoint connections to subdomains of known dynamic-DNS providers and prioritise LOLBin/user-writable provenance.
+// starting_entities: none; population detection
+// required_tables:   DeviceNetworkEvents
+// optional_tables:   DDNS_Domains watchlist when replacing the externaldata fallback
+// variables:         lookback, ddns_all, browsers
+// time_window:       1h default
+// done_criteria:     Review the affected device/user, initiating process/path/command line, DDNS host, remote IPs, and hash context; confirm expected software or progress suspicious activity to containment investigation.
+// artifact_type:     detection
+// output_type:       analysis
+//
 // Severity: Medium baseline, High when LOLBin / user-writable. Frequency: 1h/1h.
 // Table: DeviceNetworkEvents. This is the standalone C2-catcher — no correlation needed.
 let lookback = 1h;
