@@ -56,8 +56,11 @@ independently maintained variants.
 
 ## Inventory
 
-Paths below are relative to `archive/investigation-legacy-2026-08-21/`.
-Operator counts are static counts in the archived source.
+Paths beginning with `investigation/` below are relative to `archive/` after
+the launcher restructure. The Babbler, probe, and rare Office operations
+lineage paths remain relative to
+`archive/investigation-legacy-2026-08-21/`. Operator counts are static counts
+in the archived source.
 
 | Artifact | Lines | Primary table coverage | materialize / join / union | Speed risk | Signal density | Decision use and disposition |
 | --- | ---: | --- | ---: | --- | --- | --- |
