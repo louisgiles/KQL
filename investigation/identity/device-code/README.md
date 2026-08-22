@@ -134,17 +134,22 @@ The investigation is complete when:
   and resource identifiers.
 - `dcount()` remains approximate.
 
-Static structure, logic, safety, and performance review passed. Before
-production use, run:
+Static review is not a Sentinel runtime guarantee. Before production use, run:
 
 ```powershell
 pwsh ./scripts/test-kql.ps1
+python3 ./scripts/lint-kql-runtime-literals.py .
 ```
+
+The runtime-literal lint rejects unsupported `format_datetime()` tokens in
+active KQL. This guard was added after Sentinel rejected an invalid `T` and `Z`
+format literal on 2026-08-22.
 
 Then compile and execute expected-looking, suspicious, partial-coverage,
 Broker to DRS, GSA, duplicate-flow, and failed-flow cases in a representative
 Sentinel workspace. Record complete-query P95 runtime and calibrate the exposed
-thresholds.
+thresholds. Do not present the query as production-ready until actual Sentinel
+compilation and execution have passed.
 
 Primary references:
 

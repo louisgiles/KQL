@@ -74,7 +74,7 @@ let CandidateRows = materialize(
             isnotempty(RowSignInId), strcat("id:", RowSignInId),
             strcat(
                 "fallback:", tolower(UserPrincipalName), "|",
-                format_datetime(EventTime, "yyyy-MM-ddTHH:mm:ss.fffZ"), "|",
+                tostring(EventTime), "|",
                 tostring(IPAddress), "|", RowAppId)),
         FlowKeyBasis = case(
             isnotempty(RowOriginalRequestId), "OriginalRequestId",
@@ -221,7 +221,7 @@ let TenantDeviceCodeFlows = materialize(
             isnotempty(PriorCorrelationId), strcat("correlation:", PriorCorrelationId),
             isnotempty(PriorSignInId), strcat("id:", PriorSignInId),
             strcat(
-                "fallback:", PriorUPN, "|", format_datetime(EventTime, "yyyy-MM-ddTHH:mm:ss.fffZ"), "|",
+                "fallback:", PriorUPN, "|", tostring(EventTime), "|",
                 tostring(IPAddress), "|", PriorAppId)),
         FlowKeyBasis = case(
             isnotempty(PriorOriginalRequestId), "OriginalRequestId",
@@ -311,7 +311,7 @@ let UserRows = materialize(
             isnotempty(PriorCorrelationId), strcat("correlation:", PriorCorrelationId),
             isnotempty(PriorSignInId), strcat("id:", PriorSignInId),
             strcat(
-                "fallback:", PriorUPN, "|", format_datetime(EventTime, "yyyy-MM-ddTHH:mm:ss.fffZ"), "|",
+                "fallback:", PriorUPN, "|", tostring(EventTime), "|",
                 tostring(IPAddress), "|", PriorAppId)),
         FlowKeyBasis = case(
             isnotempty(PriorOriginalRequestId), "OriginalRequestId",
@@ -500,7 +500,7 @@ let DeviceFlows = materialize(
             isnotempty(PriorCorrelationId), strcat("correlation:", PriorCorrelationId),
             isnotempty(PriorSignInId), strcat("id:", PriorSignInId),
             strcat(
-                "fallback:", PriorUPN, "|", format_datetime(EventTime, "yyyy-MM-ddTHH:mm:ss.fffZ"), "|",
+                "fallback:", PriorUPN, "|", tostring(EventTime), "|",
                 tostring(IPAddress), "|", PriorAppId)),
         FlowKeyBasis = case(
             isnotempty(PriorOriginalRequestId), "OriginalRequestId",
