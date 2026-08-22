@@ -89,34 +89,40 @@ requires.
 
 Classify every referenced table in the local README:
 
-- **Required** — absence prevents a valid answer.
-- **Optional enrichment** — sparse or absent coverage is tolerated and must not suppress the primary result.
-- **Avoid as hard dependency** — known freshness or coverage risk; never use it as a silent gate.
+- **Required** - absence prevents a valid answer.
+- **Optional enrichment** - sparse or absent coverage is tolerated and must not suppress the primary result.
+- **Avoid as hard dependency** - known freshness or coverage risk; never use it as a silent gate.
 
 When required evidence is missing, the query or its documentation must make
 that limitation visible. Do not turn missing telemetry into benign evidence.
 
-## Decision-oriented output
+## Purpose-oriented output
 
-Executable queries should return the smallest useful result set for their
-purpose. Prefer affected entities, decisive evidence, timestamps, scope, and
-next action over large raw event dumps.
+Executable queries should return the evidence shape required by their stated
+purpose. Live investigation output must follow
+[`docs/live-investigation-standard.md`](docs/live-investigation-standard.md):
+stable source-native columns, complete bounded chronology where raw evidence is
+required, and explicit coverage where aggregation is appropriate.
+
+Do not force unrelated sources into a generic evidence bag or repeat generic
+decision and next-action prose on every investigation row. Query compactness
+must not be achieved by silently discarding evidence.
 
 Where a determination is appropriate, use one of these meanings consistently:
 
-- **Benign** — expected behaviour; no action required.
-- **Precautionary benign** — likely expected; record or monitor as specified.
-- **Review required** — unresolved evidence or coverage requires another check.
-- **Suspicious / escalate** — evidence supports containment, escalation, or policy action.
+- **Benign** - expected behaviour; no action required.
+- **Precautionary benign** - likely expected; record or monitor as specified.
+- **Review required** - unresolved evidence or coverage requires another check.
+- **Suspicious / escalate** - evidence supports containment, escalation, or policy action.
 
 ## Area-specific readiness
 
 ### Investigation
 
-Organise modules by investigative objective, not by arbitrary numbering or by
-the first table queried. The active base begins with entity pivots and a
-bounded correlated timeline. Future playbooks may compose these objectives,
-but each runnable query must remain independently usable.
+Organise modules by investigative objective and source-native evidence type,
+not by arbitrary numbering or incident title. Every active investigation query
+must pass the live-investigation standard and exact-source actual-workspace validation.
+Quarantined design samples remain outside `investigation/` until promotion.
 
 ### Hunts
 
@@ -154,6 +160,10 @@ history before removing a source copy.
 ## Validation
 
 - Run `pwsh ./scripts/test-kql.ps1` for syntax-level validation of `.kql` files.
-- Validate new or changed executable queries against known-benign, ambiguous, and known-suspicious scenarios before production use.
+- Validate live evidence queries against sparse, normal, high-volume, no-data,
+  missing-source where applicable, result-integrity, runtime, and analyst-utility
+  cases in the actual workspace.
+- Use known-benign, ambiguous, and known-suspicious cases only for calibrated
+  determination logic that actually emits a determination.
 - Record schema, table-coverage, and runtime limitations; the parser cannot validate them.
 - A passing parser check is necessary, not sufficient, evidence of readiness.

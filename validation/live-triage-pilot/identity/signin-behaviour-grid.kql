@@ -1,0 +1,76 @@
+// name:              Interactive sign-in behaviour grid
+// purpose:           Show recent interactive sign-in behaviour for one user as a stable visual evidence grid.
+// starting_entities: Exact user principal name already present in the incident
+// required_tables:   SigninLogs
+// optional_tables:   none
+// variables:         TargetUPN, Lookback
+// time_window:       Default 7d ending now
+// done_criteria:     Recent interactive sign-in behaviour and bounded-result integrity are visible across result, network, app, authentication, device, and risk fields
+// artifact_type:     investigation
+// output_type:       quick-triage
+
+let TargetUPN = "";
+let Lookback = 7d;
+let SignIns = materialize(
+    SigninLogs
+    | where TimeGenerated >= ago(Lookback)
+    | where isnotempty(TargetUPN)
+    | where UserPrincipalName =~ TargetUPN
+    | extend EventTime = coalesce(CreatedDateTime, TimeGenerated), Device = todynamic(DeviceDetail), Geo = todynamic(LocationDetails)
+    | extend
+        SignInType = case(IsInteractive == true, "Interactive", IsInteractive == false, "Non-interactive", "Unknown"),
+        Outcome = case(ResultType == "0", "Success", isempty(ResultType), "Unknown", "Failure"),
+        Country = coalesce(tostring(Geo.countryOrRegion), tostring(Location)), City = tostring(Geo.city),
+        DeviceId = tostring(Device.deviceId), DeviceName = tostring(Device.displayName), OperatingSystem = tostring(Device.operatingSystem),
+        Browser = tostring(Device.browser), IsManaged = tobool(Device.isManaged), IsCompliant = tobool(Device.isCompliant), TrustType = tostring(Device.trustType)
+    | project TimeGenerated, EventTime, SignInType, Outcome, UserPrincipalName, ResultType, ResultDescription,
+              IPAddress, Country, City, AutonomousSystemNumber, AppDisplayName, ResourceDisplayName,
+              ClientAppUsed, AuthenticationProtocol, IncomingTokenType, OriginalTransferMethod,
+              AuthenticationRequirement, AuthenticationMethodsUsed, ConditionalAccessStatus,
+              DeviceId, DeviceName, OperatingSystem, Browser, IsManaged, IsCompliant, TrustType,
+              RiskLevelDuringSignIn, RiskState, RiskEventTypes_V2, UserAgent, CorrelationId, OriginalRequestId, SessionId, Id);
+let _RowsInBound = toscalar(SignIns | count);
+let _FirstEventInBound = toscalar(SignIns | summarize min(EventTime));
+let _LastEventInBound = toscalar(SignIns | summarize max(EventTime));
+SignIns
+| extend RowsInBound=_RowsInBound, FirstEventInBound=_FirstEventInBound, LastEventInBound=_LastEventInBound
+| project
+    RowsInBound,
+    FirstEventInBound,
+    LastEventInBound,
+    EventTime,
+    LogCreatedTime = TimeGenerated,
+    SignInType,
+    Outcome,
+    UserPrincipalName,
+    ResultType,
+    ResultDescription,
+    IPAddress,
+    Country,
+    City,
+    AutonomousSystemNumber,
+    AppDisplayName,
+    ResourceDisplayName,
+    ClientAppUsed,
+    AuthenticationProtocol,
+    IncomingTokenType,
+    OriginalTransferMethod,
+    AuthenticationRequirement,
+    AuthenticationMethodsUsed,
+    ConditionalAccessStatus,
+    DeviceId,
+    DeviceName,
+    OperatingSystem,
+    Browser,
+    IsManaged,
+    IsCompliant,
+    TrustType,
+    RiskLevelDuringSignIn,
+    RiskState,
+    RiskEventTypes_V2,
+    UserAgent,
+    CorrelationId,
+    OriginalRequestId,
+    SessionId,
+    SignInId = Id
+| order by EventTime desc, LogCreatedTime desc, SignInId asc

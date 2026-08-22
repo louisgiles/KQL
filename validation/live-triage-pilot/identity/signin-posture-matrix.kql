@@ -1,0 +1,81 @@
+// name:              Interactive sign-in posture matrix
+// purpose:           Group one user's recent interactive sign-in records into visible network, app, authentication, and device posture combinations.
+// starting_entities: Exact user principal name already present in the incident
+// required_tables:   SigninLogs
+// optional_tables:   none
+// variables:         TargetUPN, Lookback
+// time_window:       Default 14d ending now
+// done_criteria:     Every observed posture combination has an exact record count plus first-seen and last-seen times
+// artifact_type:     investigation
+// output_type:       analysis
+
+let TargetUPN = "";
+let Lookback = 14d;
+let SignInRecords =
+    SigninLogs
+    | where TimeGenerated >= ago(Lookback)
+    | where isnotempty(TargetUPN)
+    | where UserPrincipalName =~ TargetUPN
+    | extend EventTime = coalesce(CreatedDateTime, TimeGenerated);
+SignInRecords
+| extend
+    Device = todynamic(DeviceDetail),
+    Geo = todynamic(LocationDetails)
+| extend
+    Country = coalesce(tostring(Geo.countryOrRegion), tostring(Location)),
+    City = tostring(Geo.city),
+    DeviceId = tostring(Device.deviceId),
+    DeviceName = tostring(Device.displayName),
+    OperatingSystem = tostring(Device.operatingSystem),
+    Browser = tostring(Device.browser),
+    IsManaged = tobool(Device.isManaged),
+    IsCompliant = tobool(Device.isCompliant),
+    TrustType = tostring(Device.trustType)
+| summarize
+    SignInRecords = count(),
+    FirstSeen = min(EventTime),
+    LastSeen = max(EventTime)
+  by
+    ResultType,
+    IPAddress,
+    Country,
+    City,
+    AutonomousSystemNumber,
+    AppDisplayName,
+    ResourceDisplayName,
+    ClientAppUsed,
+    AuthenticationProtocol,
+    ConditionalAccessStatus,
+    DeviceId,
+    DeviceName,
+    OperatingSystem,
+    Browser,
+    IsManaged,
+    IsCompliant,
+    TrustType,
+    RiskLevelDuringSignIn,
+    RiskState
+| project
+    LastSeen,
+    FirstSeen,
+    SignInRecords,
+    ResultType,
+    IPAddress,
+    Country,
+    City,
+    AutonomousSystemNumber,
+    AppDisplayName,
+    ResourceDisplayName,
+    ClientAppUsed,
+    AuthenticationProtocol,
+    ConditionalAccessStatus,
+    DeviceId,
+    DeviceName,
+    OperatingSystem,
+    Browser,
+    IsManaged,
+    IsCompliant,
+    TrustType,
+    RiskLevelDuringSignIn,
+    RiskState
+| order by LastSeen desc, SignInRecords desc

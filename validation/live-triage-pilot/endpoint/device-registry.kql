@@ -1,0 +1,68 @@
+// name:              Device registry chronology
+// purpose:           Show bounded registry evidence for one device with result-integrity and matched-device context.
+// starting_entities: Exact endpoint DeviceName already available in the incident
+// required_tables:   DeviceRegistryEvents
+// optional_tables:   None
+// variables:         TargetDevice, StartTime, EndTime
+// time_window:       Default 2h ending at query execution; change StartTime and EndTime together only when the investigation scope requires
+// done_criteria:     Registry evidence exposes state, process instance, expected rows, time span, and matched devices
+// artifact_type:     investigation
+// output_type:       analysis
+
+let TargetDevice = "";
+let EndTime = now();
+let StartTime = EndTime - 2h;
+let TargetIsFQDN = TargetDevice contains ".";
+let Evidence = materialize(
+    DeviceRegistryEvents
+    | where TimeGenerated between (StartTime .. EndTime)
+    | where isnotempty(TargetDevice)
+    | where DeviceName =~ TargetDevice or (TargetIsFQDN == false and DeviceName startswith strcat(TargetDevice, ".")));
+let _RowsInBound = toscalar(Evidence | count);
+let _FirstEventInBound = toscalar(Evidence | summarize min(TimeGenerated));
+let _LastEventInBound = toscalar(Evidence | summarize max(TimeGenerated));
+let _MatchedDeviceNames = toscalar(Evidence | summarize make_set(DeviceName));
+let _MatchedDeviceIds = toscalar(Evidence | summarize make_set_if(DeviceId, isnotempty(DeviceId)));
+Evidence
+| extend RowsInBound=_RowsInBound, FirstEventInBound=_FirstEventInBound, LastEventInBound=_LastEventInBound,
+         MatchedDeviceNameCount=array_length(_MatchedDeviceNames), MatchedDeviceNames=_MatchedDeviceNames,
+         MatchedDeviceIdCount=array_length(_MatchedDeviceIds), MatchedDeviceIds=_MatchedDeviceIds
+| project
+    RowsInBound,
+    FirstEventInBound,
+    LastEventInBound,
+    MatchedDeviceNameCount,
+    MatchedDeviceNames,
+    MatchedDeviceIdCount,
+    MatchedDeviceIds,
+    TimeGenerated,
+    DeviceName,
+    DeviceId,
+    ActionType,
+    RegistryKey,
+    RegistryValueName,
+    RegistryValueData,
+    RegistryValueType,
+    PreviousRegistryKey,
+    PreviousRegistryValueName,
+    PreviousRegistryValueData,
+    InitiatingProcessAccountUpn,
+    InitiatingProcessAccountName,
+    InitiatingProcessAccountDomain,
+    InitiatingProcessFileName,
+    InitiatingProcessFolderPath,
+    InitiatingProcessCommandLine,
+    InitiatingProcessId,
+    InitiatingProcessCreationTime,
+    InitiatingProcessUniqueId,
+    InitiatingProcessIntegrityLevel,
+    InitiatingProcessTokenElevation,
+    InitiatingProcessSHA1,
+    InitiatingProcessSHA256,
+    InitiatingProcessParentFileName,
+    InitiatingProcessParentId,
+    IsInitiatingProcessRemoteSession,
+    InitiatingProcessRemoteSessionIP,
+    InitiatingProcessRemoteSessionDeviceName,
+    ReportId
+| order by TimeGenerated desc, ReportId desc

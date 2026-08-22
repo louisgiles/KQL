@@ -1,4 +1,4 @@
-# KQL validation — local smoke test
+# KQL validation - local smoke test
 
 A small .NET console tool that parses every `.kql` file in the repo
 and reports any grammar / parse errors. Used as a pre-commit / pre-PR
@@ -10,8 +10,8 @@ sanity check so a broken file cannot land silently.
   `Microsoft.Azure.Kusto.Language` library (the same parser used by
   the Sentinel / Azure Data Explorer editor). If the file is not
   well-formed Kusto, it fails.
-- The contract header (`// name:`, `// purpose:`, …) is just KQL
-  line comments — the parser accepts them transparently.
+- The contract header (`// name:`, `// purpose:`, and related fields) is just KQL
+  line comments - the parser accepts them transparently.
 
 ## What it does NOT check
 
@@ -20,23 +20,22 @@ cannot, validate any of the following:
 
 - **Table existence.** Every reference to `SigninLogs`, `AuditLogs`,
   `OfficeActivity`, `DeviceProcessEvents`, etc. is accepted without
-  question — there is no live workspace attached.
+  question - there is no live workspace attached.
 - **Column existence.** Every reference to a column on those tables
   is accepted without question.
 - **Type correctness.** Joins, summarises, projects, and case
   expressions are not type-checked against any schema.
 - **Unbound `let` variables.** Every query in this repo opens with a
   `let`-block of analyst-supplied placeholders (`UserIdentityCheck`,
-  `AlertTime`, `ActorToCheck`, …). The harness ignores the fact that
+  `AlertTime`, `ActorToCheck`, and similar variables). The harness ignores the fact that
   these are empty strings or future-dated defaults.
 - **Runtime semantics.** A query that parses successfully here may
   still produce zero rows or runtime errors against a real workspace.
   That is a different category of test and lives outside this repo.
 
-If you need true semantic validation you would have to point the
-parser at a `GlobalState` populated with the tenant's schema. That is
-deliberately out of scope — it would couple this repo to a specific
-tenant and would not work as an offline / CI check.
+For active investigation KQL, semantic and analyst validation is mandatory and
+is defined in [`live-investigation-standard.md`](live-investigation-standard.md).
+The offline parser remains a preflight check only.
 
 ## How to run it
 
@@ -57,7 +56,7 @@ from any working directory inside the tree.
 ## Reading the output
 
 ```
-KQL smoke test — root: /home/user/KQL
+KQL smoke test - root: /home/user/KQL
 Files: 21 (scratchpad/ excluded)
 ------------------------------------------------------------------------
 PASS  01-sign-in/deep-dive.kql
@@ -81,15 +80,15 @@ Total: 21   Pass: 20   Fail: 1
 
 The harness skips:
 
-- `scratchpad/` — exempt from the family contract by design, may
+- `scratchpad/` - exempt from the family contract by design, may
   contain rough / in-progress queries.
-- `bin/`, `obj/`, `.git/`, `node_modules/` — never source.
+- `bin/`, `obj/`, `.git/`, `node_modules/` - never source.
 
 ## Where it lives
 
-- `tests/kql-smoke/` — the .NET console tool.
-- `scripts/test-kql.ps1` — PowerShell wrapper.
-- `.github/workflows/kql-smoke.yml` — optional CI runner.
+- `tests/kql-smoke/` - the .NET console tool.
+- `scripts/test-kql.ps1` - PowerShell wrapper.
+- `.github/workflows/kql-smoke.yml` - optional CI runner.
 
 ## Updating the parser version
 

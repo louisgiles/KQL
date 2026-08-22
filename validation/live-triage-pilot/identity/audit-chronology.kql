@@ -1,0 +1,66 @@
+// name:              Audit chronology
+// purpose:           Show directory audit operations where one user was the initiator or appeared in the affected targets.
+// starting_entities: Exact user principal name; optional exact Entra object ID when present in the incident
+// required_tables:   AuditLogs
+// optional_tables:   none
+// variables:         TargetUPN, TargetObjectId, Lookback
+// time_window:       Default 48h ending now
+// done_criteria:     Actor, operation, result, targets, modified properties, and correlation identifiers are visible in time order
+// artifact_type:     investigation
+// output_type:       quick-triage
+
+let TargetUPN = "";
+let TargetObjectId = "";
+let Lookback = 48h;
+let Audits = materialize(
+    AuditLogs
+    | where TimeGenerated >= ago(Lookback)
+    | where isnotempty(TargetUPN) or isnotempty(TargetObjectId)
+    | extend EventTime = coalesce(ActivityDateTime, TimeGenerated), Initiator = todynamic(InitiatedBy)
+    | extend
+        ActorUPN = tostring(Initiator.user.userPrincipalName), ActorUserId = tostring(Initiator.user.id),
+        ActorIPAddress = tostring(Initiator.user.ipAddress), ActorApp = tostring(Initiator.app.displayName),
+        ActorAppId = tostring(Initiator.app.appId), ActorServicePrincipalId = tostring(Initiator.app.servicePrincipalId)
+    | mv-apply Target = TargetResources on (
+        summarize TargetUPNMatches=countif(isnotempty(TargetUPN) and tostring(Target.userPrincipalName) =~ TargetUPN),
+                  TargetIdMatches=countif(isnotempty(TargetObjectId) and tostring(Target.id) =~ TargetObjectId)
+        )
+    | extend IsInitiator = (isnotempty(TargetUPN) and ActorUPN =~ TargetUPN)
+                           or (isnotempty(TargetObjectId) and ActorUserId =~ TargetObjectId),
+             IsTarget = TargetUPNMatches > 0 or TargetIdMatches > 0
+    | where IsInitiator or IsTarget
+    | project TimeGenerated, EventTime, ActivityDisplayName, OperationName, AADOperationType, Category,
+              LoggedByService, Result, ResultReason, ActorUPN, ActorUserId, ActorIPAddress,
+              ActorApp, ActorAppId, ActorServicePrincipalId, IsInitiator, IsTarget,
+              TargetResources, AdditionalDetails, CorrelationId, Id);
+let _RowsInBound = toscalar(Audits | count);
+let _FirstEventInBound = toscalar(Audits | summarize min(EventTime));
+let _LastEventInBound = toscalar(Audits | summarize max(EventTime));
+Audits
+| extend RowsInBound=_RowsInBound, FirstEventInBound=_FirstEventInBound, LastEventInBound=_LastEventInBound
+| project
+    RowsInBound,
+    FirstEventInBound,
+    LastEventInBound,
+    EventTime,
+    LogCreatedTime = TimeGenerated,
+    ActivityDisplayName,
+    OperationName,
+    AADOperationType,
+    Category,
+    LoggedByService,
+    Result,
+    ResultReason,
+    ActorUPN,
+    ActorUserId,
+    ActorIPAddress,
+    ActorApp,
+    ActorAppId,
+    ActorServicePrincipalId,
+    IsInitiator,
+    IsTarget,
+    TargetResources,
+    AdditionalDetails,
+    CorrelationId,
+    AuditId = Id
+| order by EventTime desc, LogCreatedTime desc, AuditId asc

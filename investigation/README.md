@@ -1,87 +1,40 @@
 # Investigation
 
-Fresh, incident-led KQL built after the 2026-08-21 blank-slate reset.
-Nothing in this active tree was copied from `../archive/`.
+This is the operational surface for Microsoft Sentinel Log Analytics live
+triage.
 
-## Runtime status
+It is intentionally empty while the replacement queries complete exact-source
+actual-workspace validation. The previous generated pivots and device-code modules were
+removed because none qualified for live use.
 
-The repository parser is grammar-only. An active query is not operationally
-ready until its exact source has compiled and executed in the intended
-Sentinel Log Analytics workspace. Until that evidence is recorded, use the
-[`archived investigation launcher`](../archive/) when a preserved workbench
-better matches the incident.
+## What active means
 
-## Fastest path
+A file may enter this directory only when it meets
+[`docs/live-investigation-standard.md`](../docs/live-investigation-standard.md):
 
-1. Run an active rapid-decision module first only when its exact version has
-   passed Sentinel runtime validation in the workspace.
-2. If a preserved family matches the incident, open its quick or deep dive
-   directly from the [`archive launcher`](../archive/).
-3. Use [`pivots/`](pivots/) only for a narrower question that the family
-   workbench does not answer.
-4. Confirm the primary event and immediate blast radius.
-5. Run [`timeline/correlated-context.kql`](timeline/correlated-context.kql)
-   only when a short identity, endpoint, Microsoft 365, and Azure sequence will
-   change containment scope.
-6. Stop when the output supports containment, closure, or a specific next
-   question. Do not run every query by default.
+- it runs in the Sentinel Log Analytics blade;
+- it starts from an entity already visible in the incident;
+- it answers one investigative question;
+- it uses a meaningful bounded window based on `now()` and `ago()`;
+- it preserves the full bounded result or makes coverage explicit;
+- it has no hidden row cap;
+- it uses stable, readable evidence columns;
+- its exact committed content has passed repeated zero-repair execution in the
+  actual Sentinel Log Analytics workspace and the analyst has approved the grid.
 
-## Active modules
+Parser success is not operational validation.
 
-| Module | Purpose |
-| --- | --- |
-| [`identity/device-code/`](identity/device-code/) | Quick rapid decision plus deep post-authentication and exact-IP campaign scope. Tenant runtime validation remains outstanding. |
-| [`pivots/`](pivots/) | Small actor, IP, device, session, and process candidates. Endpoint and session branches require Sentinel schema validation. |
-| [`timeline/`](timeline/) | A bounded cross-domain timeline candidate. Endpoint branches require Sentinel schema validation. |
+Promotion is also blocked until repository rules require the KQL smoke job and
+final-head code-owner approval. CODEOWNERS declarations alone do not enforce
+those protections.
 
-## Rapid-decision coverage
+## Current validation work
 
-**1 of 10 implemented. 9 remaining. Runtime validation is tracked separately.**
+Quarantined identity, audit, and endpoint design samples live under
+[`validation/live-triage-pilot/`](../validation/live-triage-pilot/). They are
+not approved for live-incident testing or active use. Initial tests must use
+completed incidents or controlled cases in the actual workspace.
 
-| Decision | Status |
-| --- | --- |
-| Suspicious device-code authentication | Implemented in [`identity/device-code/`](identity/device-code/); tenant runtime validation outstanding. |
-| Remaining high-frequency malicious investigation classes | 9 not yet implemented. |
-
-The remaining nine classes must be explicitly named and prioritised before
-implementation. They are not inferred from archived queries or generic alert
-categories.
-
-## Pivot and timeline output contract
-
-General pivots and the correlated timeline return these core columns:
-
-| Column | Meaning |
-| --- | --- |
-| `EventTime` | Exact event time or the supplied anchor for a status row. |
-| `EvidenceType` | `status`, `identity`, `cloud`, `m365`, `endpoint`, or a narrower subtype. |
-| `Entity` | Primary entity represented by the row. |
-| `RelatedEntity` | Most useful adjacent pivot. |
-| `Summary` | Compact factual description. |
-| `Evidence` | Bounded structured details needed to verify the summary. |
-| `Decision` | `Review required` or `Suspicious / escalate`; no automatic benign conclusion. |
-| `NextAction` | The next containment or evidence step. |
-
-Each general query emits an explicit status row for invalid input and for no
-matching telemetry. Row-limited queries also emit a truncation row. Missing
-telemetry is never reported as benign evidence.
-
-Rapid-decision modules may instead return a compact one-row determination
-contract documented in their local README. They must still expose invalid
-scope, missing coverage, decisive evidence, and the immediate next action.
-
-## Design boundary
-
-- These are investigation queries, not population hunts or detections.
-- Default windows are incident-sized. Longer prevalence and baseline checks
-  are explicit follow-on work.
-- Queries are independently runnable and do not depend on hidden fragments.
-- The three-query device-code investigation path is active. The AiTM and
-  malware playbooks remain queued tasks.
-- Babbler and agentic one-shot logic belongs in `louisgiles/oneshots`.
-
-## Validation
-
-All runnable files follow `../repo-contract.md` and are covered by the
-repository KQL parser smoke test. Parser success does not prove table presence,
-schema compatibility, runtime performance, or decision accuracy in a tenant.
+The top-level archive is historical reference material. It is not a fallback
+for live investigation and nothing there is approved for activation without a
+new review and exact-source actual-workspace validation.

@@ -1,0 +1,97 @@
+// name:              Endpoint telemetry coverage
+// purpose:           Show whether each core MDE endpoint table contains telemetry for one device across the complete live-triage window.
+// starting_entities: Exact endpoint DeviceName already available in the incident
+// required_tables:   At least one of DeviceEvents, DeviceProcessEvents, DeviceNetworkEvents, DeviceFileEvents, DeviceLogonEvents, DeviceRegistryEvents
+// optional_tables:   Any remaining declared endpoint table; an unavailable source is shown explicitly
+// variables:         TargetDevice, StartTime, EndTime
+// time_window:       Default 24h ending at query execution; change StartTime and EndTime together only when the investigation scope requires
+// done_criteria:     Input validity, matched device identities, and each expected source's coverage state are visible
+// artifact_type:     investigation
+// output_type:       analysis
+
+let TargetDevice = "";
+let EndTime = now();
+let StartTime = EndTime - 24h;
+let TargetIsFQDN = TargetDevice contains ".";
+let ExpectedTables = datatable(TableName:string)
+[
+    "DeviceEvents",
+    "DeviceProcessEvents",
+    "DeviceNetworkEvents",
+    "DeviceFileEvents",
+    "DeviceLogonEvents",
+    "DeviceRegistryEvents"
+];
+let Coverage = materialize(
+    union isfuzzy=true
+        (
+            DeviceEvents
+            | where TimeGenerated between (StartTime .. EndTime)
+            | where isnotempty(TargetDevice)
+            | where DeviceName =~ TargetDevice or (TargetIsFQDN == false and DeviceName startswith strcat(TargetDevice, "."))
+            | summarize EventCount=count(), FirstEvent=min(TimeGenerated), LastEvent=max(TimeGenerated), MatchedDeviceNames=make_set(DeviceName), MatchedDeviceIds=make_set_if(DeviceId, isnotempty(DeviceId))
+            | extend TableName="DeviceEvents", SourceResolved=true
+        ),
+        (
+            DeviceProcessEvents
+            | where TimeGenerated between (StartTime .. EndTime)
+            | where isnotempty(TargetDevice)
+            | where DeviceName =~ TargetDevice or (TargetIsFQDN == false and DeviceName startswith strcat(TargetDevice, "."))
+            | summarize EventCount=count(), FirstEvent=min(TimeGenerated), LastEvent=max(TimeGenerated), MatchedDeviceNames=make_set(DeviceName), MatchedDeviceIds=make_set_if(DeviceId, isnotempty(DeviceId))
+            | extend TableName="DeviceProcessEvents", SourceResolved=true
+        ),
+        (
+            DeviceNetworkEvents
+            | where TimeGenerated between (StartTime .. EndTime)
+            | where isnotempty(TargetDevice)
+            | where DeviceName =~ TargetDevice or (TargetIsFQDN == false and DeviceName startswith strcat(TargetDevice, "."))
+            | summarize EventCount=count(), FirstEvent=min(TimeGenerated), LastEvent=max(TimeGenerated), MatchedDeviceNames=make_set(DeviceName), MatchedDeviceIds=make_set_if(DeviceId, isnotempty(DeviceId))
+            | extend TableName="DeviceNetworkEvents", SourceResolved=true
+        ),
+        (
+            DeviceFileEvents
+            | where TimeGenerated between (StartTime .. EndTime)
+            | where isnotempty(TargetDevice)
+            | where DeviceName =~ TargetDevice or (TargetIsFQDN == false and DeviceName startswith strcat(TargetDevice, "."))
+            | summarize EventCount=count(), FirstEvent=min(TimeGenerated), LastEvent=max(TimeGenerated), MatchedDeviceNames=make_set(DeviceName), MatchedDeviceIds=make_set_if(DeviceId, isnotempty(DeviceId))
+            | extend TableName="DeviceFileEvents", SourceResolved=true
+        ),
+        (
+            DeviceLogonEvents
+            | where TimeGenerated between (StartTime .. EndTime)
+            | where isnotempty(TargetDevice)
+            | where DeviceName =~ TargetDevice or (TargetIsFQDN == false and DeviceName startswith strcat(TargetDevice, "."))
+            | summarize EventCount=count(), FirstEvent=min(TimeGenerated), LastEvent=max(TimeGenerated), MatchedDeviceNames=make_set(DeviceName), MatchedDeviceIds=make_set_if(DeviceId, isnotempty(DeviceId))
+            | extend TableName="DeviceLogonEvents", SourceResolved=true
+        ),
+        (
+            DeviceRegistryEvents
+            | where TimeGenerated between (StartTime .. EndTime)
+            | where isnotempty(TargetDevice)
+            | where DeviceName =~ TargetDevice or (TargetIsFQDN == false and DeviceName startswith strcat(TargetDevice, "."))
+            | summarize EventCount=count(), FirstEvent=min(TimeGenerated), LastEvent=max(TimeGenerated), MatchedDeviceNames=make_set(DeviceName), MatchedDeviceIds=make_set_if(DeviceId, isnotempty(DeviceId))
+            | extend TableName="DeviceRegistryEvents", SourceResolved=true
+        ));
+let MatchedNames = Coverage | mv-expand DeviceName=MatchedDeviceNames to typeof(string) | where isnotempty(DeviceName) | summarize by DeviceName;
+let MatchedIds = Coverage | mv-expand DeviceId=MatchedDeviceIds to typeof(string) | where isnotempty(DeviceId) | summarize by DeviceId;
+let MatchedDeviceNameCount = toscalar(MatchedNames | count);
+let MatchedDeviceIdCount = toscalar(MatchedIds | count);
+let AllMatchedDeviceNames = toscalar(MatchedNames | summarize make_set(DeviceName));
+let AllMatchedDeviceIds = toscalar(MatchedIds | summarize make_set(DeviceId));
+ExpectedTables
+| join kind=leftouter Coverage on TableName
+| extend
+    SourceStatus = case(
+        isempty(TargetDevice), "INVALID INPUT",
+        isnull(SourceResolved), "TABLE UNAVAILABLE",
+        MatchedDeviceNameCount > 1 or MatchedDeviceIdCount > 1, "AMBIGUOUS DEVICE MATCH",
+        EventCount == 0, "NO EVENTS FOR DEVICE",
+        "DATA PRESENT"
+    ),
+    EventCount = coalesce(EventCount, 0),
+    Freshness = EndTime - LastEvent
+| project TableName, SourceStatus, EventCount, FirstEvent, LastEvent, Freshness,
+          MatchedDeviceNameCount, MatchedDeviceNames=AllMatchedDeviceNames,
+          MatchedDeviceIdCount, MatchedDeviceIds=AllMatchedDeviceIds,
+          WindowStart=StartTime, WindowEnd=EndTime
+| order by TableName asc

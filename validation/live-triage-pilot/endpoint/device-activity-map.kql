@@ -1,0 +1,97 @@
+// name:              Endpoint activity map
+// purpose:           Show the full 24h distribution of endpoint activity by source table so an analyst can select a meaningful raw-evidence interval.
+// starting_entities: Exact endpoint DeviceName already available in the incident
+// required_tables:   At least one of DeviceEvents, DeviceProcessEvents, DeviceNetworkEvents, DeviceFileEvents, DeviceLogonEvents, DeviceRegistryEvents
+// optional_tables:   Any remaining declared endpoint table; an empty or unavailable source remains unknown in this draft
+// variables:         TargetDevice, StartTime, EndTime
+// time_window:       Default 24h ending at query execution; 15m visual buckets preserve the complete bounded window
+// done_criteria:     Activity density and source coverage are visible across the complete window without a raw-row cap
+// artifact_type:     investigation
+// output_type:       analysis
+
+let TargetDevice = "";
+let EndTime = now();
+let StartTime = EndTime - 24h;
+let TargetIsFQDN = TargetDevice contains ".";
+let ExpectedTables = datatable(TableName:string)
+[
+    "DeviceEvents",
+    "DeviceProcessEvents",
+    "DeviceNetworkEvents",
+    "DeviceFileEvents",
+    "DeviceLogonEvents",
+    "DeviceRegistryEvents"
+];
+let TimeBuckets = range TimeBucket from bin(StartTime, 15m) to bin(EndTime, 15m) step 15m;
+let RawActivity = materialize(
+    union isfuzzy=true
+        (
+            DeviceEvents
+            | where TimeGenerated between (StartTime .. EndTime)
+            | where isnotempty(TargetDevice)
+            | where DeviceName =~ TargetDevice or (TargetIsFQDN == false and DeviceName startswith strcat(TargetDevice, "."))
+            | project TimeGenerated, TableName="DeviceEvents", ActionType, DeviceName, DeviceId
+        ),
+        (
+            DeviceProcessEvents
+            | where TimeGenerated between (StartTime .. EndTime)
+            | where isnotempty(TargetDevice)
+            | where DeviceName =~ TargetDevice or (TargetIsFQDN == false and DeviceName startswith strcat(TargetDevice, "."))
+            | project TimeGenerated, TableName="DeviceProcessEvents", ActionType, DeviceName, DeviceId
+        ),
+        (
+            DeviceNetworkEvents
+            | where TimeGenerated between (StartTime .. EndTime)
+            | where isnotempty(TargetDevice)
+            | where DeviceName =~ TargetDevice or (TargetIsFQDN == false and DeviceName startswith strcat(TargetDevice, "."))
+            | project TimeGenerated, TableName="DeviceNetworkEvents", ActionType, DeviceName, DeviceId
+        ),
+        (
+            DeviceFileEvents
+            | where TimeGenerated between (StartTime .. EndTime)
+            | where isnotempty(TargetDevice)
+            | where DeviceName =~ TargetDevice or (TargetIsFQDN == false and DeviceName startswith strcat(TargetDevice, "."))
+            | project TimeGenerated, TableName="DeviceFileEvents", ActionType, DeviceName, DeviceId
+        ),
+        (
+            DeviceLogonEvents
+            | where TimeGenerated between (StartTime .. EndTime)
+            | where isnotempty(TargetDevice)
+            | where DeviceName =~ TargetDevice or (TargetIsFQDN == false and DeviceName startswith strcat(TargetDevice, "."))
+            | project TimeGenerated, TableName="DeviceLogonEvents", ActionType, DeviceName, DeviceId
+        ),
+        (
+            DeviceRegistryEvents
+            | where TimeGenerated between (StartTime .. EndTime)
+            | where isnotempty(TargetDevice)
+            | where DeviceName =~ TargetDevice or (TargetIsFQDN == false and DeviceName startswith strcat(TargetDevice, "."))
+            | project TimeGenerated, TableName="DeviceRegistryEvents", ActionType, DeviceName, DeviceId
+        ));
+let MatchedNames = RawActivity | where isnotempty(DeviceName) | summarize by DeviceName;
+let MatchedIds = RawActivity | where isnotempty(DeviceId) | summarize by DeviceId;
+let MatchedDeviceNameCount = toscalar(MatchedNames | count);
+let MatchedDeviceIdCount = toscalar(MatchedIds | count);
+let MatchedDeviceNames = toscalar(MatchedNames | summarize make_set(DeviceName));
+let MatchedDeviceIds = toscalar(MatchedIds | summarize make_set(DeviceId));
+let Activity =
+    RawActivity
+    | summarize EventCount=count(), ApproxActionTypeCount=dcount(ActionType),
+                FirstEvent=min(TimeGenerated), LastEvent=max(TimeGenerated)
+      by TableName, TimeBucket=bin(TimeGenerated, 15m);
+TimeBuckets
+| extend JoinKey=1
+| join kind=inner (ExpectedTables | extend JoinKey=1) on JoinKey
+| project TimeBucket, TableName
+| join kind=leftouter Activity on TimeBucket, TableName
+| extend
+    SourceStatus = case(
+        isempty(TargetDevice), "INVALID INPUT",
+        MatchedDeviceNameCount > 1 or MatchedDeviceIdCount > 1, "AMBIGUOUS DEVICE MATCH",
+        isnull(EventCount), "NO EVENTS IN BUCKET OR TABLE UNAVAILABLE",
+        "DATA PRESENT"),
+    EventCount = coalesce(EventCount, 0),
+    ApproxActionTypeCount = coalesce(ApproxActionTypeCount, 0)
+| project TimeBucket, TableName, EventCount, FirstEvent, LastEvent, ApproxActionTypeCount, SourceStatus,
+          MatchedDeviceNameCount, MatchedDeviceNames, MatchedDeviceIdCount, MatchedDeviceIds,
+          WindowStart=StartTime, WindowEnd=EndTime
+| order by TimeBucket asc, TableName asc
