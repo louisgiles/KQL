@@ -1,15 +1,21 @@
 # KQL
 
-A personal, incident-ready KQL library for SOC investigation, threat hunting,
+A personal KQL workbench for SOC investigation, threat hunting,
 threat research, and detection engineering in Microsoft Sentinel and Defender.
+
+> **Operational stop:** active placement does not mean incident-ready. Only an
+> exact file SHA marked `passed` in
+> [`validation/sentinel-live.json`](validation/sentinel-live.json) may be used
+> as a validated query. Every current active query is pending or failed as of
+> 2026-08-22.
 
 ## Design principles
 
-1. **Clarity** — live environments are loud; queries should expose the evidence that changes the decision.
-2. **Minimalism** — use the smallest query that answers the investigative question.
-3. **Speed** — keep time windows and table scans bounded.
-4. **Humility** — make uncertainty and missing coverage visible.
-5. **Concision** — prefer compact, decision-oriented output over raw event dumps.
+1. **Clarity:** live environments are loud; queries should expose the evidence that changes the decision.
+2. **Minimalism:** use the smallest query that answers the investigative question.
+3. **Speed:** keep time windows and table scans bounded.
+4. **Humility:** make uncertainty and missing coverage visible.
+5. **Concision:** prefer compact, decision-oriented output over raw event dumps.
 
 ## Active v2 entry points
 
@@ -30,7 +36,8 @@ The archive is accessible reference material, not a runtime-readiness claim.
 The active `threat-work/` tree contains the audited threat-hunt, research,
 and detection-engineering material migrated from the legacy roots. The active
 `investigation/` tree now provides fresh actor, IP, device, session, process,
-and correlated-timeline entry points built after the blank-slate reset.
+and correlated-timeline candidates built after the blank-slate reset.
+Operational state comes only from the live-validation manifest.
 
 ## Choose the right area
 
@@ -77,11 +84,14 @@ Runnable queries use the `.kql` extension and are syntax-checked with:
 
 ```powershell
 pwsh ./scripts/test-kql.ps1
+python3 ./scripts/lint-kql-runtime-literals.py .
+python3 ./scripts/check-sentinel-live-validation.py . --all
 ```
 
-The smoke test is grammar-only. Table availability, schema coverage, runtime
-semantics, and analyst decisions still require validation against the intended
-environment.
+The parser and static lint are preflight checks only. A new or changed KQL file
+must execute successfully in its declared surface, then receive a
+content-bound live-validation record before it can be pushed or merged as
+usable. Any content change invalidates the record.
 
 This is a personal reference library rather than an open-source project. All
 work is my own; feel free to fork and adapt it for your environment.

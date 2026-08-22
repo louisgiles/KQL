@@ -5,42 +5,44 @@ Nothing in this active tree was copied from `../archive/`.
 
 ## Runtime status
 
-The repository parser is grammar-only. An active query is not operationally
-ready until its exact source has compiled and executed in the intended
-Sentinel Log Analytics workspace. Until that evidence is recorded, use the
-[`archived investigation launcher`](../archive/) when a preserved workbench
-better matches the incident.
+> **Operational stop:** none of these files currently has a `passed`
+> exact-content receipt in `../validation/sentinel-live.json`. Do not use a
+> pending or failed file in a live incident. The repository parser and static
+> lint are preflight checks only.
 
 ## Fastest path
 
-1. Run an active rapid-decision module first only when its exact version has
-   passed Sentinel runtime validation in the workspace.
-2. If a preserved family matches the incident, open its quick or deep dive
-   directly from the [`archive launcher`](../archive/).
-3. Use [`pivots/`](pivots/) only for a narrower question that the family
-   workbench does not answer.
-4. Confirm the primary event and immediate blast radius.
-5. Run [`timeline/correlated-context.kql`](timeline/correlated-context.kql)
+1. Confirm the selected file is marked `passed` for its exact SHA in the
+   live-validation manifest.
+2. If the incident matches a validated rapid-decision module, run that module
+   first.
+3. If a preserved family better matches the incident, use the
+   [`archived investigation launcher`](../archive/) only after reviewing its
+   compatibility status.
+4. Otherwise use one supplied entity in [`pivots/`](pivots/) only after that
+   exact file is validated.
+5. Confirm the primary event and immediate blast radius.
+6. Run [`timeline/correlated-context.kql`](timeline/correlated-context.kql)
    only when a short identity, endpoint, Microsoft 365, and Azure sequence will
-   change containment scope.
-6. Stop when the output supports containment, closure, or a specific next
+   change containment scope and the exact file is validated.
+7. Stop when the output supports containment, closure, or a specific next
    question. Do not run every query by default.
 
 ## Active modules
 
-| Module | Purpose |
-| --- | --- |
-| [`identity/device-code/`](identity/device-code/) | Implemented one-row rapid containment candidate. Tenant runtime validation remains outstanding. |
-| [`pivots/`](pivots/) | Small actor, IP, device, session, and process candidates. Endpoint and session branches require Sentinel schema validation. |
-| [`timeline/`](timeline/) | A bounded cross-domain timeline candidate. Endpoint branches require Sentinel schema validation. |
+| Module | Current state | Purpose |
+| --- | --- | --- |
+| [`identity/device-code/`](identity/device-code/) | Pending live rerun | One-row rapid containment decision for a suspicious direct device-code sign-in. |
+| [`pivots/`](pivots/) | Failed or pending | Small actor, IP, device, session, and process entry points. |
+| [`timeline/`](timeline/) | Failed | A bounded cross-domain timeline for already-scoped incidents. |
 
 ## Rapid-decision coverage
 
-**1 of 10 implemented. 9 remaining. Runtime validation is tracked separately.**
+**1 of 10 implemented. 0 of 10 live-validated. 9 remain unimplemented.**
 
 | Decision | Status |
 | --- | --- |
-| Suspicious device-code authentication | Implemented in [`identity/device-code/`](identity/device-code/); tenant runtime validation outstanding. |
+| Suspicious device-code authentication | Implemented, corrected, and awaiting exact-content Sentinel validation. |
 | Remaining high-frequency malicious investigation classes | 9 not yet implemented. |
 
 The remaining nine classes must be explicitly named and prioritised before
@@ -76,12 +78,14 @@ scope, missing coverage, decisive evidence, and the immediate next action.
 - Default windows are incident-sized. Longer prevalence and baseline checks
   are explicit follow-on work.
 - Queries are independently runnable and do not depend on hidden fragments.
-- The device-code rapid decision is active. The broader universal device-code
+- The device-code rapid decision is a candidate. The broader universal device-code
   playbook and the AiTM and malware playbooks remain queued tasks.
 - Babbler and agentic one-shot logic belongs in `louisgiles/oneshots`.
 
 ## Validation
 
-All runnable files follow `../repo-contract.md` and are covered by the
-repository KQL parser smoke test. Parser success does not prove table presence,
-schema compatibility, runtime performance, or decision accuracy in a tenant.
+The parser and static lint are preflight only. Operational status is determined
+solely by `../validation/sentinel-live.json`. The 2026-08-22 audit found
+deterministic Sentinel blockers in the device, IP, process, session, timeline,
+and device-code files. No file in this directory may be represented as usable
+until its exact SHA is marked `passed`.

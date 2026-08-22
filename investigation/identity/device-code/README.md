@@ -4,10 +4,14 @@ Use this module when a Microsoft Entra sign-in alert indicates a suspicious
 direct device-code authentication flow and the analyst needs a containment
 decision quickly.
 
+> **Status:** pending exact-content validation in the Microsoft Sentinel Log
+> Analytics blade. Do not use this candidate as an incident-ready query until
+> `validation/sentinel-live.json` marks its exact Git blob SHA as `passed`.
+
 ## Programme status
 
-This is rapid containment decision **1 of 10**. The device-code decision is
-complete and **9 decisions remain**.
+This is rapid containment decision **1 of 10 implemented**. It is not yet
+live-validated, and **9 decisions remain unimplemented**.
 
 This count measures implemented rapid-decision coverage. It does not mark the
 broader universal device-code playbook or tenant runtime validation complete.
@@ -139,6 +143,7 @@ Static review is not a Sentinel runtime guarantee. Before production use, run:
 ```powershell
 pwsh ./scripts/test-kql.ps1
 python3 ./scripts/lint-kql-runtime-literals.py .
+python3 ./scripts/check-sentinel-live-validation.py . --files investigation/identity/device-code/rapid-decision.kql
 ```
 
 The runtime-literal lint rejects unsupported `format_datetime()` tokens in
@@ -149,7 +154,8 @@ Then compile and execute expected-looking, suspicious, partial-coverage,
 Broker to DRS, GSA, duplicate-flow, and failed-flow cases in a representative
 Sentinel workspace. Record complete-query P95 runtime and calibrate the exposed
 thresholds. Do not present the query as production-ready until actual Sentinel
-compilation and execution have passed.
+compilation and execution have passed and the exact SHA has a `passed`
+manifest receipt.
 
 Primary references:
 

@@ -1,0 +1,4 @@
+/.github/workflows/kql-smoke.yml @louisgiles
+/scripts/check-sentinel-live-validation.py @louisgiles
+/scripts/lint-kql-runtime-literals.py @louisgiles
+/validation/ @louisgiles
