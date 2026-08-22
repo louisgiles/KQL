@@ -20,10 +20,10 @@ threat research, and detection engineering in Microsoft Sentinel and Defender.
 | [`threat-work/research/`](threat-work/research/) | Source-backed research and hunt or detection candidates. |
 | [`threat-work/detections/`](threat-work/detections/) | Reusable detection-engineering logic and production rule packages. |
 
-The active `threat-work/` tree now contains the audited threat-hunt, research,
-and detection-engineering material migrated from the legacy roots. The
-`investigation/` tree remains the canonical front door but is intentionally
-unpopulated until its separate objective-based migration task runs.
+The active `threat-work/` tree contains the audited threat-hunt, research,
+and detection-engineering material migrated from the legacy roots. The active
+`investigation/` tree now provides fresh actor, IP, device, session, process,
+and correlated-timeline entry points built after the blank-slate reset.
 
 ## Choose the right area
 
@@ -40,9 +40,10 @@ The authoritative requirements for active content are in
 
 ## Migration boundary
 
-The numbered investigation families plus `cross-family/` and `scratchpad/`
-remain frozen legacy locations pending their audited migration into
-`investigation/`.
+The former numbered investigation families, `cross-family/`, and `scratchpad/`
+are preserved beneath `archive/investigation-legacy-2026-08-21/`. Active
+`investigation/` content is implemented from current requirements rather than
+copied or promoted from the archive.
 
 The old `detectionlogic/` and `threathunting-research/` roots have been retired
 from active `main` after their useful content was consolidated beneath
