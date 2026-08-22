@@ -30,7 +30,7 @@ better matches the incident.
 
 | Module | Purpose |
 | --- | --- |
-| [`identity/device-code/`](identity/device-code/) | Implemented one-row rapid containment candidate. Tenant runtime validation remains outstanding. |
+| [`identity/device-code/`](identity/device-code/) | Quick rapid decision plus deep post-authentication and exact-IP campaign scope. Tenant runtime validation remains outstanding. |
 | [`pivots/`](pivots/) | Small actor, IP, device, session, and process candidates. Endpoint and session branches require Sentinel schema validation. |
 | [`timeline/`](timeline/) | A bounded cross-domain timeline candidate. Endpoint branches require Sentinel schema validation. |
 
@@ -76,8 +76,8 @@ scope, missing coverage, decisive evidence, and the immediate next action.
 - Default windows are incident-sized. Longer prevalence and baseline checks
   are explicit follow-on work.
 - Queries are independently runnable and do not depend on hidden fragments.
-- The device-code rapid decision is active. The broader universal device-code
-  playbook and the AiTM and malware playbooks remain queued tasks.
+- The three-query device-code investigation path is active. The AiTM and
+  malware playbooks remain queued tasks.
 - Babbler and agentic one-shot logic belongs in `louisgiles/oneshots`.
 
 ## Validation

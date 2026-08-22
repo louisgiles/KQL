@@ -1,0 +1,458 @@
+// name:              Device-Code Post-Authentication Scope
+// purpose:           Show token and session continuation plus identity, Microsoft 365, cloud-app, and Azure actions after one device-code sign-in.
+// starting_entities: Exact user UPN and sign-in event time; SigninLogs.Id, CorrelationId, and source IP are optional disambiguators.
+// required_tables:   SigninLogs
+// optional_tables:   AADNonInteractiveUserSignInLogs, AuditLogs, OfficeActivity, CloudAppEvents, AzureActivity
+// variables:         AlertTime, TargetUPN, TargetSignInId, TargetCorrelationId, TargetIPAddress, Lookback, Lookforward, MaxRows
+// time_window:       Default 15m before and 24h after AlertTime; maximum routine lookforward 48h
+// done_criteria:     Session or token continuation, affected apps and resources, post-authentication actions, and containment scope are explicit.
+// artifact_type:     investigation
+// output_type:       analysis
+
+let AlertTime = datetime(null);                 // required: actual UTC sign-in time
+let TargetUPN = "";                             // required: exact UPN
+let TargetSignInId = "";                        // optional: SigninLogs.Id; preferred
+let TargetCorrelationId = "";                   // optional
+let TargetIPAddress = "";                       // optional: exact IP
+let Lookback = 15m;
+let Lookforward = 24h;
+let MaxRows = 100;
+let AlertHalfWindow = 5m;
+let IngestionSlack = 1h;
+let CandidateLimit = MaxRows + 1;
+let NormalizedUPN = tolower(TargetUPN);
+let NormalizedSignInId = tolower(TargetSignInId);
+let NormalizedCorrelationId = tolower(TargetCorrelationId);
+let InputValid = isnotempty(NormalizedUPN)
+    and isnotnull(AlertTime)
+    and Lookback between (1m .. 24h)
+    and Lookforward between (1m .. 48h)
+    and MaxRows between (1 .. 500);
+let StartTime = AlertTime - Lookback;
+let EndTime = AlertTime + Lookforward;
+
+let AnchorCandidates = materialize(
+    SigninLogs
+    | where InputValid
+    | where TimeGenerated between
+        (AlertTime - AlertHalfWindow - IngestionSlack .. AlertTime + AlertHalfWindow + IngestionSlack)
+    | extend EventTime = coalesce(CreatedDateTime, TimeGenerated)
+    | where EventTime between (AlertTime - AlertHalfWindow .. AlertTime + AlertHalfWindow)
+    | where tolower(UserPrincipalName) == NormalizedUPN
+    | where AuthenticationProtocol =~ "deviceCode"
+    | extend
+        RowSignInId = tolower(tostring(Id)),
+        RowCorrelationId = tolower(tostring(CorrelationId)),
+        RowIPAddress = tostring(IPAddress),
+        ExactId = isnotempty(NormalizedSignInId) and RowSignInId == NormalizedSignInId,
+        ExactCorrelation = isnotempty(NormalizedCorrelationId) and RowCorrelationId == NormalizedCorrelationId,
+        ExactIP = isnotempty(TargetIPAddress) and RowIPAddress == TargetIPAddress,
+        DistanceSeconds = abs(datetime_diff("second", EventTime, AlertTime))
+    | where isempty(NormalizedSignInId) or ExactId
+    | where isempty(NormalizedCorrelationId) or ExactCorrelation
+    | where isempty(TargetIPAddress) or ExactIP
+    | extend AnchorRank = iff(ExactId, 1000, 0)
+        + iff(ExactCorrelation, 100, 0)
+        + iff(ExactIP, 10, 0)
+        + iff(tostring(ResultType) == "0", 1, 0)
+    | order by AnchorRank desc, DistanceSeconds asc, EventTime asc
+    | take 1
+    | project
+        AnchorEventTime = EventTime,
+        AnchorSignInId = tolower(tostring(Id)),
+        AnchorOriginalRequestId = tolower(tostring(OriginalRequestId)),
+        AnchorCorrelationId = tolower(tostring(CorrelationId)),
+        AnchorSessionId = tolower(tostring(SessionId)),
+        AnchorTokenId = tolower(tostring(UniqueTokenIdentifier)),
+        AnchorUserId = tolower(tostring(UserId)),
+        AnchorTenantId = tolower(tostring(AADTenantId)),
+        AnchorIPAddress = tostring(IPAddress),
+        AnchorApp = tostring(AppDisplayName),
+        AnchorResource = tostring(ResourceDisplayName),
+        AnchorResult = tostring(ResultType)
+);
+let AnchorFound = toscalar(AnchorCandidates | count) == 1;
+let AnchorEventTime = toscalar(AnchorCandidates | project AnchorEventTime);
+let AnchorSignInId = tostring(toscalar(AnchorCandidates | project AnchorSignInId));
+let AnchorOriginalRequestId = tostring(toscalar(AnchorCandidates | project AnchorOriginalRequestId));
+let AnchorCorrelationId = tostring(toscalar(AnchorCandidates | project AnchorCorrelationId));
+let AnchorSessionId = tostring(toscalar(AnchorCandidates | project AnchorSessionId));
+let AnchorTokenId = tostring(toscalar(AnchorCandidates | project AnchorTokenId));
+let AnchorUserId = tostring(toscalar(AnchorCandidates | project AnchorUserId));
+let AnchorTenantId = tostring(toscalar(AnchorCandidates | project AnchorTenantId));
+let AnchorIPAddress = tostring(toscalar(AnchorCandidates | project AnchorIPAddress));
+
+let EmptyEvidence = datatable(
+    EventTime:datetime,
+    EvidenceType:string,
+    SourceTable:string,
+    Actor:string,
+    SourceIP:string,
+    AppOrOperation:string,
+    ResourceOrTarget:string,
+    Result:string,
+    AssociationConfidence:string,
+    AssociationBasis:string,
+    Priority:string,
+    Summary:string,
+    Evidence:dynamic,
+    Decision:string,
+    NextAction:string,
+    SortOrder:int
+)[];
+
+let Candidates = materialize(
+    union isfuzzy=true
+        EmptyEvidence,
+        (
+            SigninLogs
+            | where AnchorFound and TimeGenerated between (StartTime - IngestionSlack .. EndTime + IngestionSlack)
+            | extend EventTime = coalesce(CreatedDateTime, TimeGenerated)
+            | where EventTime between (StartTime .. EndTime)
+            | where tolower(UserPrincipalName) == NormalizedUPN
+            | extend
+                EventSignInId = tolower(tostring(Id)),
+                EventRequestId = tolower(tostring(OriginalRequestId)),
+                EventCorrelationId = tolower(tostring(CorrelationId)),
+                EventSessionId = tolower(tostring(SessionId)),
+                EventTokenId = tolower(tostring(UniqueTokenIdentifier)),
+                SameToken = isnotempty(AnchorTokenId) and EventTokenId == AnchorTokenId,
+                SameSession = isnotempty(AnchorSessionId) and EventSessionId == AnchorSessionId,
+                SameRequest = isnotempty(AnchorOriginalRequestId) and EventRequestId == AnchorOriginalRequestId,
+                SameCorrelation = isnotempty(AnchorCorrelationId) and EventCorrelationId == AnchorCorrelationId,
+                SameIP = isnotempty(AnchorIPAddress) and tostring(IPAddress) == AnchorIPAddress
+            | where EventSignInId != AnchorSignInId
+            | where SameToken or SameSession or SameRequest or SameCorrelation or (SameIP and EventTime >= AnchorEventTime)
+            | extend
+                AssociationConfidence = case(SameToken or SameSession or SameRequest, "Exact", SameCorrelation, "High", "Contextual"),
+                AssociationBasis = case(
+                    SameToken, "UniqueTokenIdentifier",
+                    SameSession, "SessionId",
+                    SameRequest, "OriginalRequestId",
+                    SameCorrelation, "CorrelationId",
+                    "same user and exact source IP after anchor"),
+                IsSuccess = tostring(ResultType) == "0",
+                IsRisky = tolower(strcat(tostring(RiskLevelDuringSignIn), "/", tostring(RiskState))) has_any
+                    ("high", "medium", "atrisk", "confirmedcompromised")
+            | project
+                EventTime,
+                EvidenceType = "identity/interactive-continuation",
+                SourceTable = "SigninLogs",
+                Actor = tostring(UserPrincipalName),
+                SourceIP = tostring(IPAddress),
+                AppOrOperation = tostring(AppDisplayName),
+                ResourceOrTarget = tostring(ResourceDisplayName),
+                Result = iff(IsSuccess, "success", strcat("failure: ", tostring(ResultType))),
+                AssociationConfidence,
+                AssociationBasis,
+                Priority = case(IsRisky and IsSuccess, "critical", IsSuccess, "high", "review"),
+                Summary = strcat(
+                    "Interactive continuation to ", tostring(ResourceDisplayName),
+                    " via ", tostring(AppDisplayName), " returned ", tostring(ResultType)),
+                Evidence = pack(
+                    "sign_in_id", tostring(Id),
+                    "session_id", tostring(SessionId),
+                    "token_id", tostring(UniqueTokenIdentifier),
+                    "original_request_id", tostring(OriginalRequestId),
+                    "correlation_id", tostring(CorrelationId),
+                    "authentication_protocol", tostring(AuthenticationProtocol),
+                    "client_app", tostring(ClientAppUsed),
+                    "risk", strcat(tostring(RiskLevelDuringSignIn), "/", tostring(RiskState)),
+                    "conditional_access", tostring(ConditionalAccessStatus)),
+                Decision = iff(IsRisky and IsSuccess, "Suspicious / escalate", "Review required"),
+                NextAction = "Validate the app and resource access, then revoke or expand containment if unauthorised",
+                SortOrder = 1
+        ),
+        (
+            AADNonInteractiveUserSignInLogs
+            | where AnchorFound and TimeGenerated between (StartTime - IngestionSlack .. EndTime + IngestionSlack)
+            | extend EventTime = coalesce(CreatedDateTime, TimeGenerated)
+            | where EventTime between (StartTime .. EndTime)
+            | where tolower(UserPrincipalName) == NormalizedUPN
+            | where isempty(AnchorTenantId) or tolower(tostring(AADTenantId)) == AnchorTenantId
+            | extend
+                EventRequestId = tolower(tostring(OriginalRequestId)),
+                EventCorrelationId = tolower(tostring(CorrelationId)),
+                EventSessionId = tolower(tostring(SessionId)),
+                EventTokenId = tolower(tostring(UniqueTokenIdentifier)),
+                SameToken = isnotempty(AnchorTokenId) and EventTokenId == AnchorTokenId,
+                SameSession = isnotempty(AnchorSessionId) and EventSessionId == AnchorSessionId,
+                SameRequest = isnotempty(AnchorOriginalRequestId) and EventRequestId == AnchorOriginalRequestId,
+                SameCorrelation = isnotempty(AnchorCorrelationId) and EventCorrelationId == AnchorCorrelationId,
+                SameIP = isnotempty(AnchorIPAddress) and tostring(IPAddress) == AnchorIPAddress
+            | where SameToken or SameSession or SameRequest or SameCorrelation or (SameIP and EventTime >= AnchorEventTime)
+            | extend
+                AssociationConfidence = case(SameToken or SameSession or SameRequest, "Exact", SameCorrelation, "High", "Contextual"),
+                AssociationBasis = case(
+                    SameToken, "UniqueTokenIdentifier",
+                    SameSession, "SessionId",
+                    SameRequest, "OriginalRequestId",
+                    SameCorrelation, "CorrelationId",
+                    "same user and exact source IP after anchor"),
+                IsSuccess = tostring(ResultType) in~ ("0", "success")
+            | project
+                EventTime,
+                EvidenceType = "identity/non-interactive-token-use",
+                SourceTable = "AADNonInteractiveUserSignInLogs",
+                Actor = tostring(UserPrincipalName),
+                SourceIP = tostring(IPAddress),
+                AppOrOperation = tostring(AppDisplayName),
+                ResourceOrTarget = tostring(ResourceDisplayName),
+                Result = iff(IsSuccess, "success", strcat("failure: ", tostring(ResultType))),
+                AssociationConfidence,
+                AssociationBasis,
+                Priority = iff(IsSuccess, "critical", "review"),
+                Summary = strcat(
+                    "Non-interactive token use against ", tostring(ResourceDisplayName),
+                    " via ", tostring(AppDisplayName), " returned ", tostring(ResultType)),
+                Evidence = pack(
+                    "sign_in_id", tostring(Id),
+                    "session_id", tostring(SessionId),
+                    "token_id", tostring(UniqueTokenIdentifier),
+                    "original_request_id", tostring(OriginalRequestId),
+                    "correlation_id", tostring(CorrelationId),
+                    "authentication_protocol", tostring(AuthenticationProtocol),
+                    "sign_in_event_types", tostring(SignInEventTypes),
+                    "risk", strcat(tostring(RiskLevelDuringSignIn), "/", tostring(RiskState))),
+                Decision = iff(IsSuccess, "Suspicious / escalate", "Review required"),
+                NextAction = "Treat successful token continuation as active session impact and revoke the affected session",
+                SortOrder = 1
+        ),
+        (
+            AuditLogs
+            | where AnchorFound and TimeGenerated between (StartTime .. EndTime)
+            | extend
+                EventTime = coalesce(ActivityDateTime, TimeGenerated),
+                InitiatorText = tolower(tostring(InitiatedBy)),
+                TargetText = tostring(TargetResources),
+                EventCorrelationId = tolower(tostring(CorrelationId))
+            | where InitiatorText has NormalizedUPN or (isnotempty(AnchorUserId) and InitiatorText has AnchorUserId)
+            | extend
+                SameCorrelation = isnotempty(AnchorCorrelationId) and EventCorrelationId == AnchorCorrelationId,
+                SensitiveChange = tolower(strcat(tostring(ActivityDisplayName), " ", tostring(OperationName))) has_any
+                    ("role", "credential", "password", "authentication method", "application", "service principal", "group member", "consent")
+            | project
+                EventTime,
+                EvidenceType = "identity/directory-change",
+                SourceTable = "AuditLogs",
+                Actor = TargetUPN,
+                SourceIP = AnchorIPAddress,
+                AppOrOperation = iff(isnotempty(tostring(ActivityDisplayName)), tostring(ActivityDisplayName), tostring(OperationName)),
+                ResourceOrTarget = TargetText,
+                Result = tostring(Result),
+                AssociationConfidence = iff(SameCorrelation, "High", "Contextual"),
+                AssociationBasis = iff(SameCorrelation, "CorrelationId", "exact initiating identity in post-auth window"),
+                Priority = iff(SensitiveChange, "critical", "high"),
+                Summary = strcat("Directory action ", tostring(ActivityDisplayName), " returned ", tostring(Result)),
+                Evidence = pack(
+                    "initiated_by", tostring(InitiatedBy),
+                    "targets", TargetText,
+                    "logged_by_service", tostring(LoggedByService),
+                    "correlation_id", tostring(CorrelationId),
+                    "additional_details", tostring(AdditionalDetails)),
+                Decision = iff(SensitiveChange, "Suspicious / escalate", "Review required"),
+                NextAction = "Validate the actor, target, approval path, and any privilege or persistence created",
+                SortOrder = 1
+        ),
+        (
+            OfficeActivity
+            | where AnchorFound and TimeGenerated between (StartTime .. EndTime)
+            | extend
+                EventActor = tolower(tostring(UserId)),
+                EventIP = iff(isnotempty(tostring(ClientIP)), tostring(ClientIP), tostring(ActorIpAddress)),
+                SensitiveOperation = tolower(tostring(Operation)) has_any
+                    ("send", "mailbox", "inbox rule", "sharing", "download", "fileaccessed", "add member", "consent")
+            | where EventActor == NormalizedUPN or tolower(tostring(Actor)) has NormalizedUPN
+            | project
+                EventTime = TimeGenerated,
+                EvidenceType = "m365/operation",
+                SourceTable = "OfficeActivity",
+                Actor = tostring(UserId),
+                SourceIP = EventIP,
+                AppOrOperation = tostring(Operation),
+                ResourceOrTarget = iff(isnotempty(tostring(OfficeObjectId)), tostring(OfficeObjectId), tostring(ItemName)),
+                Result = tostring(ResultStatus),
+                AssociationConfidence = iff(isnotempty(AnchorIPAddress) and EventIP == AnchorIPAddress, "High", "Contextual"),
+                AssociationBasis = iff(isnotempty(AnchorIPAddress) and EventIP == AnchorIPAddress, "exact identity and source IP", "exact identity in post-auth window"),
+                Priority = iff(SensitiveOperation, "critical", "high"),
+                Summary = strcat(tostring(Operation), " in ", tostring(OfficeWorkload)),
+                Evidence = pack(
+                    "client_ip", EventIP,
+                    "workload", tostring(OfficeWorkload),
+                    "object", tostring(OfficeObjectId),
+                    "parameters", tostring(Parameters),
+                    "record_type", tostring(RecordType)),
+                Decision = iff(SensitiveOperation, "Suspicious / escalate", "Review required"),
+                NextAction = "Validate content access, mailbox persistence, sharing, sends, and affected objects",
+                SortOrder = 1
+        ),
+        (
+            CloudAppEvents
+            | where AnchorFound and TimeGenerated between (StartTime .. EndTime)
+            | extend
+                EventActorId = tolower(tostring(AccountId)),
+                EventActorObjectId = tolower(tostring(AccountObjectId)),
+                EventIP = tostring(IPAddress),
+                SensitiveOperation = coalesce(IsAdminOperation, false)
+                    or tolower(strcat(tostring(ActionType), " ", tostring(ActivityType))) has_any
+                        ("delete", "download", "share", "permission", "admin", "credential", "consent", "member")
+            | where EventActorId == NormalizedUPN or (isnotempty(AnchorUserId) and EventActorObjectId == AnchorUserId)
+            | project
+                EventTime = TimeGenerated,
+                EvidenceType = "cloud/application-activity",
+                SourceTable = "CloudAppEvents",
+                Actor = iff(isnotempty(tostring(AccountDisplayName)), tostring(AccountDisplayName), tostring(AccountId)),
+                SourceIP = EventIP,
+                AppOrOperation = iff(isnotempty(tostring(ActionType)), tostring(ActionType), tostring(ActivityType)),
+                ResourceOrTarget = iff(isnotempty(tostring(ObjectName)), tostring(ObjectName), tostring(ObjectId)),
+                Result = "observed",
+                AssociationConfidence = iff(isnotempty(AnchorIPAddress) and EventIP == AnchorIPAddress, "High", "Contextual"),
+                AssociationBasis = iff(isnotempty(AnchorIPAddress) and EventIP == AnchorIPAddress, "exact identity and source IP", "exact identity in post-auth window"),
+                Priority = iff(SensitiveOperation, "critical", "high"),
+                Summary = strcat(tostring(ActionType), " in ", tostring(Application), " on ", tostring(ObjectName)),
+                Evidence = pack(
+                    "account_id", tostring(AccountId),
+                    "account_object_id", tostring(AccountObjectId),
+                    "application", tostring(Application),
+                    "object_type", tostring(ObjectType),
+                    "is_admin_operation", tostring(IsAdminOperation),
+                    "session_data", tostring(SessionData),
+                    "report_id", tostring(ReportId)),
+                Decision = iff(SensitiveOperation, "Suspicious / escalate", "Review required"),
+                NextAction = "Validate the cloud action, affected object, data impact, and persistence",
+                SortOrder = 1
+        ),
+        (
+            AzureActivity
+            | where AnchorFound and TimeGenerated between (StartTime .. EndTime)
+            | extend
+                CallerText = tolower(tostring(Caller)),
+                ClaimsText = tolower(tostring(Claims)),
+                EventIP = tostring(CallerIpAddress),
+                Operation = iff(isnotempty(tostring(OperationNameValue)), tostring(OperationNameValue), tostring(OperationName)),
+                SensitiveOperation = tolower(iff(isnotempty(tostring(OperationNameValue)), tostring(OperationNameValue), tostring(OperationName))) has_any
+                    ("authorization", "roleassignment", "write", "delete", "action", "listkeys", "regeneratekey")
+            | where CallerText == NormalizedUPN or ClaimsText has NormalizedUPN
+            | project
+                EventTime = TimeGenerated,
+                EvidenceType = "azure/control-plane",
+                SourceTable = "AzureActivity",
+                Actor = tostring(Caller),
+                SourceIP = EventIP,
+                AppOrOperation = Operation,
+                ResourceOrTarget = tostring(ResourceId),
+                Result = tostring(ActivityStatusValue),
+                AssociationConfidence = iff(isnotempty(AnchorIPAddress) and EventIP == AnchorIPAddress, "High", "Contextual"),
+                AssociationBasis = iff(isnotempty(AnchorIPAddress) and EventIP == AnchorIPAddress, "exact identity and source IP", "exact identity in post-auth window"),
+                Priority = iff(SensitiveOperation, "critical", "high"),
+                Summary = strcat(Operation, " returned ", tostring(ActivityStatusValue)),
+                Evidence = pack(
+                    "caller_ip", EventIP,
+                    "subscription_id", tostring(SubscriptionId),
+                    "resource_group", tostring(ResourceGroup),
+                    "resource_id", tostring(ResourceId),
+                    "correlation_id", tostring(CorrelationId),
+                    "authorization", tostring(Authorization_d)),
+                Decision = iff(SensitiveOperation, "Suspicious / escalate", "Review required"),
+                NextAction = "Validate the control-plane action and expand containment to changed roles, credentials, or resources",
+                SortOrder = 1
+        )
+    | top CandidateLimit by EventTime desc
+);
+let CandidateCount = toscalar(Candidates | count);
+let EvidenceRows = Candidates | top MaxRows by EventTime desc;
+let InvalidStatus =
+    print
+        EventTime = AlertTime,
+        EvidenceType = "status",
+        SourceTable = "input",
+        Actor = TargetUPN,
+        SourceIP = TargetIPAddress,
+        AppOrOperation = "invalid_input",
+        ResourceOrTarget = "",
+        Result = "not_run",
+        AssociationConfidence = "none",
+        AssociationBasis = "invalid input",
+        Priority = "fix scope",
+        Summary = "Supply the exact UPN, actual UTC sign-in time, bounded window, and MaxRows from 1 to 500",
+        Evidence = pack("lookback", tostring(Lookback), "lookforward", tostring(Lookforward), "max_rows", MaxRows),
+        Decision = "Review required",
+        NextAction = "Correct the declared inputs before querying telemetry",
+        SortOrder = 0
+    | where not(InputValid);
+let AnchorStatus =
+    print
+        EventTime = AlertTime,
+        EvidenceType = "status",
+        SourceTable = "SigninLogs",
+        Actor = TargetUPN,
+        SourceIP = TargetIPAddress,
+        AppOrOperation = "anchor_not_found",
+        ResourceOrTarget = "deviceCode",
+        Result = "not_scoped",
+        AssociationConfidence = "none",
+        AssociationBasis = "no unique device-code anchor",
+        Priority = "fix scope",
+        Summary = "No device-code sign-in matched the supplied incident entities inside the anchor window",
+        Evidence = pack("anchor_start", AlertTime - AlertHalfWindow, "anchor_end", AlertTime + AlertHalfWindow),
+        Decision = "Review required",
+        NextAction = "Correct the event time or add the SigninLogs.Id, CorrelationId, or exact source IP",
+        SortOrder = 0
+    | where InputValid and not(AnchorFound);
+let NoDataStatus =
+    print
+        EventTime = AlertTime,
+        EvidenceType = "status",
+        SourceTable = "declared sources",
+        Actor = TargetUPN,
+        SourceIP = AnchorIPAddress,
+        AppOrOperation = "no_post_auth_telemetry",
+        ResourceOrTarget = "",
+        Result = "none_observed",
+        AssociationConfidence = "none",
+        AssociationBasis = "no matching post-auth rows",
+        Priority = "review",
+        Summary = "No associated continuation or post-authentication action was returned in the declared window",
+        Evidence = pack("start", StartTime, "end", EndTime, "anchor_sign_in_id", AnchorSignInId),
+        Decision = "Review required",
+        NextAction = "Verify optional table coverage and containment timing before concluding that no activity occurred",
+        SortOrder = 0
+    | where InputValid and AnchorFound and CandidateCount == 0;
+let TruncationStatus =
+    print
+        EventTime = AlertTime,
+        EvidenceType = "status",
+        SourceTable = "declared sources",
+        Actor = TargetUPN,
+        SourceIP = AnchorIPAddress,
+        AppOrOperation = "truncated",
+        ResourceOrTarget = "",
+        Result = "partial",
+        AssociationConfidence = "none",
+        AssociationBasis = "row limit",
+        Priority = "review",
+        Summary = strcat("More than ", tostring(MaxRows), " associated post-authentication events exist"),
+        Evidence = pack("max_rows", MaxRows, "start", StartTime, "end", EndTime),
+        Decision = "Review required",
+        NextAction = "Narrow the window or pivot to the highest-priority app, operation, resource, or session",
+        SortOrder = 2
+    | where InputValid and AnchorFound and CandidateCount > MaxRows;
+union InvalidStatus, AnchorStatus, NoDataStatus, EvidenceRows, TruncationStatus
+| extend PriorityRank = case(Priority == "critical", 0, Priority == "high", 1, Priority == "review", 2, 3)
+| order by SortOrder asc, PriorityRank asc, EventTime asc
+| project
+    EventTime,
+    Priority,
+    AssociationConfidence,
+    AssociationBasis,
+    EvidenceType,
+    SourceTable,
+    Actor,
+    SourceIP,
+    AppOrOperation,
+    ResourceOrTarget,
+    Result,
+    Summary,
+    Evidence,
+    Decision,
+    NextAction
