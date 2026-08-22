@@ -55,7 +55,8 @@ let AnchorCandidates = materialize(
         + iff(ExactCorrelation, 100, 0)
         + iff(ExactIP, 10, 0)
         + iff(tostring(ResultType) == "0", 1, 0)
-    | top 1 by AnchorRank desc, DistanceSeconds asc, EventTime asc
+    | order by AnchorRank desc, DistanceSeconds asc, EventTime asc
+    | take 1
     | project
         AnchorEventTime = EventTime,
         AnchorSignInId = tolower(tostring(Id)),
