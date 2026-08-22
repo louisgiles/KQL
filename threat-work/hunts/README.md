@@ -13,12 +13,13 @@ one-shots in the separate
 
 ## Current modules
 
-- [`endpoint/cloudflare-tunnel/`](endpoint/cloudflare-tunnel/) — behaviour-based Cloudflare Tunnel deployment/execution hunt with preserved validation and triage notes.
+- [`endpoint/cloudflare-tunnel/`](endpoint/cloudflare-tunnel/) - behaviour-based Cloudflare Tunnel deployment/execution hunt with preserved validation and triage notes.
+- [`endpoint/high-volume-url-file-pull/`](endpoint/high-volume-url-file-pull/) - scored target-service volume, file-origin, and execution hunt ported from preserved PR #13.
 
-The high-volume URL file-pull hunt from open PR #13 is intentionally not folded
-into this migration. Its exact branch is separately preserved at
-`archive/pr-13-highvol-url-filepull-2026-08-20` so review can resolve it without
-silently changing the historical PR.
+The legacy high-volume URL file-pull PR #13 head remains preserved at
+`archive/pr-13-highvol-url-filepull-2026-08-20`. The v2 module records its
+provenance and adapts it to the current hunt contract without changing that
+archive.
 
 Query-bearing modules follow the
 [`repository contract`](../../repo-contract.md). Migration into this folder
