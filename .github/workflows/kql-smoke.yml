@@ -2,20 +2,8 @@ name: KQL smoke test
 
 on:
   pull_request:
-    paths:
-      - '**/*.kql'
-      - 'tests/kql-smoke/**'
-      - 'scripts/test-kql.ps1'
-      - 'scripts/lint-kql-runtime-literals.py'
-      - '.github/workflows/kql-smoke.yml'
   push:
     branches: [main]
-    paths:
-      - '**/*.kql'
-      - 'tests/kql-smoke/**'
-      - 'scripts/test-kql.ps1'
-      - 'scripts/lint-kql-runtime-literals.py'
-      - '.github/workflows/kql-smoke.yml'
   workflow_dispatch: {}
 
 jobs:
@@ -27,6 +15,12 @@ jobs:
 
       - name: Lint runtime-sensitive literals
         run: python3 scripts/lint-kql-runtime-literals.py "${{ github.workspace }}"
+
+      - name: Enforce exact-source investigation approvals
+        run: python3 scripts/check-investigation-approvals.py "${{ github.workspace }}"
+
+      - name: Test investigation approval gate
+        run: python3 tests/test_investigation_approval_gate.py
 
       - name: Setup .NET 8
         uses: actions/setup-dotnet@v4

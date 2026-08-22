@@ -1,0 +1,72 @@
+// name:              Audit posture matrix
+// purpose:           Group directory operations involving one user by relationship, actor, service, operation, and result.
+// starting_entities: Exact user principal name; optional exact Entra object ID when present in the incident
+// required_tables:   AuditLogs
+// optional_tables:   none
+// variables:         TargetUPN, TargetObjectId, Lookback
+// time_window:       Default 14d ending now
+// done_criteria:     Every observed audit posture combination has an exact operation count plus first-seen and last-seen times
+// artifact_type:     investigation
+// output_type:       analysis
+
+let TargetUPN = "";
+let TargetObjectId = "";
+let Lookback = 14d;
+AuditLogs
+| where TimeGenerated >= ago(Lookback)
+| where isnotempty(TargetUPN) or isnotempty(TargetObjectId)
+| extend EventTime = coalesce(ActivityDateTime, TimeGenerated), Initiator = todynamic(InitiatedBy)
+| extend
+    ActorUPN = tostring(Initiator.user.userPrincipalName),
+    ActorUserId = tostring(Initiator.user.id),
+    ActorIPAddress = tostring(Initiator.user.ipAddress),
+    ActorApp = tostring(Initiator.app.displayName),
+    ActorAppId = tostring(Initiator.app.appId)
+| mv-apply Target = TargetResources on (
+    summarize TargetUPNMatches=countif(isnotempty(TargetUPN) and tostring(Target.userPrincipalName) =~ TargetUPN),
+              TargetIdMatches=countif(isnotempty(TargetObjectId) and tostring(Target.id) =~ TargetObjectId)
+    )
+| extend IsInitiator = (isnotempty(TargetUPN) and ActorUPN =~ TargetUPN)
+                       or (isnotempty(TargetObjectId) and ActorUserId =~ TargetObjectId),
+         IsTarget = TargetUPNMatches > 0 or TargetIdMatches > 0
+| where IsInitiator or IsTarget
+| extend Relationship = case(
+    IsInitiator and IsTarget, "Initiator and target",
+    IsInitiator, "Initiator",
+    "Target")
+| summarize
+    Operations = count(),
+    FirstSeen = min(EventTime),
+    LastSeen = max(EventTime)
+  by
+    Relationship,
+    ActorUPN,
+    ActorUserId,
+    ActorIPAddress,
+    ActorApp,
+    ActorAppId,
+    LoggedByService,
+    Category,
+    AADOperationType,
+    ActivityDisplayName,
+    OperationName,
+    Result,
+    ResultReason
+| project
+    LastSeen,
+    FirstSeen,
+    Operations,
+    Relationship,
+    ActorUPN,
+    ActorUserId,
+    ActorIPAddress,
+    ActorApp,
+    ActorAppId,
+    LoggedByService,
+    Category,
+    AADOperationType,
+    ActivityDisplayName,
+    OperationName,
+    Result,
+    ResultReason
+| order by LastSeen desc, Operations desc

@@ -1,0 +1,62 @@
+// name:              Interactive sign-in familiarity grid
+// purpose:           Put per-user IP, location, app, device, and user-agent familiarity beside each returned interactive sign-in record.
+// starting_entities: Exact user principal name already present in the incident
+// required_tables:   SigninLogs
+// optional_tables:   none
+// variables:         TargetUPN, Lookback
+// time_window:       Default 30d ending now
+// done_criteria:     Each returned record shows bounded-result integrity plus count, days seen, first seen, and last seen for each stable familiarity dimension
+// artifact_type:     investigation
+// output_type:       analysis
+
+let TargetUPN = "";
+let Lookback = 30d;
+let SignIns = materialize(
+    SigninLogs
+    | where TimeGenerated >= ago(Lookback)
+    | where isnotempty(TargetUPN)
+    | where UserPrincipalName =~ TargetUPN
+    | extend EventTime = coalesce(CreatedDateTime, TimeGenerated), Device = todynamic(DeviceDetail), Geo = todynamic(LocationDetails)
+    | extend
+        Country = coalesce(tostring(Geo.countryOrRegion), tostring(Location)), State = tostring(Geo.state), City = tostring(Geo.city),
+        DeviceId = tostring(Device.deviceId), DeviceName = tostring(Device.displayName), OperatingSystem = tostring(Device.operatingSystem),
+        Browser = tostring(Device.browser), IsManaged = tobool(Device.isManaged), IsCompliant = tobool(Device.isCompliant), TrustType = tostring(Device.trustType)
+    | extend DeviceKey = iff(isnotempty(DeviceId), strcat("id|", DeviceId), ""),
+             LocationKey = iff(isempty(Country) and isempty(State) and isempty(City), "", strcat(Country, "|", State, "|", City))
+    | project TimeGenerated, EventTime, ResultType, ResultDescription, IPAddress, AutonomousSystemNumber,
+              Country, State, City, LocationKey, AppDisplayName, ResourceDisplayName,
+              DeviceKey, DeviceName, DeviceId, OperatingSystem, Browser, IsManaged, IsCompliant, TrustType,
+              UserAgent, ClientAppUsed, AuthenticationProtocol, IncomingTokenType, OriginalTransferMethod,
+              AuthenticationRequirement, AuthenticationMethodsUsed, ConditionalAccessStatus,
+              RiskLevelDuringSignIn, RiskState, RiskEventTypes_V2, CorrelationId, OriginalRequestId, SessionId, Id);
+let IPStats = SignIns | where isnotempty(IPAddress) | summarize IPFlows=count(), IPDays=dcount(startofday(EventTime)), IPFirst=min(EventTime), IPLast=max(EventTime) by IPAddress;
+let LocationStats = SignIns | where isnotempty(LocationKey) | summarize LocationFlows=count(), LocationDays=dcount(startofday(EventTime)), LocationFirst=min(EventTime), LocationLast=max(EventTime) by LocationKey;
+let AppStats = SignIns | where isnotempty(AppDisplayName) | summarize AppFlows=count(), AppDays=dcount(startofday(EventTime)), AppFirst=min(EventTime), AppLast=max(EventTime) by AppDisplayName;
+let DeviceStats = SignIns | where isnotempty(DeviceKey) | summarize DeviceFlows=count(), DeviceDays=dcount(startofday(EventTime)), DeviceFirst=min(EventTime), DeviceLast=max(EventTime) by DeviceKey;
+let UserAgentStats = SignIns | where isnotempty(UserAgent) | summarize UserAgentFlows=count(), UserAgentDays=dcount(startofday(EventTime)), UserAgentFirst=min(EventTime), UserAgentLast=max(EventTime) by UserAgent;
+let _RowsInBound = toscalar(SignIns | count);
+let _FirstEventInBound = toscalar(SignIns | summarize min(EventTime));
+let _LastEventInBound = toscalar(SignIns | summarize max(EventTime));
+SignIns
+| lookup kind=leftouter IPStats on IPAddress
+| lookup kind=leftouter LocationStats on LocationKey
+| lookup kind=leftouter AppStats on AppDisplayName
+| lookup kind=leftouter DeviceStats on DeviceKey
+| lookup kind=leftouter UserAgentStats on UserAgent
+| extend Outcome = case(ResultType == "0", "Success", isempty(ResultType), "Unknown", "Failure"),
+         DeviceIdentityStatus = iff(isempty(DeviceKey), "UNKNOWN - NO DEVICE ID", "DEVICE ID PRESENT"),
+         RowsInBound=_RowsInBound, FirstEventInBound=_FirstEventInBound, LastEventInBound=_LastEventInBound
+| project
+    RowsInBound, FirstEventInBound, LastEventInBound,
+    EventTime, LogCreatedTime=TimeGenerated, Outcome, ResultType, ResultDescription,
+    IPAddress, IPFlows, IPDays, IPFirst, IPLast, AutonomousSystemNumber,
+    Country, State, City, LocationFlows, LocationDays, LocationFirst, LocationLast,
+    AppDisplayName, ResourceDisplayName, AppFlows, AppDays, AppFirst, AppLast,
+    DeviceIdentityStatus, DeviceName, DeviceId, OperatingSystem, Browser, IsManaged, IsCompliant, TrustType,
+    DeviceFlows, DeviceDays, DeviceFirst, DeviceLast,
+    UserAgent, UserAgentFlows, UserAgentDays, UserAgentFirst, UserAgentLast,
+    ClientAppUsed, AuthenticationProtocol, IncomingTokenType, OriginalTransferMethod,
+    AuthenticationRequirement, AuthenticationMethodsUsed, ConditionalAccessStatus,
+    RiskLevelDuringSignIn, RiskState, RiskEventTypes_V2,
+    CorrelationId, OriginalRequestId, SessionId, SignInId=Id
+| order by EventTime desc, LogCreatedTime desc, SignInId asc

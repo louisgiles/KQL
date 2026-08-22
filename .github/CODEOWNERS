@@ -1,0 +1,10 @@
+/investigation/ @louisgiles
+/validation/ @louisgiles
+/scripts/check-investigation-approvals.py @louisgiles
+/tests/test_investigation_approval_gate.py @louisgiles
+/docs/live-investigation-standard.md @louisgiles
+/repo-contract.md @louisgiles
+/.github/ @louisgiles
+/scripts/lint-kql-runtime-literals.py @louisgiles
+/scripts/test-kql.ps1 @louisgiles
+/tests/kql-smoke/ @louisgiles
