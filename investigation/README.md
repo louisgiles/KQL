@@ -5,24 +5,40 @@ Nothing in this active tree was copied from `../archive/`.
 
 ## Fastest path
 
-1. Start with one supplied entity in [`pivots/`](pivots/).
-2. Confirm the primary event and immediate blast radius.
-3. Run [`timeline/correlated-context.kql`](timeline/correlated-context.kql)
+1. If the incident matches an active rapid-decision module, run that module
+   first.
+2. Otherwise start with one supplied entity in [`pivots/`](pivots/).
+3. Confirm the primary event and immediate blast radius.
+4. Run [`timeline/correlated-context.kql`](timeline/correlated-context.kql)
    only when a short identity, endpoint, Microsoft 365, and Azure sequence will
    change containment scope.
-4. Stop when the output supports containment, closure, or a specific next
+5. Stop when the output supports containment, closure, or a specific next
    question. Do not run every query by default.
 
 ## Active modules
 
 | Module | Purpose |
 | --- | --- |
+| [`identity/device-code/`](identity/device-code/) | One-row rapid containment decision for a suspicious direct device-code sign-in. |
 | [`pivots/`](pivots/) | Small actor, IP, device, session, and process entry points. |
 | [`timeline/`](timeline/) | A bounded cross-domain timeline for already-scoped incidents. |
 
-## Shared output contract
+## Rapid-decision coverage
 
-Every query returns the same core columns:
+**1 of 10 complete. 9 remaining.**
+
+| Decision | Status |
+| --- | --- |
+| Suspicious device-code authentication | Complete in [`identity/device-code/`](identity/device-code/). |
+| Remaining high-frequency malicious investigation classes | 9 not yet implemented. |
+
+The remaining nine classes must be explicitly named and prioritised before
+implementation. They are not inferred from archived queries or generic alert
+categories.
+
+## Pivot and timeline output contract
+
+General pivots and the correlated timeline return these core columns:
 
 | Column | Meaning |
 | --- | --- |
@@ -35,9 +51,13 @@ Every query returns the same core columns:
 | `Decision` | `Review required` or `Suspicious / escalate`; no automatic benign conclusion. |
 | `NextAction` | The next containment or evidence step. |
 
-Each query emits an explicit status row for invalid input and for no matching
-telemetry. Row-limited queries also emit a truncation row. Missing telemetry is
-never reported as benign evidence.
+Each general query emits an explicit status row for invalid input and for no
+matching telemetry. Row-limited queries also emit a truncation row. Missing
+telemetry is never reported as benign evidence.
+
+Rapid-decision modules may instead return a compact one-row determination
+contract documented in their local README. They must still expose invalid
+scope, missing coverage, decisive evidence, and the immediate next action.
 
 ## Design boundary
 
@@ -45,8 +65,8 @@ never reported as benign evidence.
 - Default windows are incident-sized. Longer prevalence and baseline checks
   are explicit follow-on work.
 - Queries are independently runnable and do not depend on hidden fragments.
-- The base exposes evidence and next actions. Universal device-code, AiTM, and
-  malware playbooks remain separate queued tasks.
+- The device-code rapid decision is active. The broader universal device-code
+  playbook and the AiTM and malware playbooks remain queued tasks.
 - Babbler and agentic one-shot logic belongs in `louisgiles/oneshots`.
 
 ## Validation
@@ -54,4 +74,3 @@ never reported as benign evidence.
 All runnable files follow `../repo-contract.md` and are covered by the
 repository KQL parser smoke test. Parser success does not prove table presence,
 schema compatibility, runtime performance, or decision accuracy in a tenant.
-
