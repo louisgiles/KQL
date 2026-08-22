@@ -59,10 +59,10 @@ from any working directory inside the tree.
 KQL smoke test - root: /home/user/KQL
 Files: 21 (scratchpad/ excluded)
 ------------------------------------------------------------------------
-PASS  01-sign-in/deep-dive.kql
-PASS  01-sign-in/narrative-gen.kql
+PASS  threat-work/hunts/endpoint/cloudflare-tunnel/deployment.kql
+PASS  threat-work/detections/ddns/ddns-url-click.kql
 ...
-FAIL  05-endpoint/process/quick-dive.kql
+FAIL  threat-work/hunts/endpoint/example/invalid-query.kql
       line 169, col 30: Expected: )
       line 169, col 30: The incomplete fragment is unexpected.
 ------------------------------------------------------------------------

@@ -59,9 +59,9 @@ or promoted from the archive.
 
 The old `detectionlogic/` and `threathunting-research/` roots have been retired
 from active `main` after their useful content was consolidated beneath
-`threat-work/`. The remaining `threathunting/` content is Babbler-derived
-research only; it stays temporarily in place until the queued `oneshots`
-migration verifies the destination copy.
+`threat-work/`. The top-level `threathunting/` root is also retired and must not
+receive new work. Authoritative Babbler and one-shot content lives in
+[`louisgiles/oneshots`](https://github.com/louisgiles/oneshots/tree/main/highriskofficeops/babbler).
 
 The exact pre-reset tree is preserved at
 [`archive/legacy-2026-08-20`](https://github.com/louisgiles/KQL/tree/archive/legacy-2026-08-20)
@@ -69,8 +69,7 @@ at commit `409ff36da16d8b43e0248e17d2a81f65d8a07db2`. The unmerged high-volume
 URL file-pull hunt from PR #13 is separately preserved at
 [`archive/pr-13-highvol-url-filepull-2026-08-20`](https://github.com/louisgiles/KQL/tree/archive/pr-13-highvol-url-filepull-2026-08-20).
 
-Babbler and one-shot source material stays recoverable in KQL until its
-destination in `louisgiles/oneshots` has been verified.
+Historical KQL copies remain recoverable from the named archive branches.
 
 ## Validation
 
