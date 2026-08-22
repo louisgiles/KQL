@@ -1,0 +1,109 @@
+{
+  "schema_version": 1,
+  "records": [
+    {
+      "path": "investigation/identity/device-code/rapid-decision.kql",
+      "git_blob_sha": "65a663cc6f58ec3a7a1b434f51e4b6b7f8b4092a",
+      "source_sha256": "1a7760a405e3aa6968321083c669fe9f6dadfd87c9bdff7b4cccf63f83220c5e",
+      "execution_surface": "sentinel-log-analytics",
+      "status": "pending",
+      "reason": "Corrected format_datetime runtime failure. Exact corrected content still requires a successful live Sentinel run."
+    },
+    {
+      "path": "investigation/pivots/actor.kql",
+      "git_blob_sha": "593be16f2112603396bb40d290ee38c72e867ae3",
+      "source_sha256": "dd3c0c69e2d8d775cdc3d989291c9c98ea964c370f43a62ecd08d3f28856f091",
+      "execution_surface": "sentinel-log-analytics",
+      "status": "pending",
+      "reason": "No exact-content live Sentinel execution record."
+    },
+    {
+      "path": "investigation/pivots/device.kql",
+      "git_blob_sha": "71fed0be330b193d68e841025c8140dc6e91776b",
+      "source_sha256": "6ce50b0c0a77f84b9a3b5bebc4c106a17ab19756ee8e4cdc549e076396af9334",
+      "execution_surface": "sentinel-log-analytics",
+      "status": "failed",
+      "reason": "Uses Defender Advanced Hunting Timestamp on Device tables that expose TimeGenerated in Sentinel Log Analytics."
+    },
+    {
+      "path": "investigation/pivots/ip.kql",
+      "git_blob_sha": "1d6d35945e787fc03599fe8ab6621a4036ab2373",
+      "source_sha256": "db41b27462ffe323942b7162af63ec92562187f3c07e7db27f48fbefc3189d31",
+      "execution_surface": "sentinel-log-analytics",
+      "status": "failed",
+      "reason": "Uses Defender Advanced Hunting Timestamp on DeviceNetworkEvents, which exposes TimeGenerated in Sentinel Log Analytics."
+    },
+    {
+      "path": "investigation/pivots/process.kql",
+      "git_blob_sha": "863ce5e3d1e565e7ed2952291325755eae184d65",
+      "source_sha256": "928de73fd719dda8e2d377bf63f98c3944e72512bb5a33ebc550560289cb8c8b",
+      "execution_surface": "sentinel-log-analytics",
+      "status": "failed",
+      "reason": "Uses Defender Advanced Hunting Timestamp on Device tables that expose TimeGenerated in Sentinel Log Analytics."
+    },
+    {
+      "path": "investigation/pivots/session.kql",
+      "git_blob_sha": "fc1e692f75d7470c9258600c3cf2e0a5292062ab",
+      "source_sha256": "1657b4e9cad7ca72ec137215f70c8703594e45a305209c1cdc6b97857cb22f27",
+      "execution_surface": "sentinel-log-analytics",
+      "status": "failed",
+      "reason": "Uses Timestamp instead of TimeGenerated, and masks unsupported SessionId and CorrelationId columns instead of extracting SessionData."
+    },
+    {
+      "path": "investigation/timeline/correlated-context.kql",
+      "git_blob_sha": "19ad05a751b4fe2c4d3d897ace866b664d6595ed",
+      "source_sha256": "728401d2c20b55afc488d833037e3e1b425c20c0585c8e8c46c726c4bc7e2a54",
+      "execution_surface": "sentinel-log-analytics",
+      "status": "failed",
+      "reason": "Uses Defender Advanced Hunting Timestamp on Device tables that expose TimeGenerated in Sentinel Log Analytics."
+    },
+    {
+      "path": "threat-work/detections/ddns/ddns-bulletproof-infra.kql",
+      "git_blob_sha": "158884dd298e8493596870dae6ed56a449fa583b",
+      "source_sha256": "48fe097988266b820ac7e0650321bde2f682cf0013409fb5f3f0897527a7be41",
+      "execution_surface": "sentinel-log-analytics",
+      "status": "pending",
+      "reason": "No exact-content live execution record."
+    },
+    {
+      "path": "threat-work/detections/ddns/ddns-subdomain.kql",
+      "git_blob_sha": "914307b9b13ede99882f8f247d8038b0b6ababcd",
+      "source_sha256": "1a3eeff387f6a87436f4a20dee898636aac3ba04f6e753999b806659389ca4ee",
+      "execution_surface": "sentinel-log-analytics",
+      "status": "pending",
+      "reason": "No exact-content live execution record."
+    },
+    {
+      "path": "threat-work/detections/ddns/ddns-url-click.kql",
+      "git_blob_sha": "7685413b7f9715c429314bbde412cf72544ef7b4",
+      "source_sha256": "48a8a14e38780ed817e8176bb2f91b0ac163fafb659af99ab622f01bf3c9c5d2",
+      "execution_surface": "sentinel-log-analytics",
+      "status": "pending",
+      "reason": "No exact-content live execution record."
+    },
+    {
+      "path": "threat-work/detections/ddns/non-browser-to-ddns.kql",
+      "git_blob_sha": "9ffcc789b119cd00b761a6bb90d02702581057aa",
+      "source_sha256": "64ca9235f27f5ecd3b2d669b264b4043d5aa3d17d23dd73501e1f269d449c76a",
+      "execution_surface": "sentinel-log-analytics",
+      "status": "pending",
+      "reason": "No exact-content live execution record."
+    },
+    {
+      "path": "threat-work/hunts/endpoint/cloudflare-tunnel/deployment.kql",
+      "git_blob_sha": "b612bb67c661e77905532fc43a3defbe058fafb2",
+      "source_sha256": "e21bcf05a6b54e682b040982af2b7674deed11080d4d2f9f57cad8aa983e54ec",
+      "execution_surface": "sentinel-log-analytics",
+      "status": "pending",
+      "reason": "No exact-content live execution record."
+    },
+    {
+      "path": "threat-work/hunts/endpoint/high-volume-url-file-pull/hunt.kql",
+      "git_blob_sha": "efb8fc42ef0e6d921874d8aedd1f3f85e3aa878d",
+      "source_sha256": "ac09d1d329502a20bf64229c76953d17089e7e06f8e82bb354fcb154ad82feb3",
+      "execution_surface": "sentinel-log-analytics",
+      "status": "pending",
+      "reason": "No exact-content live execution record."
+    }
+  ]
+}

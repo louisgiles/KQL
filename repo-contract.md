@@ -55,6 +55,7 @@ header declaring:
 // done_criteria:     Evidence required to stop, contain, close, or progress
 // artifact_type:     investigation | hunt | detection
 // output_type:       analysis | narrative | quick-triage
+// execution_surface: sentinel-log-analytics | defender-advanced-hunting | azure-data-explorer
 ```
 
 Research Markdown and other non-executable support files do not use the KQL
@@ -89,9 +90,9 @@ requires.
 
 Classify every referenced table in the local README:
 
-- **Required** — absence prevents a valid answer.
-- **Optional enrichment** — sparse or absent coverage is tolerated and must not suppress the primary result.
-- **Avoid as hard dependency** — known freshness or coverage risk; never use it as a silent gate.
+- **Required:** absence prevents a valid answer.
+- **Optional enrichment:** sparse or absent coverage is tolerated and must not suppress the primary result.
+- **Avoid as hard dependency:** known freshness or coverage risk; never use it as a silent gate.
 
 When required evidence is missing, the query or its documentation must make
 that limitation visible. Do not turn missing telemetry into benign evidence.
@@ -104,10 +105,10 @@ next action over large raw event dumps.
 
 Where a determination is appropriate, use one of these meanings consistently:
 
-- **Benign** — expected behaviour; no action required.
-- **Precautionary benign** — likely expected; record or monitor as specified.
-- **Review required** — unresolved evidence or coverage requires another check.
-- **Suspicious / escalate** — evidence supports containment, escalation, or policy action.
+- **Benign:** expected behaviour; no action required.
+- **Precautionary benign:** likely expected; record or monitor as specified.
+- **Review required:** unresolved evidence or coverage requires another check.
+- **Suspicious / escalate:** evidence supports containment, escalation, or policy action.
 
 ## Area-specific readiness
 
@@ -153,7 +154,22 @@ history before removing a source copy.
 
 ## Validation
 
-- Run `pwsh ./scripts/test-kql.ps1` for syntax-level validation of `.kql` files.
-- Validate new or changed executable queries against known-benign, ambiguous, and known-suspicious scenarios before production use.
-- Record schema, table-coverage, and runtime limitations; the parser cannot validate them.
-- A passing parser check is necessary, not sufficient, evidence of readiness.
+Effective 2026-08-22, validation fails closed:
+
+1. Keep candidate KQL local until its final content is frozen.
+2. Run the grammar parser and static runtime gate.
+3. Execute the complete final file in its declared execution surface.
+4. Confirm there are no semantic or runtime errors and that the expected output
+   columns are returned.
+5. Record the exact Git blob SHA and sanitized live evidence in
+   `validation/sentinel-live.json`.
+6. Run `python3 ./scripts/check-sentinel-live-validation.py . --files <path>`.
+
+No new or changed active `.kql` file may be pushed, merged, linked, or
+described as usable until that exact content has a `passed` receipt. Any
+content change invalidates the receipt. A parser or static-lint pass is
+necessary preflight evidence, never a readiness claim.
+
+Existing active files without a passed receipt are candidates only. A
+`pending` or `failed` manifest status is an explicit prohibition on live
+incident use.
