@@ -1,0 +1,199 @@
+// name:              Device incident-window pivot
+// purpose:           Show the recent endpoint events that change isolation or containment scope for one device.
+// starting_entities: Defender DeviceId or exact device name
+// required_tables:   At least one of DeviceProcessEvents, DeviceFileEvents, DeviceNetworkEvents, DeviceEvents, DeviceRegistryEvents
+// optional_tables:   Any remaining declared endpoint table
+// variables:         TargetDeviceId, TargetDeviceName, AnchorTime, Lookback, Lookforward, MaxRows
+// time_window:       Default 2h before and 1h after AnchorTime; maximum routine bound 7d
+// done_criteria:     Primary process or action confirmed, affected account identified, and isolation or a process pivot chosen
+// artifact_type:     investigation
+// output_type:       quick-triage
+
+let TargetDeviceId = "";
+let TargetDeviceName = "";
+let AnchorTime = now();
+let Lookback = 2h;
+let Lookforward = 1h;
+let MaxRows = 20;
+let CandidateLimit = MaxRows + 1;
+let StartTime = AnchorTime - Lookback;
+let EndTime = AnchorTime + Lookforward;
+let InputValid = (isnotempty(TargetDeviceId) or isnotempty(TargetDeviceName))
+    and isnotnull(AnchorTime)
+    and Lookback between (1m .. 7d)
+    and Lookforward between (0m .. 7d)
+    and MaxRows between (1 .. 100);
+let EmptyEvidence = datatable(
+    EventTime:datetime,
+    EvidenceType:string,
+    Entity:string,
+    RelatedEntity:string,
+    Summary:string,
+    Evidence:dynamic,
+    Decision:string,
+    NextAction:string,
+    SortOrder:int
+)[];
+let Candidates = materialize(
+    union isfuzzy=true
+        EmptyEvidence,
+        (
+            DeviceProcessEvents
+            | where InputValid and Timestamp between (StartTime .. EndTime)
+            | where (isnotempty(TargetDeviceId) and DeviceId =~ TargetDeviceId)
+                or (isnotempty(TargetDeviceName) and DeviceName =~ TargetDeviceName)
+            | project
+                EventTime = Timestamp,
+                EvidenceType = "endpoint/process",
+                Entity = tostring(DeviceName),
+                RelatedEntity = tostring(FileName),
+                Summary = strcat(tostring(ActionType), ": ", tostring(FileName), " launched by ", tostring(InitiatingProcessFileName)),
+                Evidence = pack(
+                    "device_id", tostring(DeviceId),
+                    "process_id", tostring(ProcessId),
+                    "process_creation_time", tostring(ProcessCreationTime),
+                    "command_line", tostring(ProcessCommandLine),
+                    "sha256", tostring(SHA256),
+                    "account", tostring(AccountUpn),
+                    "parent", tostring(InitiatingProcessFileName)
+                ),
+                Decision = "Review required",
+                NextAction = "Pivot to the exact process identity and validate ancestry, children, files, and network activity",
+                SortOrder = 1
+        ),
+        (
+            DeviceFileEvents
+            | where InputValid and Timestamp between (StartTime .. EndTime)
+            | where (isnotempty(TargetDeviceId) and DeviceId =~ TargetDeviceId)
+                or (isnotempty(TargetDeviceName) and DeviceName =~ TargetDeviceName)
+            | project
+                EventTime = Timestamp,
+                EvidenceType = "endpoint/file",
+                Entity = tostring(DeviceName),
+                RelatedEntity = tostring(FileName),
+                Summary = strcat(tostring(ActionType), ": ", tostring(FolderPath)),
+                Evidence = pack(
+                    "device_id", tostring(DeviceId),
+                    "sha256", tostring(SHA256),
+                    "initiating_process", tostring(InitiatingProcessFileName),
+                    "initiating_process_id", tostring(InitiatingProcessId),
+                    "initiating_process_creation_time", tostring(InitiatingProcessCreationTime),
+                    "account", tostring(InitiatingProcessAccountUpn)
+                ),
+                Decision = "Review required",
+                NextAction = "Confirm file origin, execution, signer, prevalence, and remediation state",
+                SortOrder = 1
+        ),
+        (
+            DeviceNetworkEvents
+            | where InputValid and Timestamp between (StartTime .. EndTime)
+            | where (isnotempty(TargetDeviceId) and DeviceId =~ TargetDeviceId)
+                or (isnotempty(TargetDeviceName) and DeviceName =~ TargetDeviceName)
+            | project
+                EventTime = Timestamp,
+                EvidenceType = "endpoint/network",
+                Entity = tostring(DeviceName),
+                RelatedEntity = iff(isnotempty(tostring(RemoteUrl)), tostring(RemoteUrl), tostring(RemoteIP)),
+                Summary = strcat(tostring(ActionType), ": ", tostring(InitiatingProcessFileName), " to ", iff(isnotempty(tostring(RemoteUrl)), tostring(RemoteUrl), tostring(RemoteIP)), ":", tostring(RemotePort)),
+                Evidence = pack(
+                    "device_id", tostring(DeviceId),
+                    "remote_ip", tostring(RemoteIP),
+                    "remote_url", tostring(RemoteUrl),
+                    "remote_port", tostring(RemotePort),
+                    "initiating_process_id", tostring(InitiatingProcessId),
+                    "initiating_process_creation_time", tostring(InitiatingProcessCreationTime),
+                    "account", tostring(InitiatingProcessAccountUpn)
+                ),
+                Decision = "Review required",
+                NextAction = "Validate destination, process-destination relationship, and related devices",
+                SortOrder = 1
+        ),
+        (
+            DeviceRegistryEvents
+            | where InputValid and Timestamp between (StartTime .. EndTime)
+            | where (isnotempty(TargetDeviceId) and DeviceId =~ TargetDeviceId)
+                or (isnotempty(TargetDeviceName) and DeviceName =~ TargetDeviceName)
+            | project
+                EventTime = Timestamp,
+                EvidenceType = "endpoint/registry",
+                Entity = tostring(DeviceName),
+                RelatedEntity = tostring(RegistryKey),
+                Summary = strcat(tostring(ActionType), ": ", tostring(RegistryKey), " ", tostring(RegistryValueName)),
+                Evidence = pack(
+                    "device_id", tostring(DeviceId),
+                    "value_data", tostring(RegistryValueData),
+                    "initiating_process", tostring(InitiatingProcessFileName),
+                    "initiating_process_id", tostring(InitiatingProcessId),
+                    "initiating_process_creation_time", tostring(InitiatingProcessCreationTime),
+                    "account", tostring(InitiatingProcessAccountUpn)
+                ),
+                Decision = "Review required",
+                NextAction = "Assess persistence or security-control impact and pivot to the initiating process",
+                SortOrder = 1
+        ),
+        (
+            DeviceEvents
+            | where InputValid and Timestamp between (StartTime .. EndTime)
+            | where (isnotempty(TargetDeviceId) and DeviceId =~ TargetDeviceId)
+                or (isnotempty(TargetDeviceName) and DeviceName =~ TargetDeviceName)
+            | project
+                EventTime = Timestamp,
+                EvidenceType = "endpoint/security-event",
+                Entity = tostring(DeviceName),
+                RelatedEntity = tostring(ActionType),
+                Summary = strcat(tostring(ActionType), " initiated by ", tostring(InitiatingProcessFileName)),
+                Evidence = pack(
+                    "device_id", tostring(DeviceId),
+                    "additional_fields", tostring(AdditionalFields),
+                    "initiating_process_id", tostring(InitiatingProcessId),
+                    "initiating_process_creation_time", tostring(InitiatingProcessCreationTime),
+                    "account", tostring(InitiatingProcessAccountUpn)
+                ),
+                Decision = "Review required",
+                NextAction = "Validate the security action and whether isolation or remediation is already active",
+                SortOrder = 1
+        )
+    | top CandidateLimit by EventTime desc
+);
+let CandidateCount = toscalar(Candidates | count);
+let EvidenceRows = Candidates | top MaxRows by EventTime desc;
+let DisplayDevice = iff(isnotempty(TargetDeviceName), TargetDeviceName, TargetDeviceId);
+let InvalidStatus =
+    print
+        EventTime = AnchorTime,
+        EvidenceType = "status",
+        Entity = DisplayDevice,
+        RelatedEntity = "",
+        Summary = "invalid_input: supply a device ID or exact device name, valid anchor, bounded window, and MaxRows from 1 to 100",
+        Evidence = pack("device_id", TargetDeviceId, "device_name", TargetDeviceName),
+        Decision = "Review required",
+        NextAction = "Correct the declared inputs before querying telemetry",
+        SortOrder = 0
+    | where not(InputValid);
+let NoDataStatus =
+    print
+        EventTime = AnchorTime,
+        EvidenceType = "status",
+        Entity = DisplayDevice,
+        RelatedEntity = "",
+        Summary = "no_matching_telemetry: no declared endpoint source returned an event in the incident window",
+        Evidence = pack("start", StartTime, "end", EndTime),
+        Decision = "Review required",
+        NextAction = "Confirm device identity, sensor coverage, table availability, and the incident anchor",
+        SortOrder = 0
+    | where InputValid and CandidateCount == 0;
+let TruncationStatus =
+    print
+        EventTime = AnchorTime,
+        EvidenceType = "status",
+        Entity = DisplayDevice,
+        RelatedEntity = "",
+        Summary = strcat("truncated: more than ", tostring(MaxRows), " matching endpoint events exist"),
+        Evidence = pack("max_rows", MaxRows),
+        Decision = "Review required",
+        NextAction = "Narrow the window or pivot to the decisive process, file, or destination",
+        SortOrder = 2
+    | where InputValid and CandidateCount > MaxRows;
+union InvalidStatus, NoDataStatus, EvidenceRows, TruncationStatus
+| order by SortOrder asc, EventTime asc
+| project EventTime, EvidenceType, Entity, RelatedEntity, Summary, Evidence, Decision, NextAction

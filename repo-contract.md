@@ -11,12 +11,12 @@ This contract applies to:
 - `investigation/**`
 - `threat-work/**`
 
-The numbered investigation families plus legacy `cross-family/` and
-`scratchpad/` remain frozen pending their audited migration. The remaining
-`threathunting/` content is a temporary Babbler/one-shot holding area only and
-must not receive new threat-hunt work. The retired `detectionlogic/` and
-`threathunting-research/` roots remain recoverable from the named legacy
-archive, not as active v2 locations.
+The former numbered investigation families plus legacy `cross-family/` and
+`scratchpad/` are preserved under the top-level archive and are not active
+sources. The remaining `threathunting/` content is a temporary Babbler/one-shot
+holding area only and must not receive new threat-hunt work. The retired
+`detectionlogic/` and `threathunting-research/` roots remain recoverable from
+the named legacy archive, not as active v2 locations.
 
 ## Canonical layout
 
@@ -113,9 +113,10 @@ Where a determination is appropriate, use one of these meanings consistently:
 
 ### Investigation
 
-Organise future modules by investigative objective, not by arbitrary numbering
-or by the first table queried. The dedicated investigation-structure task will
-define and populate those objectives.
+Organise modules by investigative objective, not by arbitrary numbering or by
+the first table queried. The active base begins with entity pivots and a
+bounded correlated timeline. Future playbooks may compose these objectives,
+but each runnable query must remain independently usable.
 
 ### Hunts
 
