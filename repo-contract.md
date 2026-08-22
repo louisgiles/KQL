@@ -13,10 +13,9 @@ This contract applies to:
 
 The former numbered investigation families plus legacy `cross-family/` and
 `scratchpad/` are preserved under the top-level archive and are not active
-sources. The remaining `threathunting/` content is a temporary Babbler/one-shot
-holding area only and must not receive new threat-hunt work. The retired
-`detectionlogic/` and `threathunting-research/` roots remain recoverable from
-the named legacy archive, not as active v2 locations.
+sources. The top-level `threathunting/` root is retired and must not receive new
+work. The retired `detectionlogic/` and `threathunting-research/` roots remain
+recoverable from the named legacy archive, not as active v2 locations.
 
 ## Canonical layout
 
@@ -153,9 +152,10 @@ Agentic one-shots, Babbler stages, caller contracts, and their validation
 lineage belong in `louisgiles/oneshots`. Do not create a second active
 implementation under `investigation/` or `threat-work/`.
 
-Legacy Babbler and one-shot source must remain recoverable in KQL until the
-destination implementation has been verified. Migration must preserve useful
-history before removing a source copy.
+Authoritative Babbler and one-shot source lives in `louisgiles/oneshots`.
+Migration history belongs in named archives. After destination blobs and
+references are verified, do not retain a second active KQL source solely for
+recoverability.
 
 ## Validation
 
