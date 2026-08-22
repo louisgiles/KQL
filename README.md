@@ -20,6 +20,13 @@ threat research, and detection engineering in Microsoft Sentinel and Defender.
 | [`threat-work/research/`](threat-work/research/) | Source-backed research and hunt or detection candidates. |
 | [`threat-work/detections/`](threat-work/detections/) | Reusable detection-engineering logic and production rule packages. |
 
+## Archived investigation workbenches
+
+The [`archive launcher`](archive/) provides direct access to all preserved
+quick dives, deep dives, narrative generators, and focused investigation
+utilities. Use its compatibility status before copying a query into Sentinel.
+The archive is accessible reference material, not a runtime-readiness claim.
+
 The active `threat-work/` tree contains the audited threat-hunt, research,
 and detection-engineering material migrated from the legacy roots. The active
 `investigation/` tree now provides fresh actor, IP, device, session, process,
@@ -32,6 +39,8 @@ and correlated-timeline entry points built after the blank-slate reset.
 - Recording sourced intelligence, technical analysis, or a candidate idea: use `threat-work/research/`.
 - Building or tuning alert logic intended for repeatable deployment: use `threat-work/detections/`.
 - Building agentic one-shot or Babbler pipeline logic: use [`louisgiles/oneshots`](https://github.com/louisgiles/oneshots), not an active KQL area.
+- Reusing a previous quick dive, deep dive, or narrative while the active v2
+  surface is rebuilt: start at the [`archive launcher`](archive/).
 
 The authoritative requirements for active content are in
 [`repo-contract.md`](repo-contract.md). Validation guidance lives in
@@ -40,10 +49,12 @@ The authoritative requirements for active content are in
 
 ## Migration boundary
 
-The former numbered investigation families, `cross-family/`, and `scratchpad/`
-are preserved beneath `archive/investigation-legacy-2026-08-21/`. Active
-`investigation/` content is implemented from current requirements rather than
-copied or promoted from the archive.
+The former investigation workbenches are preserved directly beneath
+[`archive/investigation/`](archive/investigation/) and indexed from the
+[`archive launcher`](archive/). Babbler, probe, and one-shot lineage remains
+beneath `archive/investigation-legacy-2026-08-21/`. Active `investigation/`
+content is implemented from current requirements rather than silently copied
+or promoted from the archive.
 
 The old `detectionlogic/` and `threathunting-research/` roots have been retired
 from active `main` after their useful content was consolidated beneath

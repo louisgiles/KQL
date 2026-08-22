@@ -3,33 +3,44 @@
 Fresh, incident-led KQL built after the 2026-08-21 blank-slate reset.
 Nothing in this active tree was copied from `../archive/`.
 
+## Runtime status
+
+The repository parser is grammar-only. An active query is not operationally
+ready until its exact source has compiled and executed in the intended
+Sentinel Log Analytics workspace. Until that evidence is recorded, use the
+[`archived investigation launcher`](../archive/) when a preserved workbench
+better matches the incident.
+
 ## Fastest path
 
-1. If the incident matches an active rapid-decision module, run that module
-   first.
-2. Otherwise start with one supplied entity in [`pivots/`](pivots/).
-3. Confirm the primary event and immediate blast radius.
-4. Run [`timeline/correlated-context.kql`](timeline/correlated-context.kql)
+1. Run an active rapid-decision module first only when its exact version has
+   passed Sentinel runtime validation in the workspace.
+2. If a preserved family matches the incident, open its quick or deep dive
+   directly from the [`archive launcher`](../archive/).
+3. Use [`pivots/`](pivots/) only for a narrower question that the family
+   workbench does not answer.
+4. Confirm the primary event and immediate blast radius.
+5. Run [`timeline/correlated-context.kql`](timeline/correlated-context.kql)
    only when a short identity, endpoint, Microsoft 365, and Azure sequence will
    change containment scope.
-5. Stop when the output supports containment, closure, or a specific next
+6. Stop when the output supports containment, closure, or a specific next
    question. Do not run every query by default.
 
 ## Active modules
 
 | Module | Purpose |
 | --- | --- |
-| [`identity/device-code/`](identity/device-code/) | One-row rapid containment decision for a suspicious direct device-code sign-in. |
-| [`pivots/`](pivots/) | Small actor, IP, device, session, and process entry points. |
-| [`timeline/`](timeline/) | A bounded cross-domain timeline for already-scoped incidents. |
+| [`identity/device-code/`](identity/device-code/) | Implemented one-row rapid containment candidate. Tenant runtime validation remains outstanding. |
+| [`pivots/`](pivots/) | Small actor, IP, device, session, and process candidates. Endpoint and session branches require Sentinel schema validation. |
+| [`timeline/`](timeline/) | A bounded cross-domain timeline candidate. Endpoint branches require Sentinel schema validation. |
 
 ## Rapid-decision coverage
 
-**1 of 10 complete. 9 remaining.**
+**1 of 10 implemented. 9 remaining. Runtime validation is tracked separately.**
 
 | Decision | Status |
 | --- | --- |
-| Suspicious device-code authentication | Complete in [`identity/device-code/`](identity/device-code/). |
+| Suspicious device-code authentication | Implemented in [`identity/device-code/`](identity/device-code/); tenant runtime validation outstanding. |
 | Remaining high-frequency malicious investigation classes | 9 not yet implemented. |
 
 The remaining nine classes must be explicitly named and prioritised before

@@ -8,17 +8,17 @@ parallel sub-families** (process, file, network) instead of a single
 
 | Sub-family | Primary table | When to use | Notes |
 |---|---|---|---|
-| [`process/`](process/notes.md) | `DeviceProcessEvents` | Alert is on something that ran (process name, command line, SHA256 of an executed image). | [process/notes.md](process/notes.md) |
-| [`file/`](file/notes.md) | `DeviceFileEvents` | Alert is on something that appeared on disk (FileCreated, FileRenamed, FileModified, FileDeleted). | [file/notes.md](file/notes.md) |
-| [`network/`](network/notes.md) | `DeviceNetworkEvents` | Alert is on a connection (RemoteUrl, RemoteIP, RemotePort, periodic-beacon match). | [network/notes.md](network/notes.md) |
+| [`process/`](process/) | `DeviceProcessEvents` | Alert is on something that ran (process name, command line, SHA256 of an executed image). | [Process README](process/) |
+| [`file/`](file/) | `DeviceFileEvents` | Alert is on something that appeared on disk (FileCreated, FileRenamed, FileModified, FileDeleted). | [File README](file/) |
+| [`network/`](network/) | `DeviceNetworkEvents` | Alert is on a connection (RemoteUrl, RemoteIP, RemotePort, periodic-beacon match). | [Network README](network/) |
 
-Each sub-family ships the full contract: `deep-dive.kql` +
-`narrative-gen.kql` + `notes.md`, plus an optional `quick-dive.kql`.
+Each sub-family ships `deep-dive.kql`, `narrative-gen.kql`, a local
+`README.md`, and `quick-dive.kql`.
 
 ## Cross-cutting design
 
 All three sub-families share three architectural conventions. The
-details live in each sub-family's `notes.md`; the headlines are:
+details live in each sub-family's `README.md`; the headlines are:
 
 - **Anchor model.** `AnchorMode = "alert"` centres on `AlertTime`.
   Each sub-family also offers an origin mode
@@ -59,8 +59,8 @@ investigation closes when:
 
 ## Validation — test cases
 
-Test cases live in the per-sub-family `notes.md` files:
+Test cases live in the per-sub-family README files:
 
-- [process/notes.md — Validation](process/notes.md#validation--test-cases)
-- [file/notes.md — Validation](file/notes.md#validation--test-cases)
-- [network/notes.md — Validation](network/notes.md#validation--test-cases)
+- [Process validation](process/README.md#validation--test-cases)
+- [File validation](file/README.md#validation--test-cases)
+- [Network validation](network/README.md#validation--test-cases)
