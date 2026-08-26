@@ -1,0 +1,13 @@
+// Question: Which IPs and apps are generating failures for this account?
+// Table: SigninLogs
+// Dependency: Entra sign-in logs ingested into Sentinel
+// Surface: Sentinel Logs / Log Analytics
+
+let TargetUser = "user@contoso.com";
+let Lookback = 7d;
+SigninLogs
+| where TimeGenerated >= ago(Lookback)
+| where UserPrincipalName =~ TargetUser
+| where ResultType != "0"
+| summarize Attempts=count(), FirstSeen=min(TimeGenerated), LastSeen=max(TimeGenerated) by IPAddress, AppDisplayName, ResultType, ResultDescription
+| order by Attempts desc
