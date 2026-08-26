@@ -1,0 +1,12 @@
+// Question: Where did this device connect and which process/user initiated it?
+// Table: DeviceNetworkEvents
+// Dependency: DeviceNetworkEvents ingested into Sentinel Log Analytics
+// Surface: Sentinel Logs / Log Analytics
+
+let TargetDevice = "host.contoso.com";
+let Lookback = 24h;
+DeviceNetworkEvents
+| where TimeGenerated >= ago(Lookback)
+| where DeviceName =~ TargetDevice
+| project TimeGenerated, InitiatingProcessAccountName, InitiatingProcessFileName, LocalIP, RemoteIP, RemotePort, RemoteUrl, Protocol
+| order by TimeGenerated desc
