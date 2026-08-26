@@ -1,0 +1,12 @@
+// Question: What URLs did this user click, from which IP, and was the click allowed through?
+// Table: UrlClickEvents
+// Dependency: UrlClickEvents ingested into Sentinel Log Analytics
+// Surface: Sentinel Logs / Log Analytics
+
+let TargetUser = "user@contoso.com";
+let Lookback = 14d;
+UrlClickEvents
+| where TimeGenerated >= ago(Lookback)
+| where AccountUpn =~ TargetUser
+| project TimeGenerated, AccountUpn, IPAddress, Workload, ActionType, IsClickedThrough, Url, ThreatTypes, NetworkMessageId
+| order by TimeGenerated desc
