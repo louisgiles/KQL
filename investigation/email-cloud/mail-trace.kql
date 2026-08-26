@@ -1,0 +1,12 @@
+// Question: What mail was sent to or from this address and where did it land?
+// Table: EmailEvents
+// Dependency: EmailEvents ingested into Sentinel Log Analytics
+// Surface: Sentinel Logs / Log Analytics
+
+let TargetAddress = "user@contoso.com";
+let Lookback = 14d;
+EmailEvents
+| where TimeGenerated >= ago(Lookback)
+| where RecipientEmailAddress =~ TargetAddress or SenderFromAddress =~ TargetAddress or SenderMailFromAddress =~ TargetAddress
+| project TimeGenerated, NetworkMessageId, SenderFromAddress, SenderMailFromAddress, SenderIPv4, RecipientEmailAddress, Subject, DeliveryAction, DeliveryLocation, ThreatTypes
+| order by TimeGenerated desc
