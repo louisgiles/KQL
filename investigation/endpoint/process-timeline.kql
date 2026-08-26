@@ -1,0 +1,12 @@
+// Question: What executed on this device and what launched it?
+// Table: DeviceProcessEvents
+// Dependency: DeviceProcessEvents ingested into Sentinel Log Analytics
+// Surface: Sentinel Logs / Log Analytics
+
+let TargetDevice = "host.contoso.com";
+let Lookback = 24h;
+DeviceProcessEvents
+| where TimeGenerated >= ago(Lookback)
+| where DeviceName =~ TargetDevice
+| project TimeGenerated, AccountName, FileName, ProcessCommandLine, ProcessId, InitiatingProcessFileName, InitiatingProcessCommandLine, InitiatingProcessId, SHA1
+| order by TimeGenerated desc
