@@ -1,0 +1,144 @@
+// name:              Device-code sign-in deep dive
+// purpose:           Show every device-code sign-in for one user in the window, with client-app
+//                    leaning and geography change for the user and the recorded device.
+// starting_entities: Exact user UPN
+// required_tables:   SigninLogs
+// optional_tables:   none (OriginalTransferMethod column read with column_ifexists)
+// variables:         TargetUPN, InvestigationStart, InvestigationEnd, BaselineLookback,
+//                    CliLeaningApps, BrokerFociApps, DrsResourceAppId
+// time_window:       Default last 7d investigation window; 30d familiarity baseline ending at
+//                    InvestigationStart; maximum routine window 30d
+// done_criteria:     Each device-code sign-in has an AppLeaning, user/device geography flags, and
+//                    an EscalationSignals list; SignInId and CorrelationId available for escalation
+// artifact_type:     investigation
+// output_type:       analysis
+//
+// Step 1 of the device-code playbook. Leanings are evidence for the analyst, not verdicts.
+let TargetUPN = "";                          // required: exact UPN
+let InvestigationStart = ago(7d);
+let InvestigationEnd = now();
+let BaselineLookback = 30d;                  // baseline ends at InvestigationStart so the window
+                                             // under investigation cannot normalise itself
+// Exact app IDs. Extend per tenant; unlisted apps surface as unclassified.
+let CliLeaningApps = dynamic([
+    "04b07795-8ddb-461a-bbee-02f9e1bf7b46",  // Azure CLI
+    "1950a258-227b-4e31-a9cf-717495945fc2",  // Azure PowerShell
+    "14d82eec-204b-4c2f-b7e8-296a70dab67e",  // Microsoft Graph Command Line Tools
+    "872cd9fa-d31f-45e0-9eab-6e460a02d1f1",  // Visual Studio
+    "aebc6443-996d-45c2-90f0-388ff96faa56"   // Visual Studio Code
+]);
+let BrokerFociApps = dynamic([
+    "29d9ed98-a469-4536-ade2-f981bc1d605e",  // Microsoft Authentication Broker
+    "d3590ed6-52b3-4102-aeff-aad2292ab01c",  // Microsoft Office
+    "1fec8e78-bce4-4aaf-ab1b-5451cc387264"   // Microsoft Teams
+]);
+let AuthBrokerAppId = "29d9ed98-a469-4536-ade2-f981bc1d605e";
+let DrsResourceAppId = "01cb2876-7ebd-4aa4-9cc9-d28bd4d359a9";  // Device Registration Service
+let BaselineStart = InvestigationStart - BaselineLookback;
+let DeviceCodeSignins = materialize(
+    SigninLogs
+    | where isnotempty(TargetUPN)
+    | where TimeGenerated between (InvestigationStart .. InvestigationEnd)
+    | where UserPrincipalName =~ TargetUPN
+    | extend OriginalTransfer = tostring(column_ifexists("OriginalTransferMethod", ""))
+    | where AuthenticationProtocol =~ "deviceCode"
+        or OriginalTransfer in~ ("deviceCodeFlow", "deviceCode")
+    | extend Device = todynamic(DeviceDetail)
+    | extend
+        AppIdLower = tolower(tostring(AppId)),
+        ResourceAppId = tolower(tostring(column_ifexists("ResourceIdentity", ""))),
+        Country = toupper(tostring(Location)),
+        Asn = iff(tostring(AutonomousSystemNumber) == "0", "", tostring(AutonomousSystemNumber)),
+        DeviceId = tostring(Device.deviceId),
+        DeviceName = tostring(Device.displayName),
+        Success = tostring(ResultType) == "0");
+let UserBaselineSignins = materialize(
+    SigninLogs
+    | where isnotempty(TargetUPN)
+    | where TimeGenerated between (BaselineStart .. InvestigationStart)
+    | where UserPrincipalName =~ TargetUPN
+    | where tostring(ResultType) == "0"
+    | project
+        Country = toupper(tostring(Location)),
+        Asn = iff(tostring(AutonomousSystemNumber) == "0", "", tostring(AutonomousSystemNumber)));
+let UserBaselineCountries = toscalar(
+    UserBaselineSignins | where isnotempty(Country) | summarize make_set(Country, 100));
+let UserBaselineAsns = toscalar(
+    UserBaselineSignins | where isnotempty(Asn) | summarize make_set(Asn, 200));
+// Device baseline is scoped to the device IDs seen on the window's device-code rows.
+let WindowDeviceIds = coalesce(toscalar(
+    DeviceCodeSignins | where isnotempty(DeviceId) | summarize make_set(DeviceId, 100)),
+    dynamic([]));
+let DeviceBaseline =
+    SigninLogs
+    | where array_length(WindowDeviceIds) > 0
+    | where TimeGenerated between (BaselineStart .. InvestigationStart)
+    | where tostring(ResultType) == "0"
+    | extend DeviceId = tostring(todynamic(DeviceDetail).deviceId)
+    | where DeviceId in (WindowDeviceIds)
+    | extend Country = toupper(tostring(Location))
+    | where isnotempty(Country)
+    | summarize
+        DeviceBaselineCountries = make_set(Country, 100),
+        DeviceBaselineSigninCount = count()
+        by DeviceId;
+DeviceCodeSignins
+| join kind=leftouter DeviceBaseline on DeviceId
+| extend AppLeaning = case(
+    AppIdLower in (CliLeaningApps), "CLI/dev tooling - leans benign",
+    AppIdLower in (BrokerFociApps), "Broker/FOCI client - leans malicious",
+    "Unclassified - verify manually")
+| extend
+    BrokerToDrs = AppIdLower == AuthBrokerAppId and ResourceAppId == DrsResourceAppId,
+    NewCountryForUser = case(
+        isempty(Country), bool(null),
+        isnull(UserBaselineCountries) or array_length(UserBaselineCountries) == 0, bool(null),
+        not(set_has_element(UserBaselineCountries, Country))),
+    NewAsnForUser = case(
+        isempty(Asn), bool(null),
+        isnull(UserBaselineAsns) or array_length(UserBaselineAsns) == 0, bool(null),
+        not(set_has_element(UserBaselineAsns, Asn))),
+    NewCountryForDevice = case(
+        isempty(DeviceId), bool(null),
+        isempty(Country), bool(null),
+        isnull(DeviceBaselineCountries) or array_length(DeviceBaselineCountries) == 0, bool(null),
+        not(set_has_element(DeviceBaselineCountries, Country)))
+| extend SignalArray = set_difference(pack_array(
+    iff(BrokerToDrs, "broker-to-device-registration path", ""),
+    iff(AppLeaning startswith "Broker", "malice-leaning client app", ""),
+    iff(AppLeaning startswith "Unclassified", "unclassified client app", ""),
+    iff(NewCountryForUser == true, "new country for user", ""),
+    iff(NewAsnForUser == true, "new ASN for user", ""),
+    iff(NewCountryForDevice == true, "new country for recorded device", ""),
+    iff(isnull(NewCountryForUser) and isnotempty(Country), "no user geography baseline", ""),
+    iff(isnotempty(DeviceId) and isnull(NewCountryForDevice) and isnotempty(Country),
+        "no recorded-device geography baseline", "")),
+    dynamic([""]))
+| extend EscalationSignals = iff(
+    array_length(SignalArray) == 0, "none", strcat_array(SignalArray, "; "))
+| project
+    TimeGenerated,
+    UserPrincipalName,
+    Success,
+    ResultType = tostring(ResultType),
+    ResultDescription = tostring(ResultDescription),
+    AppDisplayName = tostring(AppDisplayName),
+    AppId = AppIdLower,
+    AppLeaning,
+    ResourceDisplayName = tostring(ResourceDisplayName),
+    BrokerToDrs,
+    IPAddress = tostring(IPAddress),
+    Country,
+    Asn,
+    NewCountryForUser,
+    NewAsnForUser,
+    DeviceName,
+    DeviceId,
+    NewCountryForDevice,
+    DeviceBaselineSigninCount,
+    ConditionalAccessStatus = tostring(ConditionalAccessStatus),
+    RiskLevelDuringSignIn = tostring(RiskLevelDuringSignIn),
+    EscalationSignals,
+    SignInId = tostring(Id),
+    CorrelationId = tostring(CorrelationId)
+| sort by TimeGenerated asc

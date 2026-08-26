@@ -1,0 +1,35 @@
+// name:              Device-code tenant prevalence
+// purpose:           Answer with simple counts how frequent device-code auth is in the tenant and
+//                    which client apps normally carry it.
+// starting_entities: none (population baseline)
+// required_tables:   SigninLogs
+// optional_tables:   none (OriginalTransferMethod column read with column_ifexists)
+// variables:         InvestigationStart, PrevalenceLookback
+// time_window:       Default 90d ending at InvestigationStart; maximum routine bound 90d
+// done_criteria:     One row per client app with attempts, successes, distinct users, and active
+//                    days; an empty result is recorded as "protocol not observed in tenant"
+// artifact_type:     investigation
+// output_type:       quick-triage
+//
+// Step 3 of the device-code playbook. Compare the step-1 sign-in against this app mix: a client
+// app that is routine tenant-wide reads differently from one never seen before. Frequency is
+// context for verification, never a benign conclusion on its own.
+let InvestigationStart = now();              // set to the start of the window under investigation
+let PrevalenceLookback = 90d;
+let PrevalenceStart = InvestigationStart - PrevalenceLookback;
+SigninLogs
+| where TimeGenerated between (PrevalenceStart .. InvestigationStart)
+| extend OriginalTransfer = tostring(column_ifexists("OriginalTransferMethod", ""))
+| where AuthenticationProtocol =~ "deviceCode"
+    or OriginalTransfer in~ ("deviceCodeFlow", "deviceCode")
+| extend Success = tostring(ResultType) == "0"
+| summarize
+    Attempts = count(),
+    Successes = countif(Success),
+    DistinctUsers = dcount(UserPrincipalName),
+    SuccessfulUsers = dcountif(UserPrincipalName, Success),
+    ActiveDays = dcount(startofday(TimeGenerated)),
+    FirstSeen = min(TimeGenerated),
+    LastSeen = max(TimeGenerated)
+    by AppDisplayName = tostring(AppDisplayName), AppId = tolower(tostring(AppId))
+| sort by Attempts desc
