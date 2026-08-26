@@ -1,0 +1,63 @@
+// name:              User audit-log 24h sweep
+// purpose:           Show the last 24h of AuditLogs initiated by or targeting one user, with
+//                    sensitive directory operations sorted first.
+// starting_entities: Exact user UPN
+// required_tables:   AuditLogs
+// optional_tables:   none
+// variables:         TargetUPN, AnchorTime, Lookback, Lookforward, SensitiveOperationTerms
+// time_window:       Default AnchorTime-24h to AnchorTime (the literal last 24h); set AnchorTime
+//                    to the sign-in time and Lookforward to 24h for post-auth scope; maximum
+//                    routine bound 7d total
+// done_criteria:     Directory operations touching the identity are visible with direction and
+//                    sensitivity; sensitive rows are dispositioned or escalated
+// artifact_type:     investigation
+// output_type:       analysis
+//
+// Step 4 of the device-code playbook. Sensitivity is a keyword-based triage sort, not a taxonomy;
+// routine rows can still matter. Extend the term list per tenant.
+let TargetUPN = "";                          // required: exact UPN
+let AnchorTime = now();
+let Lookback = 24h;
+let Lookforward = 0h;
+let SensitiveOperationTerms = dynamic([
+    "consent", "credential", "credentials", "role", "password", "security",
+    "permission", "device", "application", "StrongAuthentication", "MFA", "policy"
+]);
+let StartTime = AnchorTime - Lookback;
+let EndTime = AnchorTime + Lookforward;
+AuditLogs
+| where isnotempty(TargetUPN)
+| where TimeGenerated between (StartTime .. EndTime)
+| extend
+    Initiator = todynamic(InitiatedBy),
+    Targets = todynamic(TargetResources)
+| extend
+    InitiatorUPN = tostring(Initiator.user.userPrincipalName),
+    InitiatorApp = tostring(Initiator.app.displayName),
+    InitiatorIP = tostring(Initiator.user.ipAddress)
+| extend
+    InitiatedByUser = InitiatorUPN =~ TargetUPN,
+    TargetsUser = tostring(TargetResources) contains TargetUPN
+| where InitiatedByUser or TargetsUser
+| extend Direction = case(
+    InitiatedByUser and TargetsUser, "initiated by and targets user",
+    InitiatedByUser, "initiated by user",
+    "targets user")
+| extend Sensitivity = iff(
+    OperationName has_any (SensitiveOperationTerms), "review first", "routine")
+| extend FirstTarget = coalesce(
+    tostring(Targets[0].userPrincipalName), tostring(Targets[0].displayName))
+| project
+    TimeGenerated,
+    Sensitivity,
+    OperationName = tostring(OperationName),
+    Result = tostring(Result),
+    Category = tostring(Category),
+    Direction,
+    InitiatorUPN,
+    InitiatorApp,
+    InitiatorIP,
+    FirstTarget,
+    TargetCount = array_length(Targets),
+    CorrelationId = tostring(CorrelationId)
+| sort by Sensitivity asc, TimeGenerated asc

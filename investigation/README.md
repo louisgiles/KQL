@@ -31,6 +31,7 @@ better matches the incident.
 | Module | Purpose |
 | --- | --- |
 | [`identity/device-code/`](identity/device-code/) | Quick rapid decision plus deep post-authentication and exact-IP campaign scope. Tenant runtime validation remains outstanding. |
+| [`playbooks/device-code-auth/`](playbooks/device-code-auth/) | Four-step Occam's-razor triage sequence: sign-in deep dive, user precedent, tenant prevalence, 24h audit sweep. Tenant runtime validation remains outstanding. |
 | [`pivots/`](pivots/) | Small actor, IP, device, session, and process candidates. Endpoint and session branches require Sentinel schema validation. |
 | [`timeline/`](timeline/) | A bounded cross-domain timeline candidate. Endpoint branches require Sentinel schema validation. |
 
@@ -76,8 +77,9 @@ scope, missing coverage, decisive evidence, and the immediate next action.
 - Default windows are incident-sized. Longer prevalence and baseline checks
   are explicit follow-on work.
 - Queries are independently runnable and do not depend on hidden fragments.
-- The three-query device-code investigation path is active. The AiTM and
-  malware playbooks remain queued tasks.
+- The three-query device-code investigation path and the four-step
+  device-code playbook under [`playbooks/`](playbooks/) are active. The AiTM
+  and malware playbooks remain queued tasks.
 - Babbler and agentic one-shot logic belongs in `louisgiles/oneshots`.
 
 ## Validation

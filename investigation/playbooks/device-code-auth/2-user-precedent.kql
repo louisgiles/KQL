@@ -1,0 +1,39 @@
+// name:              Device-code user precedent
+// purpose:           Answer with simple counts whether this user has used device-code auth before,
+//                    with which client apps, how often, and from where.
+// starting_entities: Exact user UPN
+// required_tables:   SigninLogs
+// optional_tables:   none (OriginalTransferMethod column read with column_ifexists)
+// variables:         TargetUPN, InvestigationStart, PrecedentLookback
+// time_window:       Default 90d ending at InvestigationStart; maximum routine bound 90d
+// done_criteria:     One row per client app with attempts, successes, first/last seen, active days,
+//                    and source spread; an empty result is recorded as "no precedent observed"
+// artifact_type:     investigation
+// output_type:       quick-triage
+//
+// Step 2 of the device-code playbook. The baseline ends at InvestigationStart so the activity
+// under investigation cannot count as its own precedent. Empty result = novelty, never benign.
+let TargetUPN = "";                          // required: exact UPN
+let InvestigationStart = now();              // set to the start of the window under investigation
+let PrecedentLookback = 90d;
+let PrecedentStart = InvestigationStart - PrecedentLookback;
+SigninLogs
+| where isnotempty(TargetUPN)
+| where TimeGenerated between (PrecedentStart .. InvestigationStart)
+| where UserPrincipalName =~ TargetUPN
+| extend OriginalTransfer = tostring(column_ifexists("OriginalTransferMethod", ""))
+| where AuthenticationProtocol =~ "deviceCode"
+    or OriginalTransfer in~ ("deviceCodeFlow", "deviceCode")
+| extend
+    Success = tostring(ResultType) == "0",
+    Country = toupper(tostring(Location))
+| summarize
+    Attempts = count(),
+    Successes = countif(Success),
+    FirstSeen = min(TimeGenerated),
+    LastSeen = max(TimeGenerated),
+    ActiveDays = dcount(startofday(TimeGenerated)),
+    DistinctIPs = dcount(IPAddress),
+    Countries = make_set(Country, 20)
+    by AppDisplayName = tostring(AppDisplayName), AppId = tolower(tostring(AppId))
+| sort by LastSeen desc
