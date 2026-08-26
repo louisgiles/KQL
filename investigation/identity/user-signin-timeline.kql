@@ -1,0 +1,14 @@
+// Question: What did this user sign in to, from where, and how?
+// Table: SigninLogs
+// Dependency: Entra sign-in logs ingested into Sentinel
+// Surface: Sentinel Logs / Log Analytics
+
+let TargetUser = "user@contoso.com";
+let Lookback = 7d;
+SigninLogs
+| where TimeGenerated >= ago(Lookback)
+| where UserPrincipalName =~ TargetUser
+| extend Result = iff(ResultType == "0", "Success", ResultDescription)
+| extend DeviceId = tostring(DeviceDetail.deviceId)
+| project TimeGenerated, IPAddress, Location, AppDisplayName, ResourceDisplayName, AuthenticationProtocol, ClientAppUsed, AuthenticationMethodsUsed, Result, DeviceId
+| order by TimeGenerated desc

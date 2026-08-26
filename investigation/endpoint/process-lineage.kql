@@ -1,0 +1,14 @@
+// Question: What spawned this process, and what did it spawn next?
+// Table: DeviceProcessEvents
+// Dependency: DeviceProcessEvents ingested into Sentinel Log Analytics
+// Surface: Sentinel Logs / Log Analytics
+// Use a narrow Sentinel time-picker window because PIDs are reusable.
+
+let TargetDevice = "host.contoso.com";
+let TargetProcessId = 1234;
+DeviceProcessEvents
+| where DeviceName =~ TargetDevice
+| where ProcessId == TargetProcessId or InitiatingProcessId == TargetProcessId
+| extend Relation = iff(ProcessId == TargetProcessId, "Target", "Child")
+| project TimeGenerated, Relation, AccountName, FileName, ProcessCommandLine, ProcessId, InitiatingProcessFileName, InitiatingProcessId
+| order by TimeGenerated asc

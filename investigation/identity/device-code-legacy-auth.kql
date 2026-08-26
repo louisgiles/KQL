@@ -1,0 +1,15 @@
+// Question: Did this account use device code, ROPC or common legacy mail clients?
+// Table: SigninLogs
+// Dependency: Entra sign-in logs ingested into Sentinel
+// Surface: Sentinel Logs / Log Analytics
+
+let TargetUser = "user@contoso.com";
+let Lookback = 14d;
+SigninLogs
+| where TimeGenerated >= ago(Lookback)
+| where UserPrincipalName =~ TargetUser
+| where AuthenticationProtocol in ("deviceCode", "ropc") or ClientAppUsed in ("Exchange ActiveSync", "IMAP", "MAPI", "SMTP", "POP")
+| extend AuthPath = case(AuthenticationProtocol == "deviceCode", "Device code", AuthenticationProtocol == "ropc", "ROPC", "Legacy client")
+| extend Result = iff(ResultType == "0", "Success", ResultDescription)
+| project TimeGenerated, IPAddress, AppDisplayName, ResourceDisplayName, AuthPath, AuthenticationProtocol, ClientAppUsed, AuthenticationMethodsUsed, Result
+| order by TimeGenerated desc

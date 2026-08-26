@@ -1,0 +1,13 @@
+// Question: Who remotely authenticated to this device and from where?
+// Table: DeviceLogonEvents
+// Dependency: DeviceLogonEvents ingested into Sentinel Log Analytics
+// Surface: Sentinel Logs / Log Analytics
+
+let TargetDevice = "host.contoso.com";
+let Lookback = 7d;
+DeviceLogonEvents
+| where TimeGenerated >= ago(Lookback)
+| where DeviceName =~ TargetDevice
+| where isnotempty(RemoteIP)
+| project TimeGenerated, AccountDomain, AccountName, ActionType, LogonType, RemoteIP, RemoteDeviceName, Protocol, IsLocalAdmin
+| order by TimeGenerated desc

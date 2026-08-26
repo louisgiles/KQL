@@ -1,0 +1,15 @@
+// Question: What directory changes did this user initiate or receive?
+// Table: AuditLogs
+// Dependency: Entra audit logs ingested into Sentinel
+// Surface: Sentinel Logs / Log Analytics
+
+let TargetUser = "user@contoso.com";
+let Lookback = 14d;
+AuditLogs
+| where TimeGenerated >= ago(Lookback)
+| extend InitiatorUPN = tostring(InitiatedBy.user.userPrincipalName), InitiatorApp = tostring(InitiatedBy.app.displayName)
+| mv-expand TargetResource = TargetResources
+| extend TargetUPN = tostring(TargetResource.userPrincipalName), TargetName = tostring(TargetResource.displayName), TargetType = tostring(TargetResource.type)
+| where InitiatorUPN =~ TargetUser or TargetUPN =~ TargetUser or TargetName =~ TargetUser
+| project TimeGenerated, ActivityDisplayName, Result, InitiatorUPN, InitiatorApp, TargetUPN, TargetName, TargetType
+| order by TimeGenerated desc

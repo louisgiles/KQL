@@ -1,0 +1,12 @@
+// Question: Where was this hash observed and what created or modified the file?
+// Table: DeviceFileEvents
+// Dependency: DeviceFileEvents ingested into Sentinel Log Analytics
+// Surface: Sentinel Logs / Log Analytics
+
+let TargetHash = "SHA1-or-SHA256-or-MD5";
+let Lookback = 30d;
+DeviceFileEvents
+| where TimeGenerated >= ago(Lookback)
+| where SHA256 =~ TargetHash or SHA1 =~ TargetHash or MD5 =~ TargetHash
+| project TimeGenerated, DeviceName, FileName, FolderPath, SHA1, SHA256, FileOriginIP, FileOriginUrl, InitiatingProcessFileName, InitiatingProcessAccountName
+| order by TimeGenerated desc
