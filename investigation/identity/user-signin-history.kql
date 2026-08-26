@@ -1,0 +1,14 @@
+// Question: Has this user normally used this IP, location, app, client and device?
+// Table: SigninLogs
+// Dependency: Entra sign-in logs ingested into Sentinel
+// Surface: Sentinel Logs / Log Analytics
+
+let TargetUser = "user@contoso.com";
+let Lookback = 30d;
+SigninLogs
+| where TimeGenerated >= ago(Lookback)
+| where UserPrincipalName =~ TargetUser
+| where ResultType == "0"
+| extend DeviceId = tostring(DeviceDetail.deviceId)
+| summarize SignIns=count(), FirstSeen=min(TimeGenerated), LastSeen=max(TimeGenerated) by IPAddress, Location, AppDisplayName, ClientAppUsed, DeviceId
+| order by SignIns desc
