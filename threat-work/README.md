@@ -25,7 +25,8 @@ All executable content follows the
 pipeline logic remain in the separate
 [`louisgiles/oneshots`](https://github.com/louisgiles/oneshots) repository.
 
-The only remaining legacy `threathunting/` artifact on active `main` is the
-Babbler-derived tenant research file that is explicitly queued for migration to
-`oneshots`. The original pre-consolidation roots remain recoverable from the
-named archive branch.
+The retired top-level `threathunting/` root has been removed from active
+`main`. Its Babbler-derived tenant research file now lives at
+[`highriskofficeops/babbler/research/`](https://github.com/louisgiles/oneshots/tree/main/highriskofficeops/babbler/research)
+in `louisgiles/oneshots`, with the exact original Git blob preserved. The
+pre-consolidation KQL roots remain recoverable from the named archive branch.
