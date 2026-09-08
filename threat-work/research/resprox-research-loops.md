@@ -12,9 +12,15 @@
 
 There are **15 passes: one opening baseline pass, followed by exactly 14 distinct research tasks**. Task 14 is the final synthesis.
 
-The requested cadence is one pass every 30 minutes for 7.5 hours: 15 future invocations, with the first at +30 minutes and the last at +450 minutes. These are desired offsets, not an active schedule. The available ChatGPT scheduling tool supports a minimum interval of one hour, so **no half-hour automation has been created**. This file is ready for explicitly invoked runs; it does not itself launch background work. Do not silently replace the requested cadence, create staggered schedules to bypass the interval limit, or report a run that did not execute.
+The user has authorized **hourly execution in the originating chat**, superseding the earlier request for a 30-minute cadence. The automation was created successfully on 2026-09-08 at 23:36:09 UTC and is enabled with a maximum of 15 scheduled invocations.
 
-The exploratory discussion before this file is seed context, not a completed scheduled baseline. All 15 passes begin pending.
+- **First invocation:** 2026-09-09 00:36:09 UTC / 01:36:09 Europe/London.
+- **Recurrence:** hourly, 15 occurrences in total.
+- **Final scheduled invocation:** 2026-09-09 14:36:09 UTC / 15:36:09 Europe/London.
+- **Per invocation:** perform one next pending pass, save its findings to this file, and report the result in the originating chat.
+- **Schedule boundary:** the cap counts invocations, not successful research completions. A failed or blocked invocation must be reported honestly; do not create additional runs without user authorization.
+
+The exploratory discussion before this file is seed context, not a completed scheduled baseline. All 15 passes are pending at scheduling time. The file records the programme; the enabled automation supplies the triggers. Do not report a pass as executed until it has genuinely run.
 
 ## Research intent
 
@@ -214,11 +220,11 @@ Synthesize the evidence without retelling every pass. State the strongest surviv
 
 ## State — update after each saved pass
 
-**Programme status:** ready; not scheduled  
+**Programme status:** scheduled; awaiting L01  
 **Next pass:** L01  
 **Last completed pass:** none  
 **Last result journal entry:** none  
-**Unresolved execution blocker:** Requested 30-minute automation cadence is unsupported by the available scheduler.  
+**Unresolved execution blocker:** none at scheduling time; GitHub read access confirmed.  
 **Research-data blockers:** Live tenant access and actual table ingestion have not been established.
 
 | Loop | Task | Status | Last updated UTC | Result / blocker |
@@ -280,7 +286,7 @@ For each entry use: loop/task identifier; execution time in UTC; question and re
 
 ## Current handoff
 
-On the next explicit invocation, execute L01. The first job is to establish the evidential baseline. Do not treat the prior assistant's suggested connection as an established finding.
+On the first scheduled or otherwise explicitly requested invocation, execute L01. The first job is to establish the evidential baseline. Do not treat the prior assistant's suggested connection as an established finding.
 
 ## Reusable invocation
 
