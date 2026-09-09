@@ -192,6 +192,8 @@ Search primary papers, technical disclosures, standards, and documented detectio
 
 **L09 handoff refinement:** Compare C11's retained descriptive self-new/peer-prevalence measurement with the closest process-conditioned peer/history method under equivalent visibility. Default conjunction-first ranking is suspended after A08, not validated by selected nuisance removal. Do not fit new weights to its labels; distinguish a useful role-change summary from a distinct mechanism. C12 remains conditional integration, not a new rebinding mechanism.
 
+**Q02 direction refinement:** Freeze the decision before comparing methods: C11 describes role change; relay participation and unauthorized use are separate evaluation endpoints. A08's target set was D01/D06/D24, not a complete participation or role-change oracle; preserve its results and do not relabel it to manufacture a win. Compare the closest primary process-conditioned peer/history implementation feature-for-feature under equivalent visibility. Name one residual observable and the analyst decision it adds, or classify C11 as established adaptation and stop elaborating its ranking. No default conjunction priority is restored. See [Q02](./resprox-direction-reviews.md#q02--fix-the-decision-before-testing-the-detector).
+
 **Deliverable:** A prior-art comparison for the leading candidates, exact unresolved gaps, bounded search limitations, and resulting changes to the candidate portfolio.
 
 **Completion test:** Retain novelty claims only where a specific contribution remains. Useful established hunts may remain valuable even when they are not novel.
@@ -201,6 +203,8 @@ Search primary papers, technical disclosures, standards, and documented detectio
 **Question:** What do growth, software distribution, resale, and churn predict that our hunts should measure?
 
 Map the documented lifecycle and incentives only as far as needed to produce detection consequences. Examine enrolment, dormant-to-active changes, distribution/updates, provider overlap, takedown adaptation, and legitimate demand. Distinguish devices, IPs, households, software installations, sessions, and operators, with appropriate observation windows. Test whether apparent growth or a hunt trend could be caused by collection changes, reassignment, or pool overlap.
+
+**Q02 direction refinement:** Test the selective-activation assumption, not another growth narrative. Ask whether wider activation of the same build makes its imported workload look peer-normal. Design one matched comparison varying the fraction of participating peers while holding the focal workload, build and sensor coverage fixed; include coordinated benign rollout, shared-destination relay and quiet-relay controls. Keep independent participation truth separate from authorization and ordinary role change; no approval label is a feature. Measure eligible covered installation-days and baseline/candidate support, not public IPs or apparent fleet size. Require a source-backed lifecycle prediction and obtainable discriminating observation; if neither survives, record that negative and leave the novel-observable challenge to L12. This review designs requirements only; it runs no experiment.
 
 **Deliverable:** Mechanism-backed predictions, a defensible unit and denominator for measurement, and concrete candidate changes or new opportunities derived from those predictions.
 
@@ -1911,6 +1915,8 @@ console.log(JSON.stringify({protocol:{days:[14,7],minPeers:5,cutoff:0.10,budgets
 **Next pending numbered pass: L10 / T09 — Closest prior art and the remaining measurement gap.**
 
 L01–L09 plus two authorized interstitials are complete: **9 of 15 numbered passes**. Read the latest direction supplement and check whether its review is due. L09 applied Q01 without changing that separate file.
+
+**Q02 direction review:** L10 must separate role-change, relay-participation and unauthorized-use endpoints before judging C11 against its closest implementation; A08's original target labels/results remain unchanged. L11 must challenge peer-normalization as activation spreads, with fixed focal workload and independent participation/configuration truth. Keep only C11 as a provisional mechanism-led experiment, not a breakthrough; C12 stays conditional integration. No new ranking or test outcome is claimed. [Review and rejection conditions](./resprox-direction-reviews.md#q02--fix-the-decision-before-testing-the-detector).
 
 A08 ran twice unchanged on 1,613 normalized synthetic observations / 24 device-build entities; 21 assertions passed. At the preselected K=3 all six methods had overlapping 0–1 target-yield ranges across ties. Held-out peer+self filters the controller-only, stable-specialist and common-rollout distractions, but an ordinary role change ranks first and the approved twin remains identical. K=5 admits two chosen targets versus one for raw/peer-only; this fixture-specific sensitivity is not a general ranking win.
 
