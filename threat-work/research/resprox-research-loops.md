@@ -6,7 +6,7 @@
 **Canonical file:** threat-work/research/resprox-research-loops.md  
 **Original sources:** [ResProx](./ResProx)  
 **Created:** 2026-09-08  
-**Readiness:** C05/C01/C06 specified with paper controls; C11 is the leading behavior-led endpoint experiment; C10 is parked absent attributable TLS collection; C09 leads L06. All ingestion and efficacy remain unconfirmed; no query execution or production change.
+**Readiness:** C05/C01/C06 specified with paper controls; C11 remains the endpoint experiment. C04-G now has a conditional token-workload specification and an offline recurrence reducer checked on 13 constructed variants; C09 is weakened after module inspection. C10 remains parked absent attributable TLS collection. All tenant ingestion and efficacy remain unconfirmed; no KQL or production change.
 
 ## Run accounting and scheduling
 
@@ -242,12 +242,12 @@ Lead with the ranked detection/hunt portfolio. For each shortlisted candidate st
 
 ## State — update after each saved pass
 
-**Programme status:** in progress; L01–L05 plus additional L04.5 and L04.5(2) completed (5 of 15 numbered passes)  
-**Next pass:** L06 / T05 — Identity and session hunts  
-**Last completed pass:** L05  
-**Last result journal entry:** [L05 — Endpoint role bifurcation and the TLS collection verdict](#l05--endpoint-role-bifurcation-and-the-tls-collection-verdict)  
-**Unresolved execution blocker:** none; L05 public-source endpoint research and candidate design completed.  
-**Research-data blockers:** Actual table/category ingestion, population/field coverage, directory mapping, retention and runtime remain unconfirmed. C11 requires repeated exact hashes, comparable endpoint coverage and self/peer history; none is confirmed. C05 has one historical EXE seed, not a complete catalogue/approval register. Current control intelligence/pairs remain unsupplied for C01. C10 needs an existing attributable TLS sensor and is parked without it. C09 needs complete ordered activity/outcome coverage; C04-G needs Graph collection/token mapping. Other saved candidate dependencies remain unchanged.
+**Programme status:** in progress; L01–L06 plus additional L04.5 and L04.5(2) completed (6 of 15 numbered passes)  
+**Next pass:** L07 / T06 — Network, DNS, and local-access hunts  
+**Last completed pass:** L06  
+**Last result journal entry:** [L06 — Identity state: pruning limits and token recurrence](#l06--identity-state-pruning-limits-and-token-recurrence)  
+**Unresolved execution blocker:** none; L06 public-source identity research, candidate revision and limited offline reducer experiment completed.  
+**Research-data blockers:** Actual table/category ingestion, population/field coverage, directory mapping, retention and runtime remain unconfirmed. C11 requires repeated exact hashes, comparable endpoint coverage and self/peer history; none is confirmed. C05 has one historical EXE seed, not a complete catalogue/approval register. Current control intelligence/pairs remain unsupplied for C01. C10 needs an existing attributable TLS sensor and is parked without it. C09 lacks validated recurrent-stream/category mapping and loses first-build priority. C04-G needs Graph collection/token mapping, complete request/batch coverage and separate seed-parser/authentication-join validation; its 13-case offline reducer check does not fill those gaps. Other saved candidate dependencies remain unchanged.
 
 | Loop | Task | Status | Last updated UTC | Result / blocker |
 |---|---|---|---|---|
@@ -258,7 +258,7 @@ Lead with the ranked detection/hunt portfolio. For each shortlisted candidate st
 | L04.5 | Additional creative reframing, explicitly authorized | completed | 2026-09-09T00:50:53Z | C07 removal-boundary and C08 configured-principal ideas; C04-G token linkage; revised method and L05 priority. No execution. |
 | L04.5(2) | Additional mechanism challenge, explicitly authorized | completed | 2026-09-09T01:19:16Z | C09 outcome-conditioned target omission; C10 process–TLS mismatch; novelty narrowed, C07/C08 reprioritized; no execution. |
 | L05 | T04 Endpoint and process hunts | completed | 2026-09-09T01:34:34Z | C11 same-hash peer/self role-bifurcation hunt created; C10 mechanism strengthened but normal Sentinel path parked; no execution. See L05 journal. |
-| L06 | T05 Identity and session hunts | pending | — | — |
+| L06 | T05 Identity and session hunts | completed | 2026-09-09T02:32:24Z | C09 source-to-signature assumptions weakened; C04-G rule-seeded token recurrence specified, 13 constructed reducer variants checked offline. No KQL/tenant execution. See L06 journal. |
 | L07 | T06 Network and local-access hunts | pending | — | — |
 | L08 | T07 Cross-source correlations | pending | — | — |
 | L09 | T08 Tuning and cost | pending | — | — |
@@ -307,6 +307,14 @@ Allowed pass statuses: pending, completed, blocked. An inconclusive research res
 | 1 practical baseline | C05 — identified proxyware execution/provenance | Smallest path to a defensible software-policy decision. | Remains specified; exact identity cannot cover unknown SDKs or prove participation. |
 | Conditional enrichment | C01 — role-valid control contact | Strong association when event-time intelligence exists. | Remains specified; no current input supplied. |
 | Park by default | C10 — process owner versus relayed TLS author | Protocol-proximate evidence of a conduit role. | Conditional research/lab idea; no native DNE fingerprint, standard ASIM TLS-fingerprint field or proven MSSP socket join. |
+
+**L06 identity decision:** C09 loses first-build priority: the inspected tool randomizes app/resource context, runs concurrent requests, and prunes differently by mode/outcome. Retain target cessation only as a restricted, coverage-dependent experiment. C04-G is the first conditional identity refinement where Graph logs exist; C06 remains the lower-dependency baseline. Full updated cards, inference table and executed-experiment limits are in the [L06 journal](#l06--identity-state-pruning-limits-and-token-recurrence).
+
+| L06 priority | Candidate | Current disposition / next validation |
+|---|---|---|
+| Conditional implementation | C04-G — token-linked rule/request investigation | Specified with unconfirmed ingestion; recurrent-origin facet checked only by a 13-variant offline reducer. Verify Graph mapping/batches and compare review with request-only context. |
+| Lower-dependency baseline | C06 — credential-failure cohorts | Remains specified with paper controls; no tenant or KQL execution. |
+| Restricted experiment | C09 — target cessation while peer workload continues | Weakened; no supported universal triplet/0-or-50057 signature. Establish actual category/recurrence, cross-app target presence and incremental value first. |
 
 ### C11 — Same binary, different job
 
@@ -364,7 +372,8 @@ Allowed pass statuses: pending, completed, blocked. An inconclusive research res
 - **Expected output:** Paired sign-in identifiers/times/context and SessionId; baseline state; rule evidence and actor/target; correlation basis and strength; optional feed observation timing; missing corroboration.
 - **Benign alternatives / interpretation:** Authorized device/profile transfer, normal SSO/client differences, legitimate mail organization, delegates and shared egress. The full sequence warrants possible session/account-compromise review; it proves neither replay nor residential-proxy transport, endpoint infection or a compromised home device. Routine token reuse and absent fresh MFA are not compromise proof.
 - **L04.5 refinement:** C04-G adds a documented Graph-token-to-sign-in relation with separate collection and scope checks (S44–S46); full card is in the L04.5 journal. This may replace approximate workload correlation where populated, while preserving the original branch. It does not make OfficeActivity carry the same fields.
-- **Readiness / next test:** **idea; conditional reserve**, not the first identity specification. Verify SessionId/client population and actor mapping; compare with the rule-only baseline S24. Reject a mandatory sequence if it loses known useful mailbox cases. Non-interactive source-IP semantics and direct resource access without a new sign-in need separate treatment (S25/S26).
+- **L06 refinement:** C04-G is now separately specified with an explicit Graph rule-operation seed, exact-token timeline and status-aware recurrence facet; its offline reducer experiment does not validate this older sign-in/mailbox branch. See the L06 journal.
+- **Readiness / next test:** **idea; conditional reserve** for the original sign-in/mailbox branch. Verify SessionId/client population and actor mapping; compare with the rule-only baseline S24. Reject a mandatory sequence if it loses known useful mailbox cases. Non-interactive source-IP semantics and direct resource access without a new sign-in need separate treatment (S25/S26).
 
 ### C03 — Local-service access by a proxy-associated process
 
@@ -390,7 +399,7 @@ Allowed pass statuses: pending, completed, blocked. An inconclusive research res
 
 ## Hypothesis register — maintain, merge, and retire explicitly
 
-L04 adds on-paper controls and triage to C05/C01/C06. L04.5 adds lifecycle/ownership hypotheses and token-workload linkage, and rejects treating a benign twin as proof a hunt has no decision value. L04.5(2) adds H15/H16 and removes C07/C08's leading exploration priority. No hypothesis has been empirically validated. Earlier findings remain historical; L04 corrections supersede differing L03 details.
+L04 adds on-paper controls and triage to C05/C01/C06. L04.5 adds lifecycle/ownership hypotheses and token-workload linkage, and rejects treating a benign twin as proof a hunt has no decision value. L04.5(2) adds H15/H16 and removes C07/C08's leading exploration priority. L06 weakens C09/H15 after module inspection and adds a limited offline C04-G reducer check; no hypothesis has field efficacy validation. Earlier findings remain historical; L04 corrections supersede differing L03 details.
 
 | ID | Precise claim and mechanism | Status | Supporting evidence | Counterevidence / assumptions | Next discriminating observation |
 |---|---|---|---|---|---|
@@ -410,11 +419,13 @@ L04 adds on-paper controls and triage to C05/C01/C06. L04.5 adds lifecycle/owner
 
 | H12 | A fresh component owned exclusively by a removed product can expose a violated lifecycle expectation after verified completion, unless another owner/reinstall explains it. | proposed; C07 created L04.5 | S39–S43 give scoped vendor expectation and possible removal collection; C07 supplies the causal contrast. | Incomplete removal/reboot, another installed host, repair/upgrade or bad ownership mapping can explain the return; opt-out does not prohibit all network traffic. | Compare complete removal on otherwise identical hosts with/without a legitimate second owner, then inspect fresh process origin. |
 | H13 | A documented setup's configured commercial principal can reveal deployment coordination or unresolved service ownership across launch clients. | proposed; C08 created L04.5 | S38 documents account parameters; S49 separates Docker launch client and workload placement. | Account labels do not prove payee, auth success or nodes; approved central accounts and missing/ambiguous parsing undermine an ownership allegation. | One redacted valid setup plus approved-account and multiple-clients-to-one-daemon controls. |
-| H14 | Stable token linkage can connect suspicious Graph requests to authentication across egress changes more precisely than user/IP/time alone. | supported as a documented mapping; detection benefit proposed in C04-G | S44–S46 document fields, collection and case-sensitive UTI join. | Population, tenant mapping and multiplicity unverified; shared tokens/concurrent legitimate workers prevent replay proof. | Reconstruct an approved multi-egress workflow and an independently confirmed misuse example; compare with request-only triage. |
+| H14 | Stable token linkage can connect suspicious Graph requests to authentication across egress changes more precisely than user/IP/time alone. | supported mapping; C04-G specified in L06, efficacy unproved | S44–S46; L06 direct-rule seed and recurrence design; A06 tests only a reduced synthetic facet. | Graph ingestion/mapping, batch completeness, user/app consistency, authentication join and runtime remain unverified. | Verify actual resource-directory/token mapping; compare request-only with exact-token timeline review using authorized controls. |
 
-| H15 | Outcome-conditioned omission within repeated target sequences can expose adaptive scheduling despite changing IPs. | proposed; C09 | S50 establishes one tool's pruning behavior; detector is an inference. | Shared directory state, approved jobs, input exhaustion, ordering and collection gaps; no causal proof. | Held-out incremental value over order-only ranking, with all opportunities and shuffled-outcome controls. |
+| H15 | Outcome-conditioned omission within repeated target workloads may expose adaptive scheduling despite changing IPs. | weakened in L06; C09 restricted experiment | S50/S60–S62 establish mode-dependent removal, including non-success responses. | Random app/resource selection and concurrent dispatch undermine the frozen ordered stream; 50057 reappears in continued paired rounds; input exhaustion also removes targets. | Establish actual recurrence/category coverage, inspect B across app/resource values, and compare cessation with plain target timelines. No source-backed universal success/pruning signature. |
 | H16 | A TLS fingerprint observed on a socket attributed to a relay process may belong to an upstream client, exposing application-role mismatch. | mechanism strengthened, operational branch conditional/parked in L05; C10 | S55 directly observes target-facing customer TLS fingerprints through Windows proxy nodes; S52/S53 support forwarding/sensor fields; S54 establishes prior art. | S55 required dedicated packet capture; shared TLS engines collide. DNE has no JA4 and standard ASIM supplies no causal process/TLS key. Approved forwarders and multi-stack apps remain twins. | Reopen operationally only with an existing pre-NAT/on-host TLS source and unique tuple/process attribution; then run controlled relay/direct/multi-stack comparison. |
 | H17 | An unchanged exact binary that diverges from same-hash peers and its own prior destination audience may expose conditional acquisition of a relay-like network role. | proposed in L05; C11 | S04 documents embedded SDK/task activation; S55 observes varied third-party destinations through Windows proxy apps; S56 supplies process/hash/destination fields. | Approved forwarders, security agents, feature flags, geography and device roles can be observational twins. Repeated exact hashes and comparable coverage may be unavailable. This detects divergence, not proxying or intent. | Controlled identical-build forwarding-disabled/enabled comparison against benign role/configuration controls; compare with destination count, peer-only and contact-only baselines. |
+
+| H18 | Exact-token recurrent origin use can add investigation context beyond one observed network handoff around an interesting workload action. | proposed in L06; standalone theft inference rejected | S44–S46/S64–S67 ground fields and outcomes; A06 distinguishes constructed AABB from ABAB while the authorized twin matches. | One client with alternating routes or approved shared-token workers is a twin. The small reducer does not validate adapters, batch coverage, joins or analyst benefit. | Compare identical seeded cases with/without the facet; remove it if it adds no useful decision context. |
 
 Use proposed, supported, weakened, rejected, merged, or unresolved. Record reasons for transitions; repeated mention does not increase confidence.
 
@@ -541,6 +552,25 @@ All accessed **2026-09-09 UTC**. This was a bounded endpoint/prior-art check, no
 | S58 | [Microsoft: ASIM Network Session schema](https://learn.microsoft.com/en-us/azure/sentinel/normalization-schema-network), schema 0.2.7, accessed 2026-09-09 | Distinguishes endpoint, intermediary, flow and IDS observations; supports explicit topology/source semantics and custom parsers. | The inspected standard schema does not supply a native JA4/JA3 field or endpoint-process-to-TLS causal key. AdditionalFields cannot be treated as a portable contract. |
 | S59 | [MITRE ATT&CK DET0325](https://attack.mitre.org/detectionstrategies/DET0325/), created 2025-10-21; modified 2026-05-12 | Existing prior art includes unusual processes, proxy destinations, lineage and high-entropy/high-volume connections. | C11's proposed contribution is the within-exact-binary peer/self contrast, not the generic anomaly primitive. Its novelty and efficacy remain unproved. |
 
+### L06 source additions and targeted rechecks — identity state and request semantics
+
+Accessed **2026-09-09 UTC**. Software inspection used pinned commit `28d8d1b18ca98030f2c140f16a2ed3b41018525b`; publication/observation dates are not inferred from commit retrieval. Living documentation dates are noted only where displayed. No inspected attacker code was executed.
+
+| ID | Direct primary source / version | Contribution and boundary |
+|---|---|---|
+| S60 | [o365spray base module](https://github.com/0xZDH/o365spray/blob/28d8d1b18ca98030f2c140f16a2ed3b41018525b/o365spray/core/handlers/sprayer/modules/base.py), blob `f9a858f4c9631623a3051a57caab2c954fe2fed8` | Recognized non-50126 outcomes remove the current target; only a subset enters the valid list. Thread-pool dispatch defeats an assumption of stable observed adjacency. Source semantics, not telemetry validation. |
+| S61 | [o365spray OAuth2 module](https://github.com/0xZDH/o365spray/blob/28d8d1b18ca98030f2c140f16a2ed3b41018525b/o365spray/core/handlers/sprayer/modules/oauth2.py), blob `3959b2e43f331f251a7cc15d3a034a01b030e1c7` | Request application/resource/scope selection is randomized; HTTP 200 enters its valid/removal path. A fixed app/resource stream is not a campaign invariant. No request-to-Sentinel mapping was observed. |
+| S62 | [o365spray outcome constants](https://github.com/0xZDH/o365spray/blob/28d8d1b18ca98030f2c140f16a2ed3b41018525b/o365spray/core/utils/defaults.py), blob `8469c59765c7774134a535b602804f31ebadb5bf` | Tool-valid list includes 500011/700016 and MFA/policy outcomes; excludes 50057. Tool labels cannot override official authentication semantics. |
+| S63 | [Microsoft Conditional Access network signals](https://learn.microsoft.com/en-us/entra/identity/conditional-access/concept-assignment-network), living documentation | Trusted locations are explicitly configured IP-based locations and policy inputs. Prior IP familiarity is not administrative trust, and a configured location alone does not show which policy applied. |
+| S64 | [Microsoft Graph JSON batching](https://learn.microsoft.com/en-us/graph/json-batching), revised 2025-02-21 | Multiple requests can share a dispatch; responses may be reordered; outer HTTP 200 does not establish inner-operation success. Supports C04-G batch exclusion and outcome correction. |
+| S65 | [Microsoft Graph errors](https://learn.microsoft.com/en-us/graph/errors), living documentation | 403 is denied and 429 is throttled; errors are not completed resource operations. Error cause can require more context. |
+| S66 | [Microsoft Graph sendMail](https://learn.microsoft.com/en-us/graph/api/user-sendmail?view=graph-rest-1.0), revised 2025-07-23 | 202 denotes acceptance, not completed processing/delivery. No body/recipient/effect is recoverable merely from that status. |
+| S67 | [Microsoft Graph create message rule](https://learn.microsoft.com/en-us/graph/api/mailfolder-post-messagerules?view=graph-rest-1.0), living documentation | Explicit me/users Inbox messageRules POST routes and 201 creation outcome ground a bounded C04-G seed; malicious rule actions require separate evidence. |
+| A06 | Offline experiment embedded in the L06 journal | Python reducer executed against 13 constructed variants, with observed outputs and exact source preserved. Tests recurrence arithmetic, selected scope/duplicate/batch/status controls only; not KQL, Graph ingestion, source mapping or efficacy. |
+
+**Rechecks:** S50 [paired orchestration](https://github.com/0xZDH/o365spray/blob/28d8d1b18ca98030f2c140f16a2ed3b41018525b/o365spray/core/handlers/sprayer/spray.py), same saved blob, establishes paired-list reconstruction and input exhaustion. S51 [official Entra errors](https://learn.microsoft.com/en-us/entra/identity-platform/reference-error-codes) separates missing-app/resource, MFA and disabled-account meanings. S11 [SigninLogs](https://learn.microsoft.com/en-us/azure/azure-monitor/reference/tables/signinlogs), S44 [Graph table](https://learn.microsoft.com/en-us/azure/azure-monitor/reference/tables/microsoftgraphactivitylogs), S45 [Graph collection](https://learn.microsoft.com/en-us/graph/microsoft-graph-activity-logs-overview), S46 [linkable identifiers](https://learn.microsoft.com/en-us/entra/identity/authentication/how-to-authentication-track-linkable-identifiers) and S25 [non-interactive semantics](https://learn.microsoft.com/en-us/entra/identity/monitoring-health/concept-noninteractive-sign-ins) retain their prior limitations. S46 explicitly maps UTI to SignInActivityId; its generic TenantId label must still yield to the Log Analytics table-specific workspace/resource-directory distinction. Graph delivery delay and possible transformations make current completeness an inspected dependency, never a guarantee.
+
+
 ### Starting research leads
 
 These links emerged in the initial conversation. Re-read the relevant source before relying on a claim; this list is not a validated evidence ledger.
@@ -557,7 +587,7 @@ These links emerged in the initial conversation. Re-read the relevant source bef
 
 ## Findings journal — append one section per pass
 
-L01–L05 and the additional L04.5/L04.5(2) passes are recorded below. Append later passes without replacing earlier findings.
+L01–L06 and the additional L04.5/L04.5(2) passes are recorded below. Append later passes without replacing earlier findings.
 
 For each entry use: loop/task identifier; execution time in UTC; question and result; new evidence; mechanism and assumptions; challenge; changes to the hypothesis and candidate registers; hunt/specification changes; handoff. Preserve earlier entries. Add corrections with attribution to the later pass that found them.
 
@@ -1101,20 +1131,213 @@ The decisive test uses one controlled binary build across matched isolated nodes
 **Handoff to L06.** Take C09 first: test whether outcome-conditioned target omission supplies value beyond repeated target order and ordinary directory/job changes. Preserve its independent opportunity denominator and hidden-state caveats. C04-G is the more precise workload alternative if MicrosoftGraphActivityLogs and token mapping are actually available; absence remains a blocker for that branch. Carry C11's lesson into identity work: seek a conserved actor/state contrast, not another pile of IP anomalies. Execute L06 only next.
 
 
+### L06 — Identity state: pruning limits and token recurrence
+
+**Executed:** 2026-09-09T02:32:24Z UTC research checkpoint; completion depends on the successful accompanying commit. **Task:** T05 only. Read current main, the reordered programme, all saved findings/registers/handoff, repository contract and applicable READMEs. Two bounded independent reviews, primary-source inspection and one offline Python experiment were performed. **No KQL, tenant query, authentication request, proxy connection, attacker tool, collector change or production action ran.**
+
+**Result.** C09's interesting question survives—*who stopped being targeted while the work continued?*—but its proposed ordered signature loses first-build priority. Reading the authentication modules, rather than just the outer loop, exposes three reasons: application/resource randomization can manufacture within-stream absence; concurrent requests undermine fixed adjacency; and the tool's removal decision is not equivalent to successful authentication. C04-G becomes the first conditional identity refinement to implement if Graph logs exist: **around a mailbox-rule creation or independently suspicious request, distinguish an ordinary origin handoff from recurrent use of the same token through both origins.** This is a more precise investigation, not a new proxy or token-theft classifier.
+
+#### C09 correction — the scheduler's decision is not the authentication outcome
+
+**New primary evidence.** S50 and S60–S62 were inspected at o365spray commit `28d8d1b18ca98030f2c140f16a2ed3b41018525b`. The OAuth2 module randomly selects request application/resource values and submits work through the base module's thread pool. A campaign can therefore leave a fixed app/resource stream without dropping a target, and dispatch order need not survive into sign-in chronology. The error handler removes recognized non-50126 outcomes from its current list; the paired loop reconstructs that list from a separate dictionary, from which only tool-classified valid entries are deleted. These are source-code findings, not observed Entra traffic.
+
+| Response observed by the inspected client | Ordinary mode, next round | Paired mode, next round | What the source establishes |
+|---|---|---|---|
+| HTTP 200 | Target removed | Target removed | Client records a valid result |
+| 50076 / 50079 | Removed | Removed | Client treats MFA-required outcomes as valid |
+| 50057 | Removed | Reintroduced if another password remains | Disablement removal is mode-dependent |
+| 50126 | Retained | Retained if another password remains | Incorrect-credential response alone does not remove it |
+| 500011 / 700016 | Removed | Removed | Client calls resource/application errors valid |
+
+The table assumes the loop continues, other users remain, no early stop occurs and the relevant response is recognized; exhaustion independently removes paired targets. It is an inspected state-transition model, **not an executed tool test**. Microsoft describes the final row as missing resource/application conditions (S51); those codes alone do not prove password validation. Neither a client label nor absence after it establishes successful access. ResultType 0 and CreatedDateTime still describe a successful sign-in and initiation time, not client receipt time (S11). The original separate 50057 experiment remains a hypothesis, but the paired-mode source cannot substantiate it as durable pruning.
+
+**Revised candidate card.**
+
+- **Behaviour/mechanism:** Observed target cessation while a previously recurrent peer workload continues; compatible with several forms of adaptive scheduling, including decisions based on errors. An outcome may change the scheduler's target state without changing IPs or granting access. That is the interesting retained abstraction.
+- **Required telemetry:** One explicitly selected, verified sign-in category with scoped activity IDs, initiation chronology, submitted/resolved target mapping, outcomes and measured interval coverage. Preserve the C06/L04 activity and identity rules. App/resource/protocol/IP are observed dimensions, not guaranteed campaign keys. The current C06 interactive lane does not establish coverage of the inspected tool's OAuth2 password-grant traffic; module-to-category mapping is unresolved.
+- **Optional telemetry:** Directory/account changes, approved job ownership and independently selected successful-access/workload evidence. No exit feed is required; missing optional evidence leaves an unresolved lead.
+- **Concrete retained experiment:** Freeze a candidate cohort, target B and recurrence windows from seven discovery days without reading outcomes; inspect seven held-out days. Use the earlier A-triggered, nonoverlapping 30-minute opportunities only where actual discovery data supports that order and timing. Count every A opportunity, including B present, C absent, and unscorable windows; no denominator selected on B's disappearance. Preserve pre/post counts for each outcome separately. Before calling B absent, search B across **all observed app/resource values in the same verified category/directory** and report those locators. That search disproves within-stream cessation when it finds B; it does not identify the campaign to which the other event belongs. If order is unstable, do not silently mine wider subsequences or adjust the cohort after outcomes: stop the ordered branch and retain an ordinary target timeline. This is a restricted experiment, not a replacement population analytic.
+- **Expected output:** Target/outcome locator; frozen cohort/template; all opportunity dispositions and denominators; B elsewhere; exact before/after times, category/coverage and source observations; independent follow-on evidence and next pivot. Review the stopped target without claiming its password was obtained.
+- **Benign alternatives/meaning:** Approved validation or migration jobs, directory changes, input exhaustion, target movement between request contexts, concurrent streams and lost publications can match. A hit establishes cessation in the inspected recurring workload; adaptive scheduling, common operator, proxy transport and account/session compromise each need more evidence.
+- **Readiness/next validation:** **Idea; weakened and removed from first-build priority.** First use constructed ordinary/paired state cases from the table, app/resource-switch and order-permutation controls; then establish whether any authorized real cohort has sufficiently stable recurrence. Compare with C06's plain target timeline and order-only output at the same review budget. Retire the extra feature if apparent omission is explained by stream partitioning, precedes outcomes or adds no decision value. No C09 evaluator or tenant validation ran in L06.
+
+This supersedes L04.5(2)'s implied practical advantage of the frozen app/resource triplet. It does not claim all tools randomize context or that every target-cessation hunt is useless.
+
+#### C04-G refinement — did the second origin replace the first?
+
+**Behaviour and mechanism.** A token remains an exact linkage even as request origins change. For an independently interesting Graph action, a single A→B handoff and continuing A→B→A→B use answer different investigation questions. Repeated alternation rules out a description consisting only of one irreversible handoff within that observed timeline; it does **not** establish simultaneous execution, two devices, two people or theft. One legitimate client behind alternating routes is a strong twin. S44–S46 establish the token mapping and collection path; recurrence is our derived facet.
+
+**Required/optional inputs.** Require MicrosoftGraphActivityLogs in the selected workspace/resource directory, with nonempty `AadTenantId`, `SignInActivityId`, `UserId`, `AppId`, `RequestId`, `TimeGenerated`, `IPAddress`, method/URI/status and sufficient request coverage. This first branch is user-scoped; do not merge empty UserId app-only traffic. Retain OperationId for batch handling, and raw SessionId, UniqueTokenId, UserAgent, TokenIssuedAt and DeviceId as context. DeviceId is authentication-origin context, not proof of the current request's physical sender; Graph Location is a service region, not user geography (S44). Missing required fields preserve the seed as unassessable for recurrence. Optional SigninLogs and separately verified sign-in categories add authentication context; optional OfficeActivity or operation-specific audit adds rule meaning, actor/delegate context and effects. Collection, table plan, retention and field population remain unconfirmed; Graph diagnostics/P1-or-P2 are separate from sign-in collection (S45).
+
+**Concrete Sentinel design — pseudocode, not executed KQL.**
+
+1. Use the shared EndUtc/run/coverage contract. Seed from a declared 24-hour window either by explicit suspicious RequestId locators, or by a bounded operation hunt: parsed Graph v1.0 paths exactly matching `POST /me/mailFolders/inbox/messageRules` or `POST /users/{one-id-or-UPN-segment}/mailFolders/inbox/messageRules`. S67 documents these routes and 201 for creation. Keep reported creation (201), denied/failed, and other outcomes separately. This seed finds rule operations, not malicious forwarding; the request body may be missing. Do not use a substring match or infer target mailbox identity from actor UserId. Other versions/routes require explicit extension.
+2. Deduplicate identical observations by scoped directory/RequestId; quarantine contradictory copies rather than selecting arbitrary latest values. For each seed read the exact token's requests within ±30 minutes, including the window edges outside the seed day. Scope the case-sensitive `SignInActivityId` by workspace and `AadTenantId`; check user/app consistency **before** partitioning. A conflicting owner/app is a quality exception, not two silently valid token histories. Do not lowercase the token or substitute/coalesce `UniqueTokenId`. The official UTI mapping, not its field-name appearance, controls this branch (S46).
+3. Keep all raw requests in the timeline. For the recurrence facet, exclude known `/$batch` wrapper rows and multi-request OperationId groups. Incomplete batch evidence or missing OperationId leaves independence uncertain; it cannot certify separate client dispatches. Equal request-receipt timestamps cannot be ordered by RequestId. Flag affected timelines as order-indeterminate for this first conservative facet. No sorted arbitrary tie-break becomes evidence.
+4. In the remaining time-ordered observations, canonicalize valid IPs and collapse consecutive same-IP runs, without dropping intervening third origins. Find four **consecutive runs** with addresses A,B,A,B. Retain their evidence; for the shortest witness use the last event of the first run and the first events of the next three. Report the minimum witness span, request IDs, per-origin methods/paths and raw statuses. A span is observation time, not network RTT or concurrent socket duration. Missing-IP/identity observations can invalidate the facet; they remain visible in the timeline.
+5. Preserve 403/429 and 202 as their own outcomes; recurrence of attempts is not recurrence of completed operations. Do not infer subrequest success from an outer batch 200. A direct rule-creation 201 reports creation; a sendMail 202 reports acceptance, not completed delivery (S64–S67). No request body, forwarding address or downstream action is invented.
+6. Optionally left-enrich with scoped sign-in `UniqueTokenIdentifier == SignInActivityId`, account/app consistency and sign-in **ResourceTenantId** matching verified Graph resource directory. The workspace TenantId is not that directory. Read the existing 14-day authentication lookback and admit later publications through the shared arrival bound. Retain all matching activity locators/multiplicity; no match leaves the Graph timeline intact. Never treat confidential-client refresh IP as necessarily the current request origin (S25). No generic union of absent categories.
+7. Return one seed/token timeline with origin shape, shortest witness, raw operation outcomes, token-join/coverage state and next action. First review at most 20 distinct seed tokens, ordered by independently supplied triage priority, then seed recency and stable locator; report total/truncation. Recurrence is a facet within those cases, **not an automatic risk-score bonus or a gate that hides rule-only leads**. Overlapping seed windows may share evidence but must retain each seed's bounds. Reduce to selected token keys before detailed timelines; no all-token Cartesian self-join.
+
+**Output and triage.** For a documented direct-route 201 seed, the practical output is “token T created a rule; requests through origin A continued after origin B appeared,” plus the exact rows supporting or contradicting that statement. Inspect request quality and route configuration, then whether the user/app legitimately shares tokens or gateways. Inspect the actual rule configuration/authorization and independent compromise evidence using available sources. A familiar IP, no new MFA prompt or no new sign-in cannot clear the lead. Verified authorized workflow explains that portion; unexplained recurrence merits review; malicious rule semantics or independently corroborated token misuse supports escalation. An independently suspicious seed survives absent recurrence or Graph/authentication linkage.
+
+**Readiness and decisive next test.** **Specified with unconfirmed ingestion; conditional hunt/investigation refinement.** The small reducer below was exercised, but the Graph adapter, seed parser, authentication join, category coverage, runtime/cost and detection efficacy were not. Compare the same suspicious-rule/request review with and without the recurrence facet using an authorized multi-egress workflow, ordinary handoff and independently confirmed misuse. If it adds no decision benefit, remove the facet and keep exact-token tracing. No standalone theft classification or novelty of token correlation is claimed.
+
+#### Executed synthetic check and inference limits
+
+An offline Python reference reducer was executed successfully against **13 constructed variants**. Inputs were already reduced to one declared synthetic workspace and token/request records. The code below is the exact reproducible experiment; it is not a Graph ingestion adapter, complete C04-G implementation or KQL test. It never used a token credential, account or network request. Synthetic labels are design stipulations, not observed causes.
+
+| Constructed case | Executed reducer output | Consequence |
+|---|---|---|
+| A,B,A,B at 0/60/120/180 seconds | Recurrence; minimum witness 180 seconds | Positive arithmetic/control case only |
+| Identical authorized twin | Identical recurrence and span | Cannot classify theft from this facet |
+| A,A,B,B handoff | No recurrence | Distinguishes the specified handoff shape |
+| Duplicated and reverse-ordered input | Same recurrence/span as original | Identical-record multiplicity/order did not change this reducer |
+| Four requests sharing a batch OperationId | Four excluded; no qualifying recurrence | Known batch grouping did not create the facet; not a negative token-misuse finding |
+| All timestamps tied | Order-indeterminate | No manufactured order |
+| Token case differs by origin; separately directory differs | No recurrence in either case | Exact token and directory isolation preserved |
+| 403-only alternation | Recurrence with four 403 statuses | Recurrent denied requests, not successful workload access |
+| sendMail 202 alternation | Recurrence with four 202 statuses | Status retained; acceptance does not imply delivery |
+| Conflicting RequestId copy | Request-ID quality exception | Arbitrary duplicate selection rejected |
+| Token owner conflicts; separately token empty | Token-key quality exception in both | No cross-owner/empty-token correlation |
+
+The synthetic success demonstrates only these reducer behaviors. Empty `op` values in the fixture represent synthetic already-selected/unclassified input; the reducer does **not** implement the design's missing-OperationId uncertainty gate. The fixture does not validate source field mapping, receipt fidelity, complete batch classification, missing-IP handling, rule-path parsing, review ranking, response effects, joins, prevalence or analyst value. Those remain planned work. No precision or recall is calculated from these designer-chosen examples.
+
+| Hit/context | What it establishes | Needed for a stronger conclusion |
+|---|---|---|
+| C09 observed cessation with continuing peers | Activity disappeared from the inspected recurrence | Cross-context checks and independent workload ownership/response evidence for scheduler attribution; separate access evidence for compromise |
+| Exact-token Graph recurrence | The same recorded UTI recurs through two observed origins | Route/client ownership and independent misuse evidence for token theft; no physical-device count follows |
+| Rule creation 201 on the documented direct route | Service-reported rule creation | Rule actions, actor/target authorization and effects to assess maliciousness/impact |
+| Historically familiar source address | Prior observations of that address | Administrative policy evidence for trusted-location status; independent identity evidence for attribution |
+| Named/trusted-location match | A configured location relationship, if verified at event time | Actual applied policy/evaluation before alleging bypass; no proof of benign access |
+| Identity activity plus a proxy-exit observation | At most time-scoped transport context | Separate evidence for participation, local exposure, endpoint compromise and session compromise; none transfers via shared IP |
+
+NAT/CGNAT and reassignment can place unrelated users behind one address; IPv6/privacy addressing and VPN routes can give one user several. Geographic and ASN features derived from those IPs are correlated context, not separate votes. Administrative trust is configured; historical familiarity does not create it (S63). Neither candidate assumes an adversary can choose a particular victim's household address or bypass identity protection. Feed timestamp/role validity remains the existing H05 contract.
+
+**Independent challenge and resolution.** Before seeing the favourites, the first reviewer proposed token-local recurrent use and a separate repeated error/repair workflow motif. The token proposal was merged into C04-G; the latter was not promoted because approved script/SDK behavior is a strong twin and it needs a separate seed/normalization study. The reviewer challenged batch multiplicity and HTTP outcome inflation; both corrections are adopted. Its suggestion to key on UniqueTokenId was not adopted: the inspected official mapping explicitly uses SignInActivityId. The second reviewer traced C09 into its modules and exposed app/resource randomization, concurrency and mode-sensitive removal. Those are material source-to-specification failures; C09 loses first-build priority rather than receiving cosmetic caveats.
+
+**Changes/handoff.** H15/C09 are weakened as specified above. H14/C04-G retain documented token linkage and gain a status-aware recurrence facet; H18 records the proposed incremental investigation benefit and rejects its sufficiency for theft. C06 remains the lower-dependency descriptive identity baseline, C05 the practical endpoint baseline, and C11 the endpoint experiment. L07 is next: develop network/DNS/local-access hunts, especially C03 with version-specific relay-to-local prerequisites and C02 with attributable collection. Require a collection-point/prerequisite matrix; use S05's historical fix boundary and distinguish attempted local access from successful compromise. Do not pre-complete L08 or enable new collection.
+
+**Bounded search and limits.** Primary source inspection covered the o365spray module paths, Microsoft token/Graph schema, operation/batch semantics, and named-location documentation. Public searches for password-spray target ordering/pruning and Graph threat hunting did not establish an implemented equivalent or a novelty claim. No field efficacy, source-code execution or complete product-coverage comparison was performed.
+
+<details>
+<summary>Exact offline Python recurrence experiment (13 constructed variants)</summary>
+
+```python
+"""Offline constructed C04-G recurrence reducer; not KQL or a log adapter."""
+from collections import defaultdict
+from itertools import groupby
+from ipaddress import ip_address
+from urllib.parse import urlsplit
+from dataclasses import dataclass, replace
+import json
+
+@dataclass(frozen=True)
+class R:
+    rid: str
+    t: int
+    ip: str
+    uti: str = 'TokenA'
+    directory: str = 'lab-D1'
+    user: str = 'U1'
+    app: str = 'App1'
+    op: str = ''
+    status: int = 200
+    uri: str = 'https://graph.microsoft.com/v1.0/me/messages'
+
+def assess(rows):
+    # One declared workspace. All other scope values are synthetic.
+    by_id = defaultdict(set)
+    for r in rows:
+        by_id[(r.directory, r.rid)].add(r)
+    if any(not k[1] or len(v) != 1 for k, v in by_id.items()):
+        return {'state': 'conflicting-or-missing-request-id'}
+    unique = [next(iter(v)) for v in by_id.values()]
+    owners = defaultdict(set)
+    ops = defaultdict(set)
+    groups = defaultdict(list)
+    for r in unique:
+        owners[(r.directory, r.uti)].add((r.user, r.app))
+        if r.op:
+            ops[(r.directory, r.op)].add(r.rid)
+    if any(not key[1] or len(v) != 1 for key, v in owners.items()):
+        return {'state': 'token-key-conflict-or-missing'}
+    for r in unique:
+        groups[(r.directory, r.uti, r.user, r.app)].append(r)
+    excluded = 0
+    spans, supports = [], []
+    for group in groups.values():
+        eligible = []
+        for r in group:
+            batch = urlsplit(r.uri).path.rstrip('/').endswith('/$batch')
+            batch |= bool(r.op and len(ops[(r.directory, r.op)]) > 1)
+            if batch:
+                excluded += 1
+            else:
+                eligible.append(replace(r, ip=str(ip_address(r.ip))))
+        eligible.sort(key=lambda r: r.t)
+        if len({r.t for r in eligible}) != len(eligible):
+            return {'state': 'order-indeterminate'}
+        runs = [list(g) for _, g in groupby(eligible, key=lambda r: r.ip)]
+        for i in range(len(runs)-3):
+            a, b, c, d = runs[i:i+4]
+            if a[0].ip == c[0].ip and b[0].ip == d[0].ip:
+                evidence = [a[-1], b[0], c[0], d[0]]
+                spans.append(evidence[-1].t-evidence[0].t)
+                supports.append([r.status for r in evidence])
+    return {'state': 'assessed', 'recurrence': bool(spans),
+            'shortest_span_s': min(spans) if spans else None,
+            'support_statuses': supports, 'batch_rows_excluded': excluded}
+
+A, B = '192.0.2.1', '198.51.100.2'
+base = [R(str(i), i*60, ip) for i, ip in enumerate([A,B,A,B])]
+cases = {
+    'recurrent': base,
+    'authorized_twin': base,
+    'handoff': [replace(r, ip=ip) for r, ip in zip(base,[A,A,B,B])],
+    'duplicate_and_reorder': list(reversed(base+base)),
+    'batch_only': [replace(r, op='batch1') for r in base],
+    'tied_time': [replace(r, t=0) for r in base],
+    'token_case_split': [replace(r, uti='TokenA' if r.ip==A else 'tokena') for r in base],
+    'different_directories': [replace(r, directory='lab-D1' if r.ip==A else 'lab-D2') for r in base],
+    'denied_only': [replace(r, status=403) for r in base],
+    'accepted_send': [replace(r, status=202, uri='https://graph.microsoft.com/v1.0/me/sendMail') for r in base],
+    'request_conflict': base+[replace(base[0], ip=B)],
+    'owner_conflict': [replace(r, user='U2') if r.rid=='3' else r for r in base],
+    'missing_token': [replace(r, uti='') for r in base],
+}
+out = {name: assess(rows) for name, rows in cases.items()}
+assert out['recurrent']['shortest_span_s'] == 180
+assert out['authorized_twin'] == out['recurrent'] == out['duplicate_and_reorder']
+assert all(out[k]['recurrence'] is False for k in ['handoff','batch_only','token_case_split','different_directories'])
+assert out['batch_only']['batch_rows_excluded'] == 4
+assert out['tied_time']['state'] == 'order-indeterminate'
+assert out['request_conflict']['state'] == 'conflicting-or-missing-request-id'
+assert all(out[k]['state'] == 'token-key-conflict-or-missing' for k in ['owner_conflict','missing_token'])
+assert out['denied_only']['support_statuses'] == [[403]*4]
+assert out['accepted_send']['support_statuses'] == [[202]*4]
+print(json.dumps(out, indent=2))
+```
+
+Executed command: `python l06_facet_check.py`; exit code 0. Script SHA256: `8e968a60fc0f95b3d4e3e2430c4347d530c911bf2e92c4bec83b926e334421a8`. The table above records the outputs; all embedded assertions passed. This digest identifies the offline fixture script only.
+
+</details>
+
 ## Current handoff
 
-**Next pending numbered pass: L06 / T05 — Develop identity and session hunts.**
+**Next pending numbered pass: L07 / T06 — Develop network, DNS, and local-access hunts.**
 
-L01–L05 plus manual L04.5 and L04.5(2) are complete: **5 of 15 numbered passes**. L05 created C11, “same binary, different job”: an exact-hash peer split plus same-device transition intended to expose conditional network-role activation. It is a hunt idea with unconfirmed ingestion and no execution. C05 remains the practical endpoint baseline. C10's relay/TLS-authorship mechanism gained primary support from S55, but the Sentinel path is parked unless an existing pre-NAT/on-host TLS source has a unique process/socket mapping; DNE and standard ASIM alone do not provide it.
+L01–L06 plus manual L04.5/L04.5(2) are complete: **6 of 15 numbered passes**. L06 weakened C09 after inspecting randomized request context, concurrent dispatch and mode-dependent pruning. Tool-classified valid credentials are not equivalent to successful authentication. The retained question is target cessation while a verified recurring workload continues; strict ordered C09 loses first-build priority and must check the target across app/resource values before claiming absence.
 
-For L06, lead with C09. Ask whether a repeated target stream changes *after* a consequential outcome while neighboring activity continues across addresses. Freeze patterns before examining outcomes, count every independent recurrence opportunity, preserve B's activity elsewhere, and compare against order-only, shuffled-outcome, approved-job, directory-state and input-exhaustion controls. Result codes do not prove attacker receipt or causal knowledge. A hit is adaptive-scheduling evidence at most, not proxy transport or account compromise.
+C04-G is now a **specified, conditional token-workload investigation refinement**, with an explicit Graph rule-creation seed and recurrent-origin facet. Exact case-sensitive SignInActivityId links the requests; optional authentication joins use UniqueTokenIdentifier with verified resource-directory/account/app consistency. Keep handoff, recurrence, batch uncertainty and raw response outcomes distinct. A Python reducer passed 13 constructed variants; the authorized twin matched exactly. No KQL, Graph adapter, seed parser, authentication join, tenant coverage or efficacy was tested. Graph availability is still unknown, so C06 remains the lower-dependency identity baseline.
 
-Also assess C04-G only if its documented MicrosoftGraphActivityLogs/token dependency produces a materially stronger session/workload decision. Do not substitute approximate user/IP/time joins for absent token linkage. C06 remains a descriptive baseline with its benign observational twin.
+For L07, advance or reject C03/C02 through **collection point and implementation prerequisites**. Recheck the primary local/loopback-access mechanism and the historical 2025-12-28 fix in S05 before transferring it to current versions. State which source can observe the relay process, local target and receiving service; distinguish endpoint loopback, another LAN device and perimeter traffic. A connection is an attempt/observation, not remote task authorship or successful compromise. DNS fallback must preserve attributable client versus shared-resolver semantics; flow measurements need genuine counters, intervals and NAT mapping. Produce the requested prerequisite matrix and concrete network/local-access card changes. C11 remains the endpoint experiment; C10 stays parked without an existing attributable TLS source.
 
-Actual customer ingestion, directory/activity-ID coverage, token/Graph collection, comparable history, approvals and proxy intelligence remain unknown. No runnable module, collection change, public-node interaction or deployment is authorized. Re-fetch current main and SHA before saving; preserve concurrent changes and stop if L06 is already complete. Execute exactly one next pass.
+Actual customer ingestion, schema population, category/retention/coverage, approvals, directory mapping and time-valid intelligence remain unconfirmed. No new collection, proxy-node interaction, runnable module or production deployment is authorized. Re-fetch main and SHA before writing; preserve concurrent work and stop if L07 is already completed. Execute exactly L07 next.
 
 
 ## Reusable invocation
 
 Read https://github.com/louisgiles/KQL/blob/main/threat-work/research/resprox-research-loops.md from the latest main branch. Follow its runner instructions and execute the next pending pass, strongly prioritizing actionable detection and hunt ideas and incorporating its saved candidates, evidence, rejected hypotheses, and handoff. Verify consequential technical claims with primary sources. Update the same file with the result, state, sources, and next handoff using a current blob SHA, preserving other changes. Report the strongest new finding and what changed. Execute one pass only; if the programme is complete, report that and stop.
+
 
