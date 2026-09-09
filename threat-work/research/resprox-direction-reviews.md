@@ -6,7 +6,7 @@
 
 ## Review cadence and honest execution boundary
 
-- Current requested interval: **60 minutes**, superseding 120 minutes. Last direction-review checkpoint: **2026-09-09T08:53:29Z** (Q05 below). Next review becomes due: **2026-09-09T09:53:29Z**.
+- Current requested interval: **60 minutes**, superseding 120 minutes. Last direction-review checkpoint: **2026-09-09T09:55:40Z** (Q06 below). Next review becomes due: **2026-09-09T10:55:40Z**.
 - The explicit hourly request supersedes the older 120-minute wording in the research README for cadence only; that README is outside this run's two-file write scope. All other repository requirements remain in force.
 - Read the latest main programme and this supplement before reviewing. Perform one direction review, never a numbered research pass under this review task. A numbered research invocation should apply saved refinements and check the latest checkpoint before duplicating a due review.
 - Make a reasoned keep, strengthen, merge, park or reject decision. Retaining the direction is valid. Record actual checkpoint, next due time, changed requirements and rationale; carry pending-task/handoff refinements into the canonical programme without changing completed work. Re-fetch each file and SHA immediately before writing, preserving concurrent changes.
@@ -41,8 +41,8 @@ These requirements supplement each task's existing principal lens and completion
 | **L11 — Ecosystem/measurement** | Q03: cross participating-peer fraction with shared-audience overlap while holding the focal device/build/workload fixed; report coverage separately. Compare self-only, peer-only and intersection at one predeclared budget. Reject peer rarity as a participation proxy if target support/coverage explains it; retain only demonstrated role-review value beyond self-history. |
 | **L12 — Unconventional opportunities** | Q04: retain Q03's search outside destination rarity and its audience-overlap controls. Choose an actionable analyst decision; remote-authorship proof is not a mandatory hunt endpoint. Compare the simplest method and benign twin, with explicit rejection. Do not pad the empty breakthrough slate. |
 | **L13 — Portfolio/experiments** | Q05: reuse merged C11 back-test/coverage, adjudicating other/unknown-hash-only differences and population exclusions. Keep C13 as one C01 enrichment experiment. Design sensor-grounded control/task/target mapping before pulse ranking; exclude both connect and proxy-readiness channels. Park missing observability. No collection authorized. |
-| **L14 — Challenge** | Q05: retain independent critique; challenge C13 with repeated common-timer work and a separately authorized task-delay/withholding protocol at fixed polling/lifetime. Freeze epoch/lag/placebo rules. Reject causal interpretation if the timer explains it and ranking investment without decision value beyond C01. Preserve approved-forwarder twins. |
-| **L15 — Final brief** | Lead with the surviving insights and executable next decisions, not the research chronology. State separately whether the useful-hunt goal and the distinctive-idea goal were met. Explain what remains untested. No breakthrough claim follows from a candidate count, attractive name or completed schedule. |
+| **L14 — Challenge** | Q06: bundle S89 hostname rows into Scope/device/path/name/current-hash investigation cases; keep method-specific host sets and witnesses. Allocate K=20 cases with one fixed order; count mixed cases once. Reject C11 benefit driven by hostname multiplicity/high fan-out. Then apply Q05's C13 timer/intervention challenge. No execution authorized. |
+| **L15 — Final brief** | Q06: separate evidence rows, investigation cases and adjudicated decision changes; never rank on hit count. State the first feasible experiment conditional on verified inputs: C11 DNE/hash/name history; C05 catalogue/approval; C01+C13 current controllers plus sensor mapping. Distinguish static/algebra checks from engine, sensor/lab and field validation. |
 
 
 ## Q02 — Fix the decision before testing the detector
@@ -107,6 +107,20 @@ C05/C01/C04-G/C06 remain practical baselines; C02/C10 remain input-gated and C07
 **Why change the next tasks:** A11's single shifted placebo and one-off startup control do not exclude repeated common-cause scheduling. Its 8/8 result is constructed reducer behavior, not task causality or sensor fidelity. L13 therefore reuses C11's existing comparison and defines C13's observation gate; L14 designs the repeated-timer/intervention challenge before further scoring. These are future tests requiring separate authorization for collection, not tests performed here.
 
 C12 remains conditional local-reach integration, outside the leading experiments. Practical C05/C04-G/C01/C06 and the recorded reopening conditions for parked alternatives remain unchanged. PR #39's merge is engineering progress only: static syntax/schema checks are recorded, but no Kusto-engine, sensor/lab or field validation is established.
+
+## Q06 — Spend the review budget on investigations, not hostnames
+
+**Checkpoint:** 2026-09-09T09:55:40Z; next due 2026-09-09T10:55:40Z. **Basis:** main programme blob `cf3e6018b70830744ed282a04826bf1839f2cf40`, including L13/A12, current tasks/registers/ledger/handoff and repository instructions. L14/L15 remain pending. One direction review only: no numbered pass, source study, independent critique, experiment, KQL change or deployment.
+
+**Verdict:** Keep the L13 portfolio, with C11 as the nearest executable field experiment, C05 as practical policy engineering, and C13 folded into C01 as sensor-gated enrichment. The serious breakthrough slate remains empty. L13 contains one evaluation-unit ambiguity that could materially bias C11: S89 emits hostname rows, while the README says analysts review device/application cases. A fixed budget spent on hostname rows lets one high-fan-out app consume multiple slots and can mistake evidence multiplicity for investigative value.
+
+| Leader / decision | Mechanism, observable and closest approach | Increment, benign explanation and decisive rejection |
+|---|---|---|
+| **C11 — keep, correct evaluation unit** | Exact-build history may expose a familiar executable's changed observed audience. S89 supplies host-level evidence; ordinary application history is the comparator. | Increment remains only C11-only hosts already seen under another/unknown hash. Upgrades, reversions and feature flags are strongest explanations. Bundle the union into device/application/current-hash cases, preserve each method's host sets, and allocate K=20 cases with one fixed order. Reject value if it disappears after bundling, is driven by destination multiplicity, or adds no decision/time benefit. |
+| **C05 — keep as practical baseline, not novelty** | Exact known proxyware execution plus reviewed provenance/approval can support a software-policy decision. | Authentic approved use and covert bundling can share the binary. Catalogue and event-time approval are mandatory inputs. Reject stronger conclusions without independent chain/task evidence; missing inputs make it infeasible, not benign. |
+| **C01+C13 — retain merged and conditional** | Role-valid controller contact may be prioritized when separately observed work follows repeated control epochs. Contact-only and ordinary timing analysis are comparators. | Pull workers, approved forwarders and common timers remain twins. Preserve Q05's sensor mapping and delayed/withheld-task test; park absent mapping and reject the pulse if a fixed timer explains it or it changes no decision. |
+
+**Next-task changes:** L14 must challenge C11 at the investigation-case level, counting mixed method evidence once; hostname counts are context only. It then applies the already-designed C13 timer challenge. L15 must present which experiment to run first based on verified workspace inputs rather than raw hit counts. Static parser/schema checks, A12 set algebra and constructed timestamp reducers remain engineering/synthetic checks; no Kusto-engine, sensor/lab or field validation exists.
 
 ## Update format
 
