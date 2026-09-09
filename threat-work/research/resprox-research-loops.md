@@ -6,7 +6,7 @@
 **Canonical file:** threat-work/research/resprox-research-loops.md  
 **Original sources:** [ResProx](./ResProx)  
 **Created:** 2026-09-08  
-**Readiness:** C05/C01/C06 remain specified with paper controls; C11 remains the endpoint experiment; C04-G is a conditional token-workload specification. L07 adds C12, a schema-grounded name-to-local-collapse hunt, and narrows C03 to topology- and implementation-gated local reach. C02 remains input-gated and C10 parked. All tenant ingestion and efficacy remain unconfirmed; no KQL or production change.
+**Readiness:** C11 is the lead endpoint experiment; L08 requires held-out non-control audience evidence before C01 can add context. C12/C03 remain conditional local-reach investigations, with the universal same-row DNS-binding claim withdrawn. C04-G/C05/C01/C06 remain practical specifications/baselines; C02/C10 stay parked. L08 adds 13 narrow offline JavaScript checks, not KQL, sensor or efficacy validation. All tenant ingestion remains unconfirmed; no production change.
 
 ## Run accounting and scheduling
 
@@ -166,6 +166,8 @@ Trace primary evidence for enrolment/control traffic, local or loopback access, 
 
 Combine promising endpoint, identity, DNS/network, inventory, or intelligence observations using bounded event-time relationships. Define entity identity and join semantics explicitly. Distinguish a shared public address from a shared device or household. Preserve primary results when optional enrichment is missing. Consider whether the same cause generates several apparently independent signals. Compare each correlation against its simpler baseline and identify which missing field prevents the join.
 
+**Q01 direction refinement (applied in L08):** State C11/C12's proposed contribution and closest simpler baseline before adding joins; perform a bounded prior-art screen and feature-removal/benign-twin comparison. Missing coverage is unassessable. The [direction supplement](./resprox-direction-reviews.md) governs remaining pending-task refinements without changing numbered order.
+
 **Deliverable:** Cross-source hunt specifications with join keys, time windows, required versus optional evidence, resulting decision, and examples where the join would misattribute activity.
 
 **Completion test:** Each retained correlation adds a stated decision benefit without silently turning missing coverage into benign evidence.
@@ -175,6 +177,8 @@ Combine promising endpoint, identity, DNS/network, inventory, or intelligence ob
 **Question:** Can the current candidates remain useful under realistic benign noise and data volume?
 
 Review likely false-positive sources, minimum baseline requirements, rarity and change metrics, exclusions, data skew, bounded scans, join cardinality, and output size. Explain how thresholds would be calibrated; label proposed values as provisional. Do not adopt the Reddit incident's upload or socket values as universal cutoffs. Examine whether exclusions hide adversarial use and whether low-volume abuse escapes the method. Compare broad hunting with tighter alerting use.
+
+**Q01/L08 refinement:** Test before optimizing. Execute a reproducible offline fixed-review-budget comparison of C11 raw versus held-out peer-only, self-only and peer+self, with C01-only separately. Include benign role/configuration change, name-visibility changes, missingness and feature removal; keep truth labels out of scoring. Report ties and observational twins, then tune only a surviving contrast. Challenge C12 with an internal forward proxy before adding DNS/service joins. A synthetic result does not establish operational efficacy.
 
 **Deliverable:** Revised candidate logic, tuning and performance notes, expected noise categories, failure modes, and a recommendation for hunt-only versus possible detection development.
 
@@ -242,12 +246,12 @@ Lead with the ranked detection/hunt portfolio. For each shortlisted candidate st
 
 ## State — update after each saved pass
 
-**Programme status:** in progress; L01–L07 plus additional L04.5 and L04.5(2) completed (7 of 15 numbered passes)  
-**Next pass:** L08 / T07 — Cross-source correlations  
-**Last completed pass:** L07  
-**Last result journal entry:** [L07 — Name-to-local collapse and observation-point discipline](#l07--name-to-local-collapse-and-observation-point-discipline)  
-**Unresolved execution blocker:** none; L07 public-source network research and candidate revision completed.  
-**Research-data blockers:** Actual table/category ingestion, population/field coverage, directory mapping, retention and runtime remain unconfirmed. C12/C03 require process-attributed local-address events and, for the stronger branch, client-attributed DNS answers or receiving-service evidence; none is confirmed. S05's IPIDEA path was reportedly fixed on 2025-12-28, so current applicability needs independent version/provider evidence. C02 still requires attributable flow counters, intervals and NAT/DHCP mapping. C11 needs repeated exact hashes and self/peer history. C05 lacks a complete catalogue/approval register; C01 lacks current control pairs; C10 lacks an attributable TLS sensor. C09 and C04-G retain their L06 blockers. Other saved dependencies remain unchanged.
+**Programme status:** in progress; L01–L08 plus additional L04.5 and L04.5(2) completed (8 of 15 numbered passes)  
+**Next pass:** L09 / T08 — Test surviving contrast, then tune and cost  
+**Last completed pass:** L08  
+**Last result journal entry:** [L08 — Held-out audience and the false local-collapse join](#l08--held-out-audience-and-the-false-local-collapse-join)  
+**Unresolved execution blocker:** none; L08 source/prior-art comparison, cross-source specifications and narrow synthetic checks completed.  
+**Research-data blockers:** Actual table/category ingestion, population/field coverage, directory mapping, retention and runtime remain unconfirmed. L08 additionally requires comparable route/name visibility, independently role-verified control intelligence and instance-level disjoint audience witnesses for the C11 combination. C12/C03 require process-attributed special-use peer events and, for stronger interpretation, client-attributed DNS answers, intermediary-role mapping or receiving-service evidence; none is confirmed. A same-row name/private IP does not establish a DNS binding. S05's IPIDEA path was reportedly fixed on 2025-12-28, so current applicability needs independent version/provider evidence. C02 still requires attributable flow counters, intervals and NAT/DHCP mapping. C11 needs repeated exact hashes and self/peer history. C05 lacks a complete catalogue/approval register; C01 lacks current control pairs; C10 lacks an attributable TLS sensor. C09 and C04-G retain their L06 blockers. Other saved dependencies remain unchanged.
 
 | Loop | Task | Status | Last updated UTC | Result / blocker |
 |---|---|---|---|---|
@@ -260,7 +264,7 @@ Lead with the ranked detection/hunt portfolio. For each shortlisted candidate st
 | L05 | T04 Endpoint and process hunts | completed | 2026-09-09T01:34:34Z | C11 same-hash peer/self role-bifurcation hunt created; C10 mechanism strengthened but normal Sentinel path parked; no execution. See L05 journal. |
 | L06 | T05 Identity and session hunts | completed | 2026-09-09T02:32:24Z | C09 source-to-signature assumptions weakened; C04-G rule-seeded token recurrence specified, 13 constructed reducer variants checked offline. No KQL/tenant execution. See L06 journal. |
 | L07 | T06 Network and local-access hunts | completed | 2026-09-09T03:35:59Z | C12 name-to-local collapse created; C03 narrowed by topology and implementation; C02 remains input-gated; unsupported visibility removed. No execution. See L07 journal. |
-| L08 | T07 Cross-source correlations | pending | — | — |
+| L08 | T07 Cross-source correlations | completed | 2026-09-09 | C11 held-out audience and same-instance C01 join; C12 DNS-binding claim withdrawn; non-Edge AdditionalFields/materialize path; 13 narrow JS assertions passed. No KQL/tenant execution. |
 | L09 | T08 Tuning and cost | pending | — | — |
 | L10 | T09 Prior-art gap | pending | — | — |
 | L11 | T10 Ecosystem and measurement | pending | — | — |
@@ -324,16 +328,20 @@ Allowed pass statuses: pending, completed, blocked. An inconclusive research res
 | 2 conditional parent | C03 — local reach by a proxy-associated process | Answers whether an associated process crossed into same-host or private-address space. | **Specified conditionally; hunt-only.** A transport event is not remote task authorship, service success or compromise; source-specific claims require current applicability. |
 | Input-gated reserve | C02 — attributable unmanaged-device traffic change | Covers devices without endpoint telemetry where existing flow logs carry genuine device/counter semantics. | Parked; do not approximate bytes, duration, concurrent sockets or device identity from DNE/event counts/shared DNS. |
 
+**L08 current decision:** Keep C11 as the lead experiment, testing non-control audience change independently of the controller that supplies C01 context. No automatic join/rank uplift. C12 remains useful conditional integration but loses the breakthrough label and same-row DNS-binding claim. C04-G and C05 are practical baselines, not substitutes for meeting the novelty goal. See the [L08 comparison and specifications](#l08--held-out-audience-and-the-false-local-collapse-join).
+
 ### C11 — Same binary, different job
 
 - **Behaviour / question:** Does an unchanged executable image behave as a narrow application/service on most comparable devices, but acquire a materially different destination audience on a minority—and did the same device transition without an image change?
 - **Mechanism / evidence:** H17. S04/S55 establish that proxy capability can be embedded in an ordinary application and that Windows bandwidth-sharing applications relay third-party destinations. Enrollment, provider eligibility, configuration or tasking can therefore change the network role without changing the host executable. The exact-hash peer group holds application bytes/version constant; a same-device transition adds temporal contrast. Neither contrast identifies the cause.
 - **Required telemetry:** DeviceNetworkEvents for a sufficiently repeated exact initiating-process SHA1, with Scope, DeviceId, TimeGenerated, ActionType, LocalIP/Port, RemoteIP/Port, RemoteUrl, Protocol and process-instance fields. SHA256 can supplement but is documented as sometimes unpopulated (S56). Required table, endpoint population, hash/process-key population, comparable device-days and URL/IP coverage are unconfirmed.
 - **Optional telemetry:** DeviceProcessEvents for start/lineage and image continuity; DeviceImageLoadEvents for separately observed module identity; C01 role-valid contact; C05 catalogue/approval; customer-supplied device role, software configuration/feature flags and deployment history; C10 TLS/SNI evidence only where its sensor contract is met. Missing optional data preserves the role-divergence lead.
-- **Concrete design:** Use a fixed seven-day candidate window and preceding fourteen-day self/peer history, separately per customer. Normalize successful and attempted observations into separate lanes. Define destination key as a parsed lowercase exact hostname when valid, otherwise canonical exact RemoteIP; do not resolve names later, collapse public-suffixes without a versioned list, or treat missing names as direct-IP proof. Group by exact SHA1 and retain product/path/version as context, not identity. Require multiple covered devices before peer comparison; otherwise emit insufficient-peer-support. For each device/hash, report candidate destination keys, active hours and ports; each key's leave-one-device-out peer prevalence; overlap with that device's earlier set; and peer distribution. Rank a fixed review budget first by concurrent **peer divergence plus self-transition**, then peer-only divergence, exposing all components rather than one risk score. A low-volume device can rank if a few new destinations are exceptional for both itself and its exact-hash peers. Stable core destinations remain visible. Do not call a statistical tail a second “mode” until tested.
+- **Concrete design:** Use a fixed seven-day candidate window and preceding fourteen-day self/peer history, separately per customer. Normalize successful and attempted observations into separate lanes. Define typed destination lanes: parsed lowercase exact hostname where source semantics support a target name, or canonical exact peer IP as peer-only evidence. Compare like-for-like lanes and retain route/name-coverage state; do not resolve names later, conflate logical targets with intermediary addresses, collapse public-suffixes without a versioned list, or treat missing names as direct-IP proof. Group by exact SHA1 and retain product/path/version as context, not identity. Require multiple covered devices before peer comparison; otherwise emit insufficient-peer-support. For each device/hash, report candidate destination keys, active hours and ports; each key's leave-one-device-out peer prevalence; overlap with that device's earlier set; and peer distribution. Rank a fixed review budget first by concurrent **peer divergence plus self-transition**, then peer-only divergence, exposing all components rather than one risk score. A low-volume device can rank if a few new destinations are exceptional for both itself and its exact-hash peers. Stable core destinations remain visible. Do not call a statistical tail a second “mode” until tested.
 - **Expected output:** Scope, device/process/hash and match quality; candidate/baseline/peer coverage; peer count; prior/current destination-set sizes and overlap; low-peer-prevalence destination examples with raw events; action/port/hour context; optional module/control/approval evidence; explanation/coverage state and next pivot.
 - **Benign alternatives and triage:** The strongest twin is an approved forwarder or security agent enabled on only some devices. Other alternatives are browser/WebView helpers, cloud sync/conferencing/P2P, geography or feature flags, server/client roles, user configuration and staged rollout. Verify exact hash and coverage, then device role/configuration, authorization, process lineage/modules and raw connections. A hit establishes role divergence for identical bytes under inspected coverage. It establishes neither relaying, lack of consent, malware, local exposure nor account/session compromise.
 - **Readiness / decisive test:** **Idea with schema-grounded design; unconfirmed ingestion; hunt-only.** In an authorized isolated lab, run the same instrumented binary build on matched nodes with its controlled local forwarding feature disabled/enabled; include an approved forwarder, browser, updater, sync/conferencing and P2P controls. Compare C11 at one review budget with simple destination count, peer-only contrast and C01 contact-only. Reject the claimed benefit if the self-plus-peer contrast adds no useful separation or mostly sorts ordinary role/configuration differences. Park tenant use where repeated exact hashes or comparable coverage are absent. No such test or collection occurred in L05.
+
+**L08 correction to C11/C01:** Keep the original IOC-free C11 lane. For the experimental C01 combination, remove role-valid controller destinations from candidate/self/peer scoring, preserve their raw evidence separately, and require a disjoint audience witness on the exact process instance. Never transfer a seven-day device/hash aggregate's contact to every instance. Keep target-host and peer-IP lanes separate; changed visibility is unassessable. The [L08 specification](#c11--c01-hold-the-controller-out-of-the-audience) defines the bounded join and next comparison. A07 checks only simplified set/identity operations, not the full candidate.
 
 **Common contract.** Windows and cutoffs below are proposed design values, not measured thresholds. Use non-overlapping baseline and candidate periods; never turn absent required data into a negative result. Optional evidence must not suppress a primary lead. Each workspace/customer remains a separate scope; do not join different tenants by UPN or IP. An empty name, client field or process key is unknown, not an anomalous value. Readiness labels remain: idea; specified with unconfirmed ingestion; specified with confirmed ingestion; tested in a labelled lab/synthetic setting; runtime-tested in a named authorized environment; rejected. Any future alert additionally needs calibration, cost/runtime checks, adjudicated controls and a separate deployment review.
 
@@ -385,14 +393,14 @@ Allowed pass statuses: pending, completed, blocked. An inconclusive research res
 
 ### C12 — The name collapses into self
 
-- **Behaviour / question:** Does a proxy-associated or role-divergent process resolve or connect a nonlocal name to the endpoint's own or private address space, creating an externally influenced path toward a local service?
+- **Behaviour / question:** Does a proxy-associated or role-divergent process show special-use peer activity, and can independent resolution/topology/service evidence distinguish a local target from an ordinary intermediary? Same-row name/peer co-occurrence is a lead, not a proven DNS binding.
 - **Mechanism / evidence:** H19. S05 observed residential-proxy clients target names resolving to 0.0.0.0/loopback so the proxy SDK would address itself or its local network; the provider reported blocking local-network access and sensitive ports on 2025-12-28. S71 defines 0.0.0.0/32, 127/8 and RFC1918 as distinct special-purpose classes. This is an existence proof for a proxy-mediated local-reach mechanism, not a claim about current IPIDEA versions or all providers.
-- **Required telemetry:** A process association from C01/C05 or a clearly labelled C11 lead; DeviceNetworkEvents on that same DeviceId and preferably InitiatingProcessUniqueId, with TimeGenerated, ActionType, RemoteUrl, RemoteIP, RemoteIPType, RemotePort, LocalIP/Port and process identity (S68). The cheapest branch requires one DNE row carrying both the name and special-use destination. If name and connection are separate, require client-attributed DNS response data with device identity and an exact returned address; shared-resolver-only logs are insufficient (S69).
+- **Required telemetry:** A process association from C01/C05 or a clearly labelled C11 lead; DeviceNetworkEvents on that same DeviceId and preferably InitiatingProcessUniqueId, with TimeGenerated, ActionType, RemoteUrl, RemoteIP, RemoteIPType, RemotePort, LocalIP/Port and process identity (S68). The cheapest branch retains one DNE row carrying name and special-use peer as co-observed context only. A DNS interpretation requires independently client-attributed response data with device identity, exact query name and returned address; shared-resolver-only logs are insufficient (S69). Forward-proxy/helper topology can explain name/peer divergence (S29).
 - **Optional telemetry:** Receiving-service/application audit, already collected Windows WFP 5156/5157/5158 data, device inventory/interface addresses, C01 controller timing, version/provider evidence and approved sinkhole/internal-zone lists. Optional absence cannot suppress the transport lead.
-- **Concrete logic, not executed:** Use a 24-hour candidate window and 14 prior days only for first-seen context. Classify exact targets into self (0.0.0.0/32 or 127/8), private (RFC1918) and other special-use; do not merge them. Seed only a process with an explicit association basis and preserve its strength. Prefer a same-row DNE tuple where a nonempty RemoteUrl outside declared internal zones accompanies a self/private RemoteIP. Otherwise join a DNS response to a DNE event on the same verified device, exact answer address and a zero-to-five-minute interval; require the DNS source mapping to identify that client. Join C01 only on the same process instance within 30 minutes where available; a hash-only C05/C11 link is weaker. Return four evidence stages separately: namespace-only; process transport attempt/observation; source-reported allow/success; receiving-service or post-connection impact. Preserve raw ActionType because unsupported values cannot be mapped to success. Historical S05 domains/ports are context, not gates or universal thresholds.
+- **Concrete logic, not executed:** Use a 24-hour candidate window and 14 prior days for first-seen context only. Separate zero-address (0.0.0.0/32, platform behaviour unresolved), loopback (127/8), private (RFC1918) and other special-use classes. Retain same-row name/private-peer observations without a DNS-binding claim. For the stronger branch join the same verified client, exact query/answer and 0–5-minute response-before-transport window; report answer/transport consistency, not proven consumption. Require exact process instance for C01 correlation, not hash-only transfer. Add receiving-service evidence only with a verified source-specific connection/identity contract. Keep disposition, resolution, intermediary topology and service receipt as separate facets. L08 supersedes L07's same-row-resolved-address preference; historical domains/ports remain context only.
 - **Expected output:** Scope/device/process and association basis; name and zone classification; DNS query/answer and source-mapping basis where used; exact local-address class, port, action and event locator; controller timing; receiving-service/impact evidence; applicability, coverage and decision stage.
-- **Benign alternatives / interpretation:** DNS/ad-block sinkholes commonly return 0.0.0.0 or loopback; split-horizon DNS legitimately returns private addresses; developer tools, browser helpers, security products, service discovery and management agents call local services. An approved forwarder may be an exact positive twin. A hit establishes that the associated process observed or attempted the documented name-to-local path under available telemetry. It does not establish remote task authorship, service acceptance, exploitation, residential transport, lack of consent, endpoint compromise or another LAN device's compromise.
-- **Readiness / next test:** **Idea with schema-grounded design; unconfirmed ingestion; hunt-only.** In an isolated authorized fixture, compare an externally supplied name resolving to loopback/private space against an ad-block sinkhole, split-horizon enterprise name, local developer integration and approved forwarder. Verify whether DNE retains name, address, process key and action; then add an instrumented receiving service. Reject the DNS join if client identity/answer fidelity is absent; retain same-row DNE leads. No such fixture ran in L07.
+- **Benign alternatives / interpretation:** DNS/ad-block sinkholes commonly return 0.0.0.0 or loopback; split-horizon DNS legitimately returns private addresses; developer tools, browser helpers, security products, service discovery and management agents call local services. An approved forwarder may be an exact positive twin. A hit initially establishes name/special-use-peer co-occurrence for an associated process. Only verified DNS and topology evidence support a local-answer/transport-consistent interpretation. It does not establish remote task authorship, service acceptance, exploitation, residential transport, lack of consent, endpoint compromise or another LAN device's compromise.
+- **Readiness / next test:** **Idea with schema-grounded design; unconfirmed ingestion; hunt-only.** In an isolated authorized fixture, compare an externally supplied name resolving to loopback/private space against an ad-block sinkhole, split-horizon enterprise name, local developer integration and approved forwarder. Verify whether DNE retains name, address, process key and action; then add an instrumented receiving service. Reject the DNS join if client identity/answer fidelity is absent; retain same-row DNE leads with the weaker name/peer-only label. Add an internal forward proxy/local helper counterexample before the original L07 controls. No C12 sensor/fixture test ran in L07 or L08.
 
 ### C03 — Local reach by a proxy-associated process
 
@@ -400,7 +408,7 @@ Allowed pass statuses: pending, completed, blocked. An inconclusive research res
 - **Mechanism / evidence:** H04; S05 supplies one historical, patched implementation and C12 supplies its narrow name-collapse adaptation. The proxy process, remote tasking system, endpoint socket, receiving service and any affected LAN device are separate entities.
 - **Required telemetry:** Process-attributed endpoint events observing the connection with local/remote address classes and ports; an explicit association basis; demonstrated loopback/private coverage. A source-specific vulnerability claim additionally requires provider/version/configuration evidence showing the path was applicable at event time.
 - **Optional telemetry:** Receiving-service audit; existing WFP connection/bind/listen events; source-aware east-west firewall/ASIM events; inventory/interface and DHCP mapping; process lineage. A perimeter firewall cannot see loopback and may miss same-segment LAN traffic.
-- **Concrete logic, not executed:** For each C01/C05/C11 process lead in 24 hours, inspect the same DeviceId and strongest available process key for RemoteIP in self/loopback, RFC1918 or other special-use classes within 30 minutes. Keep same-host self, same-host-address-possible, another-LAN-device-possible and unresolved topology in separate lanes. Preserve ActionType and raw connection rows; a port is not a protocol or service identity. Link an east-west record only with exact event-time source/device mapping and tuple/time compatibility. Link receiving-service evidence on the destination endpoint using its own process/service identity; never infer it from the initiating process or port. A DNS name-collapse result upgrades context to C12, not impact.
+- **Concrete logic, not executed:** For each C01/C05/C11 process lead in 24 hours, inspect the same DeviceId and strongest available process key for RemoteIP in self/loopback, RFC1918 or other special-use classes within 30 minutes. Keep loopback, zero-address/platform-unresolved, same-host-address-possible, another-LAN-device-possible and unresolved topology in separate lanes. Preserve ActionType and raw connection rows; a port is not a protocol or service identity. Link an east-west record only with exact event-time source/device mapping and tuple/time compatibility. Link receiving-service evidence on the destination endpoint using its own process/service identity; never infer it from the initiating process or port. Only independently supported client-answer/transport consistency adds C12 resolution context; a same-row name/peer pair alone does not. Neither establishes impact.
 - **Expected output:** Source process/association; topology lane and mapping evidence; destination address/port/action; implementation applicability; receiving-service corroboration; raw locators, coverage state and next action.
 - **Benign alternatives / interpretation:** Local agents, browser helpers, developer services, management/P2P tools, security products, approved forwarders and expected proxy health functions. A hit establishes local-address communication by an associated process. Only destination-side or application evidence can establish service receipt; command/execution evidence is needed for compromise. It never proves a remote customer authored the request.
 - **Readiness / next test:** **Specified conditionally; hunt-only; unconfirmed ingestion.** The universal “proxy plus local port means vulnerable” claim is rejected. First verify DNE action/process/local-address population and current implementation applicability. Then compare locally generated versus externally tasked requests in an isolated authorized control, with destination-side logging. Park source-specific use where S05's historical path is patched or version evidence is absent.
@@ -442,10 +450,12 @@ L04 adds on-paper controls and triage to C05/C01/C06. L04.5 adds lifecycle/owner
 
 | H15 | Outcome-conditioned omission within repeated target workloads may expose adaptive scheduling despite changing IPs. | weakened in L06; C09 restricted experiment | S50/S60–S62 establish mode-dependent removal, including non-success responses. | Random app/resource selection and concurrent dispatch undermine the frozen ordered stream; 50057 reappears in continued paired rounds; input exhaustion also removes targets. | Establish actual recurrence/category coverage, inspect B across app/resource values, and compare cessation with plain target timelines. No source-backed universal success/pruning signature. |
 | H16 | A TLS fingerprint observed on a socket attributed to a relay process may belong to an upstream client, exposing application-role mismatch. | mechanism strengthened, operational branch conditional/parked in L05; C10 | S55 directly observes target-facing customer TLS fingerprints through Windows proxy nodes; S52/S53 support forwarding/sensor fields; S54 establishes prior art. | S55 required dedicated packet capture; shared TLS engines collide. DNE has no JA4 and standard ASIM supplies no causal process/TLS key. Approved forwarders and multi-stack apps remain twins. | Reopen operationally only with an existing pre-NAT/on-host TLS source and unique tuple/process attribution; then run controlled relay/direct/multi-stack comparison. |
-| H17 | An unchanged exact binary that diverges from same-hash peers and its own prior destination audience may expose conditional acquisition of a relay-like network role. | proposed in L05; C11 | S04 documents embedded SDK/task activation; S55 observes varied third-party destinations through Windows proxy apps; S56 supplies process/hash/destination fields. | Approved forwarders, security agents, feature flags, geography and device roles can be observational twins. Repeated exact hashes and comparable coverage may be unavailable. This detects divergence, not proxying or intent. | Controlled identical-build forwarding-disabled/enabled comparison against benign role/configuration controls; compare with destination count, peer-only and contact-only baselines. |
+| H17 | An unchanged exact binary with a self-new/peer-divergent destination audience may expose a conditional network-role change. | proposed; narrowed in L08; C11 | S04/S55/S56; A07 checks simplified held-out sets and instance joins. S76/S77 establish nearby prior art. | Controller novelty can duplicate C01 evidence; visibility/role/configuration changes and approved forwarding remain twins. | L09: compare held-out peer/self contrast with simpler baselines at equal review budget, keeping labels separate and coverage comparable. |
 
 | H18 | Exact-token recurrent origin use can add investigation context beyond one observed network handoff around an interesting workload action. | proposed in L06; standalone theft inference rejected | S44–S46/S64–S67 ground fields and outcomes; A06 distinguishes constructed AABB from ABAB while the authorized twin matches. | One client with alternating routes or approved shared-token workers is a twin. The small reducer does not validate adapters, batch coverage, joins or analyst benefit. | Compare identical seeded cases with/without the facet; remove it if it adds no useful decision context. |
-| H19 | A nonlocal name resolving to self/private space and consumed by a proxy-associated process can expose an externally influenced local-reach path. | proposed in L07; C12 | S05 observed the mechanism; S68/S69 provide possible process/DNS fields; S71 defines address classes. | Sinkholes, split-horizon DNS, local integrations and approved forwarders are strong twins. DNS source/answer and process mapping may be absent. It proves neither task authorship nor impact. | Controlled name-collapse fixture with ad-block, split-horizon, local-dev and approved-forwarder controls plus destination-side audit. |
+| H19 | Independently client-attributed local answers, associated-process transport and receiver evidence can improve local-target triage. | weakened/narrowed in L08; C12 integration | S05/S68/S69/S71; S29 requires separating logical target and intermediary peer; S75 establishes local-answer prior art. | Same-row name/private-IP is not a DNS binding; forward proxies/helpers, sinkholes and approved forwarders defeat the universal interpretation. | First test internal intermediary versus direct local target under identical displayed name/peer context; verify exact client-answer/receiver contracts before stronger claims. |
+| H20 | A rare new control destination can create the C11 anomaly that is then incorrectly treated as corroborating C01. | supported logical counterexample in L08; prevalence unknown | A07 removes constructed control-only novelty while preserving a separate audience witness. | The check is not a full score/adapter or field-frequency measurement; distinct witnesses can still share a benign cause. | Fixed-budget held-out feature comparison with role/configuration and missingness controls. |
+| H21 | A DNE row containing a nonlocal name and special-use IP universally proves that name resolved to a local target. | rejected in L08 | S29 separates forward-proxy peer and target-name visibility; S68 does not declare a DNS-answer/consumption relation. | Some direct-path sensor observations may support it after verification; the universal implication is false. | Preserve co-observation, and require independent client-answer/topology/service evidence for stronger interpretation. |
 
 Use proposed, supported, weakened, rejected, merged, or unresolved. Record reasons for transitions; repeated mention does not increase confidence.
 
@@ -590,6 +600,20 @@ Accessed **2026-09-09 UTC**. Software inspection used pinned commit `28d8d1b18ca
 
 **Rechecks:** S50 [paired orchestration](https://github.com/0xZDH/o365spray/blob/28d8d1b18ca98030f2c140f16a2ed3b41018525b/o365spray/core/handlers/sprayer/spray.py), same saved blob, establishes paired-list reconstruction and input exhaustion. S51 [official Entra errors](https://learn.microsoft.com/en-us/entra/identity-platform/reference-error-codes) separates missing-app/resource, MFA and disabled-account meanings. S11 [SigninLogs](https://learn.microsoft.com/en-us/azure/azure-monitor/reference/tables/signinlogs), S44 [Graph table](https://learn.microsoft.com/en-us/azure/azure-monitor/reference/tables/microsoftgraphactivitylogs), S45 [Graph collection](https://learn.microsoft.com/en-us/graph/microsoft-graph-activity-logs-overview), S46 [linkable identifiers](https://learn.microsoft.com/en-us/entra/identity/authentication/how-to-authentication-track-linkable-identifiers) and S25 [non-interactive semantics](https://learn.microsoft.com/en-us/entra/identity/monitoring-health/concept-noninteractive-sign-ins) retain their prior limitations. S46 explicitly maps UTI to SignInActivityId; its generic TenantId label must still yield to the Log Analytics table-specific workspace/resource-directory distinction. Graph delivery delay and possible transformations make current completeness an inspected dependency, never a guarantee.
 
+
+### L08 source additions and targeted rechecks
+
+All accessed **2026-09-09 UTC**. Public-source research and the separately identified A07 reference check; no tenant/source ingestion established.
+
+| ID | Primary source / date | Contribution and limit |
+|---|---|---|
+| S74 | [Microsoft: materialize()](https://learn.microsoft.com/en-us/kusto/query/materialize-function?view=microsoft-fabric), revised 2025-08-14 | Reuses a tabular expression within query execution; filter/project first and benchmark. No telemetry enrichment or attribution is created by caching. |
+| S75 | [Unit 42: DNS Rebinding Attack](https://unit42.paloaltonetworks.com/dns-rebinding/), published 2021-08-31; described passive-DNS observations June 2021 | Primary prior art for private/localhost answers, zero-address filtering gaps, legitimate internal-answer controls and sequential/multi-feature detection. C12 cannot claim a new local-access mechanism; static local-answer proxy abuse need not be classic rebinding. Vendor results do not validate C12. |
+| S76 | [Elastic: Unusual Windows Network Activity rule](https://github.com/elastic/detection-rules/blob/main/rules/ml/ml_windows_anomalous_network_activity.toml), metadata created 2020-03-25, updated 2026-07-27, read main Sep 9; [version 8.19 documentation](https://www.elastic.co/guide/en/security/8.19/unusual-windows-network-activity.html) also inspected | Existing unexpected process-networking detection and ordinary infrequent/new-program controls. Current rule refers to v3_windows_anomalous_network_activity_ea; this is a description/metadata comparison, not inspection/execution of every ML detector or proof that its capabilities exclude C11. |
+| S77 | [Gu et al.: BotMiner](https://www.usenix.org/event/sec08/tech/full_papers/gu/gu.pdf), USENIX Security 2008, sections 2.3–2.7 and 4 | Existing communication/activity cross-correlation with flow and activity monitors. Combining two evidence planes is not novel; its sensors, activity labels and results are not equivalent to ordinary DNE or our held-out-audience experiment. |
+| A07 | [L08 narrow synthetic check](#executed-narrow-synthetic-check-a07), executed 2026-09-09 | Thirteen passing JavaScript assertions on constructed normalized sets and process/time identity. Full reproducible code and exclusions in the journal. Not a KQL, sensor or efficacy test. |
+
+**Targeted rechecks:** S28 [Network Protection](https://learn.microsoft.com/en-us/defender-endpoint/network-protection), revised 2026-08-12, supplies non-Edge DeviceEvents actions and documented AdditionalFields members, separates Edge SmartScreen, and warns that ConnectionSuccess may coexist with blocking. S29 [forward-proxy investigation](https://learn.microsoft.com/en-us/defender-endpoint/investigate-behind-proxy), revised 2026-07-15, separates target-name visibility from proxy-peer observations. S33 [DeviceEvents](https://learn.microsoft.com/en-us/azure/azure-monitor/reference/tables/deviceevents) and S68 [DNE](https://learn.microsoft.com/en-us/azure/azure-monitor/reference/tables/devicenetworkevents) document shared initiating-process keys; population is unconfirmed. S69 [ASIM DNS](https://learn.microsoft.com/en-us/azure/sentinel/normalization-schema-dns) makes answer parsing/source-client mapping conditional. S71 [IANA IPv4 registry](https://www.iana.org/assignments/iana-ipv4-special-registry/iana-ipv4-special-registry.xhtml) distinguishes zero-address, loopback and private-use classes; it is not a test of OS socket behaviour.
 
 ### Starting research leads
 
@@ -1425,19 +1449,192 @@ Receiving-service evidence must be gathered on the destination side. A DNE initi
 
 **Handoff to L08.** Test whether cross-source combinations materially improve decisions. Lead with C12/C03: compare same-row DNE alone against exact DNS-answer plus process event, C01 process-instance association, and receiving-service evidence. State the join key, observation point, time bound and added decision for each layer. Also compare C11 peer/self divergence plus C01 control contact with either signal alone. Preserve single-source leads when optional enrichment is absent; do not correlate through public IP alone. Execute L08 only.
 
+## L08 — Held-out audience and the false local-collapse join
+
+**Research checkpoint:** 2026-09-09 UTC. **Task:** L08/T07 only. Latest starting programme blob: `51ff8d0500acabd4a3102465e3ada1c925bfcd98`. Read current repository/area contracts and the Q01 direction supplement; its next review is due at 06:13:05 UTC, so no new direction-review checkpoint is claimed. Applied Q01's early prior-art and feature-removal requirements. This pass revises existing C11/C01 and C12/C03 rather than manufacturing a new breakthrough candidate.
+
+**Result:** Separate the observation that selected a lead from the observation claimed to strengthen it. For C11, **the controller must not be its own corroborating “new audience.”** For C12, **a logical target name and an internal socket peer are not necessarily a DNS binding.** The former leaves one testable C11 combination; the latter withdraws L07's unconditional preference for a same-row resolved-address claim.
+
+### Contribution claim and early prior-art screen
+
+| Candidate | Claimed incremental question | Closest simpler/known comparison | L08 verdict |
+|---|---|---|---|
+| C11 | Does an already-networking exact binary acquire a non-control destination audience that is unusual both for its same-build peers and its own past, with optional same-instance control association? | Destination count; peer-only; self-only; C01 contact-only. Elastic's unusual Windows networking rule already addresses unexpected process networking (S76); BotMiner already combines communication and activity evidence (S77). | Retain exact-build peer/self measurement as the lead experiment, not a demonstrated new mechanism. Exclude controller-derived novelty when testing the C01 addition. Neither product's full capabilities were exhaustively tested. |
+| C12 | Does name/address evidence distinguish a locally targeted service from ordinary private-peer traffic, then identify which process/service deserves investigation? | Private-target hunt; DNS rebinding/answer filtering; C01/C03 association-only; receiving-service-only evidence. Unit 42 already documents localhost/private-answer mechanisms, benign internal answers and multi-feature rebinding detection (S75). | Narrow to topology-aware investigation integration. Static local-answer proxy abuse need not involve a public-to-private DNS transition; it is not automatically DNS rebinding. No new local-access mechanism or established breakthrough. |
+
+Bounded searches on 2026-09-09 used “process peer destination anomaly,” “same binary network anomaly,” “unusual Windows network activity,” and “DNS rebinding private proxy detection.” Inspected the primary sources below, not every detector or patent. BotMiner's packet/flow and activity monitors are not available merely because DNE is ingested, and its evaluation results do not transfer here. Elastic's rule metadata delegates to an ML job: this screen does not reverse-engineer the complete learned model or establish a Microsoft/Elastic coverage gap. The remaining novelty claim is a proposed measurement under narrower telemetry, subject to comparison.
+
+### C11 + C01: hold the controller out of the audience
+
+**Behaviour/mechanism.** Conditional relay activation might produce both a control contact and an additional destination workload inside one otherwise ordinary application. But a newly contacted rare controller can itself satisfy peer rarity and self-newness. Counting that same destination again as “role divergence” is circular corroboration. A common feature rollout can also cause both observations; distinct evidence rows do not imply independent causes.
+
+**Required for the combined branch:** C11's DNE and comparable exact-hash self/peer history; C01's independently reviewed, role-valid, event-time intelligence; nonempty same-instance keys on the actual control and audience events. These are requirements for the *combination*, not new hard gates on standalone C11. No current control feed, comparable population or tenant ingestion is supplied.
+
+**Optional:** DeviceProcessEvents lineage, DeviceEvents protection evidence, module observations and dated configuration/authorization. The configuration comparison must come from independently maintained facts, not a “proxy role” assigned because this hunt fired. A missing configuration record is unresolved, not an unexplained change.
+
+**Concrete logic — design, not KQL execution:**
+
+1. Retain C11's seven-day candidate and preceding fourteen-day history, separately by workspace/customer. Keep process SHA1 and process-instance identity distinct. Freeze an intelligence snapshot with role/validity/conflict state, and keep the original C11 output alongside this experimental branch.
+2. Before peer/self comparison, make a *held-out audience* view: remove destinations identified as control infrastructure from the scoring sets for candidate, self-history and peers under the same event-time rules. Keep all removed raw observations as control evidence. Quarantine ambiguous control-role/route observations from the held-out score and report their count; absence from the intelligence set does not prove a destination is third-party/customer traffic. Changed intelligence coverage/exclusion policy can itself change the audience denominator: report the effect and leave the comparison unassessable when it is not like-for-like.
+3. Recompute C11's self-transition and leave-one-device-out peer prevalence on that view. Do not mix a logical hostname with a socket IP as if the two were equivalent target identities. Compare name-observed and peer-IP-only lanes separately with like-for-like coverage. If a sensor/Network Protection rollout changes name visibility, the contrast is unassessable until comparable periods/peers exist.
+4. For each held-out destination witness that contributes to a retained C11 lead, associate a C01 control event only on exact workspace/customer, DeviceId, nonempty InitiatingProcessUniqueId and consistent initiating-process hash. If unique IDs are unavailable, use the full verified DeviceId/PID/creation-time tuple on both sides as a separately labelled branch; never fall back to PID, hash, username or public IP alone.
+5. Require `0 <= audience_time - control_time <= 30 minutes` for the **ordered witness** facet; retain other contact context without that label. Scan the additional 30 minutes before candidate start. Ties show co-occurrence, not causal ordering. A seven-day device/hash aggregate cannot lend every same-hash process instance another instance's contact.
+6. Aggregate matches back to each primary lead before optional left enrichment. Preserve C11-only, C01-only, combination, missing-coverage and ambiguous-key outputs. Show both raw and held-out novelty counts plus event locators, match counts and truncation. Do not multiply rows into extra evidence or silently require an inner join.
+
+**Expected output / decision:** One device/hash lead with the actual contributing process instances, peer/self components before and after controller removal, route/name-coverage state, bounded disjoint control/audience witnesses, raw actions and next pivot. If only control-driven novelty remains, keep C01 contact-only and withdraw the extra role-change claim. If separate novelty remains in the same instance, investigate application workload/configuration and provenance rather than merely re-review the IOC. That is a proposed decision benefit, not measured analyst improvement.
+
+**Benign alternative / hit meaning:** An authorized forwarding feature can yield exactly the same combined evidence as unauthorized use. A staged ordinary feature can introduce both a coordination endpoint and data destinations. A hit establishes a scoped behavioural association, not active forwarding, consent, remote task authorship, malware or session compromise. Quiet relays, split workers and controls established long before the window can lack the ordered facet.
+
+**Readiness / next validation:** C11 remains a schema-grounded hunt idea; C01 remains specified with unconfirmed ingestion. No automatic ranking uplift for this join. L09 must compare raw C11, held-out peer-only, held-out self-only, held-out peer+self and C01-only at one review budget, with matched-role/coverage controls and the approved-forwarder twin. Keep C11's IOC-free standalone lane; withdraw the combination if its apparent benefit consists only of intelligence matching or ordinary feature changes.
+
+### C12/C03: observation-point correction and two conditional joins
+
+**Correction of L07:** S29 explains that forward-proxy observation can expose a real target name while the peer is the proxy. Thus `RemoteUrl=public-name` alongside `RemoteIP=10.x.x.x` is not sufficient to say that name resolved to that private address. The fields' co-occurrence alone is a *name/private-peer lead*. A configured internal forward proxy—or an on-host helper for loopback—can reproduce the apparent “collapse.” Known intermediary role changes the interpretation; it must not suppress unrelated evidence of its misuse.
+
+Also separate `0.0.0.0/32` (“this host on this network” in S71), `127/8` loopback and RFC1918 private addresses. The registry is not an OS socket experiment proving that a connection to zero reaches a listener. IPv6/mapped-address handling needs an explicit parser/fixture and is not silently covered by an IPv4-only design.
+
+**C12 behaviour/mechanism now:** Find an associated process with special-use peer activity; ask whether independently observed name resolution and receiving-service evidence support a local-target interpretation rather than intermediary, sinkhole or ordinary internal use. This is useful attribution/triage integration, not a new attack class.
+
+**Required telemetry:** DNE process/peer events and an explicit C01/C05/C11 association basis for the transport lead. The stronger resolution branch additionally requires actual client-attributed DNS answers and verified source identity mapping. No generic AdditionalFields member supplies a DNS binding. The receiving-service branch requires an already available source-specific audit contract; no universal Sentinel service table is asserted.
+
+| Conditional join | Keys, window and required evidence | Added decision and limit |
+|---|---|---|
+| Client DNS answer + process transport | Same workspace and event-time mapped endpoint; exact normalized query name, exact parsed answer equal to the peer address, and DNS response between 0 and 5 minutes before transport. Use source-specific parsing of DnsResponseName; ASIM does not normalize its answer structure. Keep all relevant answer candidates and raw rows. A resolver's Dvc identity is not the client. | Changes “name/private-peer co-observed” into “client-answer and process transport are consistent.” Does not prove that process consumed that answer, that a remote customer chose it, or that the service was reached. Missing answer/client mapping is unassessable. Cached answers outside the window are missed. |
+| Transport + receiving-service audit | Receiver identified at event time; source/receiver IPs and ports, protocol and direction agree after any explicit NAT mapping. Start with a provisional ±2-second clock tolerance, reporting ambiguity. A shared request/connection identifier is preferable when actually emitted by both sources. If ports/identity/time are insufficient or multiple connections match, retain unassigned service context instead of selecting a nearest event. HTTP Host alone is not a connection key. | Can establish that the identified destination service logged a request and its actual result; inspect that service rather than infer exposure from a port. A forward proxy receiving CONNECT is not the ultimate target service. Receipt is not exploitation. |
+
+**Output:** Primary lead plus `name-peer-only / client-answer-consistent / intermediary-explained / receiver-correlated / ambiguous / not-inspected` facets, exact evidence locators and source contracts. These labels describe different dimensions; they are not a single severity ladder. Preserve source-reported transport disposition separately from the service result. A request record with a denial still establishes receipt, not successful operation.
+
+**Controls / readiness / next test:** Test ordinary internal forward proxy, local helper, sinkhole, split-horizon name, authorized local forwarder and externally tasked local request. First determine whether a proposed sensor observation distinguishes them at all. DNE alone cannot resolve the demonstrated name/peer ambiguity. C12 remains conditional hunt-only integration; its same-row “resolved address” claim is rejected. Retain C03 transport-only outputs when DNS/service enrichment is missing. Existing policy/configuration can explain a path; missing policy cannot establish maliciousness.
+
+### Non-Edge protection enrichment: materialize and AdditionalFields
+
+Carry Louis's reminder into implementation explicitly. S28 separates Windows non-Edge Network Protection from Edge SmartScreen. For non-Edge protection observations, use DeviceEvents actions `ExploitGuardNetworkProtectionAudited` and `ExploitGuardNetworkProtectionBlocked`; parse the documented `AdditionalFields.IsAudit`, `ResponseCategory` and `DisplayName`. Keep RemoteUrl as its own observed target field; DisplayName is not a substitute destination or DNS answer. Other AdditionalFields members require their own observed/source-supported contract.
+
+Design shape, **not an executed or deployable query**:
+
+```text
+Protection := materialize(
+    DeviceEvents filtered to scoped candidate devices and bounded event window
+    then select the explicit non-Edge protection actions
+    then extract documented AdditionalFields members
+    then project event/process/target identity, raw action, fields and evidence locator
+)
+PrimaryLeads LEFT ENRICH aggregate(Protection matches per lead)
+```
+
+Use TimeGenerated for the documented Log Analytics table contract, retaining any separately verified source-time mapping. Match exact scope/device/process instance and compatible target with a provisional ±2-minute tolerance. Host-only agreement is nearby target context, not exact request identity. Preserve multiple and conflicting observations. A block at a controller cannot be transferred to every destination contacted by that process.
+
+Edge's `SmartScreenUrlWarning` is a separate observation lane, not a reason to infer non-Edge coverage. A DNE ConnectionSuccess can precede an NP block (S28); “no matching block” is never “allowed.” This join adds a concrete protection observation, not another independent maliciousness score.
+
+S74 supports materializing a filtered, projected intermediate only when reused. It caches query evaluation; it neither expands coverage nor repairs attribution. Benchmark with/without it and avoid caching the entire multi-week fleet history. AdditionalFields extraction and materialize are different operations.
+
+### Feature-removal and misattribution comparison
+
+The following are **constructed reasoning cases**, not observations from a tenant. Their decisions are proposed analyst actions, not measured classification accuracy.
+
+| Evidence available | Simpler result | Combination's actual increment | Disposition |
+|---|---|---|---|
+| C11 peer-new and self-new only because of one control destination | C01 already identifies that contact | None after the control is held out | Reject duplicate corroboration; keep contact lead |
+| Separate self-new/peer-rare audience plus same-instance control | C11: unexplained workload; C01: control association | One bounded process-local relationship worth workload/configuration review | Retain experiment, not rank uplift |
+| Same hash on two process instances, only one contacts control | Device/hash join appears to support both | No instance-level support for the other | Reject hash-only transfer |
+| Approved forwarder with the same control/audience evidence | Both individual hunts can fire | Combination still cannot decide consent | Keep observational twin; need independent authorization |
+| Public name and private proxy peer | Private-peer/name coincidence | Validated intermediary explains observation point | Withdraw name-resolved-local claim, not all proxy investigation |
+| Same mapped client, exact answer and matching process peer | DNS-only: answer; DNE-only: transport | Consistent local-answer/transport context | Retain conditional pivot; not DNS-consumption proof |
+| Shared resolver answer or missing client map | DNS context | No attributable endpoint join | Unassessable, not negative |
+| Matched receiver request | Service-only: received operation; transport-only: process | Source-process attribution if tuple/identity truly matches | Retain; ordinary forwarded requests remain twins |
+| Non-Edge matching protection event | DNE ConnectionSuccess | Nearby audit/block disposition and category | Retain scoped annotation; no global allowed/blocked verdict |
+| Endpoint lead and Graph token activity merely share egress | Two independent leads | No device/process/token relationship established | Reject the join; C04-G stays separate |
+
+### Executed narrow synthetic check A07
+
+Executed **13 JavaScript assertions** in the local code runtime on 2026-09-09, all passed. The exact source is embedded below. They exercise only controller removal/set-membership examples and a simplified normalized process/time join. One test explicitly verifies identical output after changing the synthetic authorization label. **Not executed:** KQL, source adapters, URL/IP/DNS parsing, real intelligence validity, PID fallback, protection/service joins, full peer scoring, fixed-budget ranking, sensor/lab collection or tenant validation. A07 is separate from L06's 13-case token reducer; it does not advance L09.
+
+Observed: control-only inflation returned an empty held-out set; a separate new target survived; prior-self and peer-common destinations did not; missing coverage returned null. Same-instance and 30-minute-boundary witnesses matched. Different workspace/instance, beyond-window and reversed-order examples did not. Missing process identity was unassessable. Approved/unauthorized labels were observationally identical.
+
+<details>
+<summary>A07 reproducible JavaScript reference checks — normalized synthetic inputs only</summary>
+
+```javascript
+function l08ProjectionChecks() {
+  // Synthetic normalized inputs only; not a KQL/source adapter or full C11 scorer.
+  const novelHeldOut = (current, prior, peers, controls, covered) => {
+    if (!covered) return null;
+    return [...new Set(current)].filter(x =>
+      !controls.includes(x) && !prior.includes(x) && !peers.includes(x)).sort();
+  };
+  const correlate = (a, b) => {
+    const keys = ["scope", "device", "process", "hash"];
+    if (keys.some(k => !a[k] || !b[k]) ||
+        !Number.isFinite(a.minute) || !Number.isFinite(b.minute)) return "unassessable";
+    if (keys.some(k => a[k] !== b[k])) return "unmatched";
+    return b.minute >= a.minute && b.minute <= a.minute + 30 ? "matched" : "unmatched";
+  };
+  const a = {scope:"W1", device:"D1", process:"P1", hash:"H1", minute:0};
+  const b = {...a, minute:10};
+  const controls = ["control.example"];
+  const tests = [
+    ["control-only inflation removed",
+      novelHeldOut(["core.example","control.example"],["core.example"],["core.example"],controls,true), []],
+    ["separate audience retained",
+      novelHeldOut(["core.example","control.example","target.example"],["core.example"],["core.example"],controls,true), ["target.example"]],
+    ["self-history removes stable specialty",
+      novelHeldOut(["target.example"],["target.example"],[],controls,true), []],
+    ["peer-only common feature removed",
+      novelHeldOut(["target.example"],[],["target.example"],controls,true), []],
+    ["missing coverage not empty audience",
+      novelHeldOut(["target.example"],[],[],controls,false), null],
+    ["same-instance ten-minute witness", correlate(a,b), "matched"],
+    ["different scope rejected", correlate(a,{...b,scope:"W2"}), "unmatched"],
+    ["same hash different instance rejected", correlate(a,{...b,process:"P2"}), "unmatched"],
+    ["missing process key not negative", correlate(a,{...b,process:""}), "unassessable"],
+    ["thirty-minute edge retained", correlate(a,{...b,minute:30}), "matched"],
+    ["beyond window rejected", correlate(a,{...b,minute:30.001}), "unmatched"],
+    ["reversed order not ordered witness", correlate(a,{...b,minute:-1}), "unmatched"],
+    ["benign and unauthorized labels cannot alter evidence",
+      correlate({...a,truth:"approved"},{...b,truth:"approved"}) ===
+      correlate({...a,truth:"unauthorized"},{...b,truth:"unauthorized"}), true]
+  ];
+  for (const [name,actual,expected] of tests) {
+    if (JSON.stringify(actual) !== JSON.stringify(expected)) throw new Error(name);
+  }
+  return tests.map(([name,actual]) => ({name,actual,passed:true}));
+}
+console.log(JSON.stringify(l08ProjectionChecks(), null, 2));
+```
+
+</details>
+
+### Challenge, changes of view and handoff
+
+This pass performed **self-critique**, not a new independent reviewer evaluation. The strongest objections change the design: controller leakage removes apparent C11 corroboration; mixed observation layers invalidate C12's same-row DNS inference; the approved-forwarder twin defeats a standalone misuse verdict. A07 checks only the small projection above, not these complete sensor mechanisms.
+
+- **C11/H17 retained but narrowed:** first compare the held-out peer/self contrast; no evidence yet that it beats simpler summaries.
+- **C01/H02:** remains a useful independent contact lead; when used as C11 context, require a different audience witness and exact instance. No automatic confidence addition.
+- **C12/H19 weakened:** same-row name/peer does not establish resolution or task authorship. Integration remains useful; its breakthrough label is withdrawn.
+- **H20 added:** control destinations can circularly create the role-divergence feature they appear to corroborate; distinguish evidence contribution through held-out scoring.
+- **H21 added/rejected:** a DNE name/private-IP pair universally proves the name resolved locally. S29's forward-proxy observation model defeats this implication.
+- **C04-G/C05 remain practical baselines; C02/C10 remain parked.** No candidate is production-ready. No demonstrated unique contribution yet.
+
+**Next: L09/T08**, applying Q01. Execute a reproducible fixed-budget comparison of C11 raw versus held-out peer-only, self-only and peer+self, with C01-only as a separate baseline. Include ordinary feature rollout, changed proxy/name visibility, shared-hash different instances, missing history, low-volume relay-like change and an identical authorized twin. Freeze features and scoring before adjudication labels; report ties rather than choosing favourable tie-breaks. Optimize only a surviving contrast. For C12, test the intermediary counterexample before adding joins; it is not a third breakthrough slot by default.
+
+
 ## Current handoff
 
-**Next pending numbered pass: L08 / T07 — Combine evidence into stronger hunts.**
+**Next pending numbered pass: L09 / T08 — Test the surviving contrast before tuning/cost.**
 
-L01–L07 plus manual L04.5/L04.5(2) are complete: **7 of 15 numbered passes**. L07 created C12, “the name collapses into self”: a proxy-associated process receives or connects a nonlocal name to loopback/private space. Prefer one DeviceNetworkEvents row carrying process, name and resolved special-use address; use DNS only when the exact response is attributed to that client. C12 is a schema-grounded idea with unconfirmed ingestion. Sinkholes, split-horizon DNS, local integrations and approved forwarders are explicit twins.
+L01–L08 plus the two authorized interstitials are complete: **8 of 15 numbered passes**. Q01's pending-task refinements were applied to L08/L09; read the latest [direction supplement](./resprox-direction-reviews.md) on every invocation and check its next due time. This pass did not create a new direction review or change that file.
 
-C03 is now a conditional topology parent. Same-host, possible same-host address, another-LAN-device and unresolved paths remain separate. A process connection establishes local transport activity only; receiving-service or execution evidence is required for service receipt or compromise. S05's IPIDEA path was reportedly fixed on 2025-12-28, so historical domains/ports are not universal current indicators.
+C11 remains the lead experiment: **exclude the controller from the supposedly independent new audience**, then test whether exact-build peer+self contrast adds decision value. C01 enrichment requires disjoint raw witnesses on the exact process instance within the specified window; no hash-only transfer, causal/task claim or automatic ranking uplift. Retain IOC-free C11 and contact-only C01.
 
-C02 remains parked until one real flow source supplies event-time device/NAT identity, intervals and directional counter semantics. ASIM Flow/Session types must not be mixed, and DeviceNetworkEvents/event counts/shared DNS cannot substitute for bytes, duration or a device map.
+C12 loses its breakthrough label and universal same-row DNS-binding claim. Logical target and internal proxy/helper peer may coexist. Preserve name/private-peer leads; require client-attributed exact answers/topology or source-specific receiving-service evidence before strengthening the interpretation. Zero-address, loopback and private ranges remain distinct. DNS consistency is not proof of consumption; service receipt is not compromise.
 
-For L08, measure the decision benefit of explicit joins. First compare C12 same-row DNE with client-attributed DNS, same-process-instance C01 association and destination-side service evidence. Then compare C11 peer/self role divergence plus C01 control contact against each baseline. Public IP, a shared resolver or approximate hostname/time is never a device join. Optional evidence must enrich rather than suppress primary leads.
+Louis's non-Edge pattern is explicit: scoped reusable DeviceEvents protection data may be materialized, with documented AdditionalFields members parsed. Edge SmartScreen remains separate. Materialize is query caching, not telemetry. A nearby block annotation is not the fate of every same-process request.
 
-Actual customer DNE/DNS/WFP/flow/service ingestion, action values, loopback coverage, version applicability, resolver client mapping, counters, approvals and current intelligence remain unknown. No new collection, runnable module, public-node interaction or production deployment is authorized. Re-fetch main and SHA before saving; preserve concurrent work and stop if L08 is already completed. Execute exactly L08 next.
+L08 executed 13 narrow JavaScript projection/join assertions (A07), separate from L06's 13 token-reducer cases. No KQL, source adapter, protection/DNS/service join, complete C11 scorer, sensor/lab or tenant test ran. L09's fixed-budget comparison remains unexecuted.
+
+For L09 freeze candidate features/scoring before labels; compare raw C11, held-out peer-only, self-only and peer+self, and C01-only, with ordinary role/configuration changes, missing history, sensor/proxy visibility changes, distinct instances sharing a hash, quiet role change and the approved-forwarder twin. Report all ties/unassessable cases. Tune only an increment that survives, or explicitly reject it. C12's first test is the internal-forward-proxy counterexample. C04-G/C05 remain practical baselines; C02/C10 stay parked. No demonstrated unique contribution yet.
+
+Re-fetch current main/blob SHA before saving; preserve concurrent work and stop if L09 has already completed. Exactly one pending numbered pass; research file only, no collection/deployment.
 
 ## Reusable invocation
 
