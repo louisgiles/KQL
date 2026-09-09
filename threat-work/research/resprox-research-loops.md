@@ -6,7 +6,7 @@
 **Canonical file:** threat-work/research/resprox-research-loops.md  
 **Original sources:** [ResProx](./ResProx)  
 **Created:** 2026-09-08  
-**Readiness:** Ranked research candidates; ingestion and efficacy unconfirmed; no validated detection or production change.
+**Readiness:** C05/C01/C06 specified for Sentinel / Log Analytics with unconfirmed ingestion; no query execution, validated detection or production change.
 
 ## Run accounting and scheduling
 
@@ -230,18 +230,18 @@ Lead with the ranked detection/hunt portfolio. For each shortlisted candidate st
 
 ## State — update after each saved pass
 
-**Programme status:** in progress; L01–L02 completed  
-**Next pass:** L03 / T02 — First hunt specifications  
-**Last completed pass:** L02  
-**Last result journal entry:** [L02 — Ranked candidate portfolio and simpler-baseline challenge](#l02--ranked-candidate-portfolio-and-simpler-baseline-challenge)  
-**Unresolved execution blocker:** none; L02 public-source research and portfolio review completed.  
-**Research-data blockers:** Live tenant access, actual table/category ingestion, field coverage, a reviewed software-identification catalogue and usable time-bounded control intelligence have not been established. C05/C06 do not require proxy-exit intelligence; C01 does require role/time-aware control evidence.
+**Programme status:** in progress; L01–L03 completed  
+**Next pass:** L04 / T03 — Test cases and triage  
+**Last completed pass:** L03  
+**Last result journal entry:** [L03 — First Sentinel specifications and telemetry corrections](#l03--first-sentinel-specifications-and-telemetry-corrections)  
+**Unresolved execution blocker:** none; L03 public-source schema research and specification review completed.  
+**Research-data blockers:** Actual table/category ingestion, population/field coverage, directory mapping, retention and runtime remain unconfirmed. C05 has one source-reviewed historical EXE hash seed, not a complete catalogue or approval register. Current event-time-valid control intelligence and task pairs remain unsupplied for C01. C06 needs coverage and activity-ID checks; none requires a proxy-exit feed for its primary question.
 
 | Loop | Task | Status | Last updated UTC | Result / blocker |
 |---|---|---|---|---|
 | L01 | Opening evidence and hunt baseline | completed | 2026-09-08T23:51:13Z | Evidence baseline, four provisional hunt seeds, schema/attribution limits; see L01 journal. |
 | L02 | T01 Candidate portfolio | completed | 2026-09-09T00:08:39Z | Six ranked cards; C05/C01/C06 shortlisted; prior-art comparison and explicit rejection tests; see L02 journal. |
-| L03 | T02 First hunt specifications | pending | — | — |
+| L03 | T02 First hunt specifications | completed | 2026-09-09T00:22:30Z | C05/C01/C06 specified; process/activity keys, bounded pseudocode, missing-data branches and interpretation corrected; no execution. See L03 journal. |
 | L04 | T03 Test cases and triage | pending | — | — |
 | L05 | T04 Endpoint and process hunts | pending | — | — |
 | L06 | T05 Identity and session hunts | pending | — | — |
@@ -259,13 +259,13 @@ Allowed pass statuses: pending, completed, blocked. An inconclusive research res
 
 ## Detection and hunt candidate register — ranked in L02
 
-**L02 decision:** Six candidates retained; C05, C01 and C06 are the first specification shortlist, in that order. This is an implementation-effort ranking, not a measured precision ranking. All remain **idea**: no tenant ingestion, runtime, synthetic execution, efficacy or deployment is established. L02 revises the L01 seeds; the L01 findings below remain historical.
+**L02 decision:** Six candidates retained; C05, C01 and C06 are the first specification shortlist, in that order. This is an implementation-effort ranking, not a measured precision ranking. **L03 update:** C05/C01/C06 are **specified with unconfirmed ingestion**; C04/C03/C02 remain **idea**. No tenant ingestion, runtime, synthetic execution, efficacy or deployment is established. L02 revises the L01 seeds; the L01 findings below remain historical.
 
 | Rank | ID / problem | Why spend effort here | Principal limitation | L03 disposition |
 |---|---|---|---|---|
-| 1 | C05 — Known proxyware execution and deployment provenance; proxy supply | Direct device/process evidence; a software-policy decision can be useful without proving forwarding or buying an exit feed. | Identification catalogue and approval context need review; unknown embedded SDKs escape. | Specify the process-event branch first. |
-| 2 | C01 — Process-associated control contact, enriched by task-channel behaviour; proxy supply | Stronger mechanism anchor than generic traffic anomalies; supports previously unfamiliar SDK-bearing applications. | Requires role-verified, dated control intelligence; connection records do not expose task contents. | Specify contact-only output plus optional sequence enrichment. |
-| 3 | C06 — Sparse credential-failure cohorts across rotating sources; attacker access attempts | One initial sign-in category can support a retrospective hunt without proxy intelligence or a success requirement. | Shared client traits can combine unrelated activity; operational discrimination remains wholly untested. | Specify as hunt-only and compare with existing rules and a simple failure-volume baseline. |
+| 1 | C05 — Known proxyware execution and deployment provenance; proxy supply | Direct device/process evidence; a software-policy decision can be useful without proving forwarding or buying an exit feed. | Identification catalogue and approval context need review; unknown embedded SDKs escape. | Specified in L03; one historical exact-file seed, creation/parent separation and optional context. |
+| 2 | C01 — Process-associated control contact, enriched by task-channel behaviour; proxy supply | Stronger mechanism anchor than generic traffic anomalies; supports previously unfamiliar SDK-bearing applications. | Requires role-verified, dated control intelligence; connection records do not expose task contents. | Specified in L03; preserve contact-only, historical-association and protection/route uncertainty. |
+| 3 | C06 — Sparse credential-failure cohorts across rotating sources; attacker access attempts | One initial sign-in category can support a retrospective hunt without proxy intelligence or a success requirement. | Shared client traits can combine unrelated activity; operational discrimination remains wholly untested. | Specified in L03; scoped activity IDs, identity lanes, equal-duration baselines; hunt-only. |
 | 4 | C04 — Session-context discontinuity and suspicious mailbox follow-on; account/session misuse | A concrete post-access question independent of IP reputation. | Session/client fields and Exchange auditing are conditional; mailbox joins are not session proof. | Reserve; retain time-valid exit enrichment as a separate branch. |
 | 5 | C03 — Proxy-associated process reaching a local service; network exposure | Potentially consequential if a local-access path and receiving service are both observable. | Implementation/version applicability and local/loopback logging can fail entirely. | Defer detailed specification until coverage question is answerable. |
 | 6 | C02 — Source-aware unmanaged-device traffic change; network/device investigation | Covers devices outside endpoint onboarding if suitable local collection already exists. | Flow semantics, attribution and baseline availability are large dependencies; traffic anomalies are nonspecific. | Park the volume branch without appropriate flow records. |
@@ -276,12 +276,12 @@ Allowed pass statuses: pending, completed, blocked. An inconclusive research res
 
 - **Behaviour / question:** Has identifiable proxy-capable software executed on a managed device, and does its provenance and authorization justify policy review or a compromise investigation?
 - **Mechanism / evidence:** H08; S17 establishes that proxyware can be installed legitimately, deployed covertly, or bundled with separate malware. The hunt follows execution and installation context; signature validity cannot adjudicate the surrounding installation chain.
-- **Required telemetry:** DeviceProcessEvents in Log Analytics, created-process identity and usable software-identification evidence. A reviewed catalogue must distinguish exact known hashes from weaker product/original-name/path clues, include provenance and review date, and distinguish proxy-capable software from an independently identified malicious payload. No catalogue or customer approval register is assumed to exist.
+- **Required telemetry:** DeviceProcessEvents in Log Analytics, created-process identity and usable software-identification evidence. A reviewed catalogue must distinguish exact known executable hashes from weaker created-process metadata, include provenance and review date, and distinguish proxy-capable software from an independently identified malicious payload. L03 supplies one source-reviewed historical Radish VPN EXE hash; a complete catalogue and customer approval register remain absent. DLL/APK hashes are not created-executable identity.
 - **Optional telemetry:** DeviceNetworkEvents, hash-matched certificate evidence, file/installation/persistence evidence and software-approval records. Parent signature fields in DeviceProcessEvents describe the initiating process, not automatically the created executable (S10). Missing approval is unknown authorization.
 - **Initial logic:** In a 7-day candidate period, select process-creation observations matching a reviewed catalogue entry. Label exact-file and metadata-only matches separately; never accept filename alone as identity proof. Return all such leads; use a preceding 21-day history only to label first observed execution or changed hash/path/parent. Enrich the exact device/process instance with network evidence and the bounded installer lineage where available. A network branch using InitiatingProcess fields can provide leads when creation events are missing, but has no complete installation history.
 - **Expected output:** Device and process key; event time; observed hash/product/path; match basis and source; parent identity; first-observed/baseline coverage; approval status; optional control contact; next action.
 - **Benign alternatives / interpretation:** Approved bandwidth sharing, consented personal software, a lab or software-distribution test, and metadata spoofing. An exact match establishes execution of an identified file according to the sensor; metadata-only evidence establishes a lead. Neither proves active forwarding, lack of consent, malware execution or session theft. Check policy/provenance; investigate associated payloads separately.
-- **Readiness / next test:** **idea; possible future policy analytic**, not a malware alert. Confirm field coverage and build the small identity catalogue, then compare approved installations, unauthorized but authentic software and a documented malicious installer chain. Reject claimed compromise discrimination if all three look equivalent; retain the narrower software-governance use.
+- **Readiness / next test:** **specified with unconfirmed ingestion; possible future policy analytic**. L03 below defines created-process matching, exact process joins, optional network/provenance context, source-backed historical hash seed and missing-data outputs. No parser, synthetic or tenant execution occurred. L04 must compare approved, unauthorized authentic and maliciously bundled installations, including missing keys and DLL-versus-host-image mismatches. Reject compromise discrimination if the cases look equivalent; retain software-governance use.
 
 ### C01 — Control contact with optional task-channel enrichment
 
@@ -292,7 +292,7 @@ Allowed pass statuses: pending, completed, blocked. An inconclusive research res
 - **Initial logic:** Find role-valid control contacts in a 24-hour candidate window. Preserve these as contact-only results. For the same device and nonempty process-instance key, examine the next 30 minutes for the documented Tier Two pair and a subsequent non-control destination within two minutes of task-channel contact. Apply the port-role sequence only when the pair is independently known; otherwise label a weaker multiple-port pattern. Retain exact events and dispositions; no claim of payload forwarding follows from order alone. Connection diversity/change may rank results, but high fan-out and baseline history are no longer mandatory.
 - **Expected output:** Device/process; control match and validity evidence; contact-only or enriched classification; ordered address/port/time/action evidence; optional application-baseline summary and lineage; missing coverage.
 - **Benign alternatives / interpretation:** Approved SDKs, updaters, conferencing/P2P and shared infrastructure. A hit establishes observed process association and, if present, an approximate sequence. It does not establish a proxy task, unauthorized use or endpoint compromise. A DNS-only fallback can show a role-valid name query by an attributable client, but cannot inherit process-level or forwarding claims; resolver/NAT-only records are not client identity.
-- **Readiness / next test:** **idea; hunt first, possible later control-contact analytic**. Compare contact-only against sequence-enriched ranking using authorized or synthetic relay, quiet-relay, updater and missing-event cases. Reject the enrichment if it loses useful contacts or adds no decision value. Split worker processes, pre-existing channels and unlogged connections are expected misses; do not replace exact process joins with arbitrary device-wide joins.
+- **Readiness / next test:** **specified with unconfirmed ingestion; hunt first**. L03 specifies host/IP role-valid matching, strict same-process event order, contact-only preservation, historical-intelligence disposition, route ambiguity and optional protection-block evidence. `ConnectionSuccess` does not prove allowed application traffic (S28). Current control evidence and task pairs remain unsupplied. L04 must compare contact-only versus enrichment, with quiet relays, updaters, forward proxies, blocks and missing events. Remove enrichment if it adds no decision value.
 
 ### C06 — Sparse credential-failure cohorts across rotating sources
 
@@ -303,7 +303,7 @@ Allowed pass statuses: pending, completed, blocked. An inconclusive research res
 - **Initial logic:** In a 7-day candidate window, select invalid-credential result 50126, keeping expired-password, lockout, MFA and Conditional Access failures in separate context counts. Deduplicate repeated records by reliable event identity, not an assumption that each row is one password guess. Group by tenant, app/resource and observed client/UserAgent family; retain account–source–day edges. Summarize distinct targeted identifiers, source IPs, active days and per-account/per-source daily event distributions. Compare with the preceding 21 days of the same cohort and weekday mix; rank growth in breadth and previously unobserved account/source pairs. No minimum country/ASN count or successful login is a gate. Cap the first review at 20 ranked cohorts; this is an output budget, not a detection threshold. Without adequate baseline, emit descriptive activity with an insufficient-baseline label.
 - **Expected output:** Cohort/time bounds; event/category coverage; account/IP/edge counts and bounded examples; per-account daily rates; baseline comparison; independent corroboration and subsequent success as separate evidence.
 - **Benign alternatives / interpretation:** Ordinary typos aggregated under a popular browser, password resets, broken clients, organizational application changes, mobile/VPN churn and multiple unrelated attackers. A hit establishes a selected cluster of credential failures, not coordinated spraying, password reuse, proxy transport, successful credential validation or account compromise. UserAgent, browser and OS are correlated and spoofable.
-- **Readiness / next test:** **idea; hunt-only**. Compare against S20/S21 and simple tenant/app daily failure totals using sparse same-region attacks and matched benign populations. Do not claim campaign linkage without independent corroboration. Reject the added cohort complexity if it mostly merges unrelated users or yields no useful leads beyond those baselines. An attacker changing client traits, or indistinguishable sparse traffic, may remain invisible.
+- **Readiness / next test:** **specified with unconfirmed ingestion; hunt-only**. L03 uses scoped sign-in activity IDs containing 50126, separate resolved/submitted identity lanes, an explicit interactive category, bounded client normalization, three separate weekly baselines and same-weekday comparisons. Raw rows are not password guesses; correlation IDs do not guarantee uniqueness. L04 must compare sparse same-region activity with matched benign populations, existing rules and app-only failure totals. Reject added complexity if it mainly merges unrelated activity.
 
 ### C04 — Session discontinuity with suspicious mailbox follow-on
 
@@ -340,20 +340,20 @@ Allowed pass statuses: pending, completed, blocked. An inconclusive research res
 
 ## Hypothesis register — maintain, merge, and retire explicitly
 
-L02 has ranked six candidates and narrowed their mechanisms; no candidate has been empirically validated. The L01 journal preserves the earlier view.
+L03 has specified C05/C01/C06 and corrected their telemetry/measurement contracts; no hypothesis has been empirically validated. L01/L02 findings remain historical.
 
 | ID | Precise claim and mechanism | Status | Supporting evidence | Counterevidence / assumptions | Next discriminating observation |
 |---|---|---|---|---|---|
 | H00 | The ingredients yield no useful contribution beyond existing knowledge. | unresolved; retained null | L02 finds substantial prior art in S17 and S19–S24/S27; useful adaptation is proposed, not demonstrated. | Usefulness and novelty differ; no novel proxy mechanism or proven discrimination is claimed. | Compare the shortlist with its simpler baselines; L10 will broaden the prior-art review. |
 | H01 | Residential-proxy-related activity increased in measured datasets, and proxy-derived malicious infrastructure also expanded; these are distinct observations. | supported within source scope | S06 reports growth of DDoS-active botnet endpoints; S07 reports growing proxy-related DNS volume over its stated interval. | Neither establishes one global abuse-growth rate. Coverage, legitimate demand, address churn and measurement units differ. | Obtain a stable cohort/denominator before interpreting any local hunt trend as rising abuse. |
-| H02 | Role-valid same-process control association can seed a relay hunt; task-channel/event-order enrichment may improve ranking. | proposed, narrowed in L02; mandatory fan-out/change gate weakened; C01 | S04 supports a specific two-port task mechanism. L02 preserves the simpler contact-only result. | Sequence is an event-level approximation; quiet relays, missing events, split processes, legitimate SDKs and stale control evidence limit it. | Compare contact-only versus enrichment using independent forwarding ground truth and benign software; remove enrichment if it adds no decision value. |
+| H02 | Role-valid same-process control association can seed a relay hunt; task-channel/event-order enrichment may improve ranking. | proposed, narrowed in L03; C01 specified | S04 supports a specific port-pair mechanism; S09/S10 support process joins; S28/S29 require protection and route distinctions. | ConnectionSuccess can coexist with an application block; forward proxies, quiet relays, missing/split processes and stale control evidence limit the approximation. | L04: compare preserved contact-only output with ordered enrichment and forwarding ground truth; reject added ranking without decision value. |
 | H03 | Source-aware flow changes can prioritize unmanaged devices for investigation where endpoint telemetry is absent. | proposed; C02 | S02 is a self-reported anomaly lead; S03 establishes that infected devices can supply proxies. | Traffic volume and breadth alone are nonspecific; NAT or missing counters may make the question unanswerable. | Correctly mapped per-device flow records plus known benign traffic controls. |
 | H04 | A proxy-associated process reaching local services can identify an exposure worth investigating in implementations that permit that access. | proposed; C03 | S05 documents one mechanism, prerequisites and a fix. | Local activity may originate normally; fixed implementations and unlogged loopback traffic defeat a universal rule. | Version-specific relay-task evidence correlated with local service activity, including benign controls. |
 | H05 | Time-valid exit context adds triage value to independently suspicious identity activity. | unresolved after L02; optional C04/C06 enrichment | S04 supports malicious use; S19 documents existing IP/risk context, not the incremental value of a feed. | Feed observations may be stale or repeat existing risk information; shared egress is not endpoint/session identity. | Compare identical leads with and without contemporaneous role-specific observations. No feed means no proxy attribution, not no general identity hunt. |
 | H06 | DeviceNetworkEvents can reproduce the Reddit report's Mbps and simultaneous socket counts. | rejected as a schema assumption | S09 documents connection events and process context, not the needed counters or complete socket state. | Event counts, distinct peers, billed log bytes and executable size are different quantities. | Reopen only for a different data source with validated counters and state semantics. |
 | H07 | The original sources establish BADBOX attribution for the Reddit device or a universal shared malware lineage. | rejected as an evidential conclusion; underlying attribution unresolved | S02 lacks corroborating artifacts; S08 cautions that malware-family relationships are not transitive. | A matching destination or secondary association does not establish device infection, family or operator. | Device-specific payload/protocol/firmware evidence independently matched to primary research. |
-| H08 | Identifiable proxyware execution and installation provenance can support a useful software-policy review before forwarding is proven. | proposed; C05, created L02 | S17 supports legitimate and malicious installation paths; S10 provides process-event fields. | Exact identification, authorization and associated malware are different questions; metadata spoofing and unknown SDKs limit coverage. | Compare approved, unauthorized authentic and maliciously bundled installations; reject compromise classification if indistinguishable. |
-| H09 | Multi-day, failures-only client cohorts may expose sparse distributed credential attacks that do not satisfy selected per-IP/per-account/geography gates. | proposed; C06, created L02 | S18 supplies sparse behavior; S19–S21 define specific comparison baselines. | Common client traits merge unrelated activity; local visibility lacks cross-tenant coordination and passwords; no efficacy is established. | Compare sparse same-region attacks and benign populations against existing rules and simple failure-volume baselines; retire complexity if it adds no decision benefit. |
+| H08 | Identifiable proxyware execution and installation provenance can support software-policy review before forwarding is proven. | proposed; C05 specified in L03 | S17 supports distinct installation paths; S10/S34 ground created-process evidence; S04 supplies one historical EXE hash. | Parent signature, DLL identity and XDR-only inventory cannot stand in for created-executable identity; complete catalogue and ingestion remain unknown. | L04: distinguish approved, unauthorized authentic and maliciously bundled cases, including missing hashes/keys; no compromise classification without independent evidence. |
+| H09 | Multi-day, failures-only client cohorts may expose sparse distributed credential attacks beyond selected per-IP/per-account/geography gates. | proposed; C06 specified and measurement narrowed in L03 | S18 motivates sparse behavior; S19–S21 are comparison baselines; S30–S32/S35–S37 constrain activity counts, directory scope, timing and benign outcomes. | Client collisions, unresolved identifiers, duplicate/conflicting publications and unknown collection undermine precision; activity IDs are not password guesses. | L04: compare scoped activity/edge output against benign cohorts, sparse attacks and simple app-only summaries; retire complexity without analyst benefit. |
 | H10 | Material client-context discontinuity in a recorded session plus suspicious mailbox behavior can prioritize possible account/session misuse without exit intelligence. | proposed; C04 reserve, created L02 | S22 documents the attack sequence; S11/S23/S24 support schema and prior-art boundaries. | OfficeActivity has no documented SessionId; normal SSO, missing fields, delegation and unlogged token use limit joins and sensitivity. | Verify field population and compare with mailbox-rule-only triage; do not demand this sequence for every token-compromise case. |
 
 Use proposed, supported, weakened, rejected, merged, or unresolved. Record reasons for transitions; repeated mention does not increase confidence.
@@ -403,6 +403,27 @@ Research crossed UTC midnight. New sources were accessed during **2026-09-08–2
 
 **Targeted schema rechecks:** S09/S10 document process-instance keys and created-versus-initiating process fields; S11 documents SessionId and distinguishes OriginalRequestId. This supports initial design choices, not field population or L03 completion. The existing Talos post links named osquery detections; those names were not found in the linked current rendered pack during this bounded check, so L02 claims their publication, not a verified current implementation.
 
+### L03 source additions and targeted rechecks
+
+All sources in this subsection were accessed **2026-09-09 UTC**. Documentation revisions below are displayed page dates where observed, not measurement windows. Rechecked S04, S09–S11, S13–S14 and S17 for the selected specifications; no current infrastructure was probed. Source research establishes schema or reported behavior, not customer collection.
+
+| Source ID | Direct URL / title | Published / revised / observed | New contribution and scope | Limits |
+|---|---|---|---|---|
+| S28 | [Microsoft: Network Protection and TCP handshake](https://learn.microsoft.com/en-us/defender-endpoint/network-protection#network-protection-and-the-tcp-three-way-handshake) | Living docs; revised 2026-08-12 | ConnectionSuccess can coexist with subsequent Network Protection blocking; documents block/audit action names. | Application delivery cannot be inferred from the network event. Optional block correlation still needs populated events and process keys. |
+| S29 | [Microsoft: Investigate behind forward proxies](https://learn.microsoft.com/en-us/defender-endpoint/investigate-behind-proxy) | Living docs; revised 2026-07-15 | Forward-proxy routing changes peer visibility; Network Protection can supply target-name events. | Does not establish route/target mapping or feature configuration in any customer. No generic AdditionalFields contract was invented. |
+| S30 | [Microsoft: Sign-in activity details](https://learn.microsoft.com/en-us/entra/identity/monitoring-health/concept-sign-in-log-activity-details) | Living docs; publication/observation date not inferred | MFA updates can appear as multiple Azure Monitor rows; client-provided CorrelationId accuracy is not guaranteed. | Describes logging semantics, not the number of password guesses in a particular event set. |
+| S31 | [Microsoft: Standard Log Analytics columns](https://learn.microsoft.com/en-us/azure/azure-monitor/logs/log-standard-columns) | Living docs; revised 2026-08-25 | TenantId is workspace ID; common time-field and record identity definitions. | Per-table time semantics and directory mapping still require specific documentation and coverage checks. |
+| S32 | [Microsoft: Interactive sign-in timestamps](https://learn.microsoft.com/en-us/entra/identity/monitoring-health/concept-interactive-sign-ins#timegenerated-field) | Living docs; revised 2026-02-09 | SigninLogs TimeGenerated reflects publication/receipt, while CreatedDateTime supplies sign-in occurrence chronology. | No measured customer lag or complete arrival guarantee follows. |
+| S33 | [Microsoft: DeviceEvents Log Analytics schema](https://learn.microsoft.com/en-us/azure/azure-monitor/reference/tables/deviceevents) | Living docs; revised 2026-08-27 | Optional protection observation fields, device/process context, destination and event time. | AdditionalFields contents and process-key population are not guaranteed; table availability unconfirmed. |
+| S34 | [Microsoft: Hunting Sliver](https://www.microsoft.com/en-us/security/blog/2022/08/24/looking-for-the-sliver-lining-hunting-for-emerging-command-and-control-frameworks/) | Published 2022-08-24 | Official process-hunting example uses DeviceProcessEvents ActionType ProcessCreated. | Used only to ground action selection; its attack logic and advanced-hunting joins are not adopted. |
+| S35 | [Microsoft: Monitoring and health FAQ](https://learn.microsoft.com/en-us/entra/identity/monitoring-health/reports-faq) | Living docs; publication/observation date not inferred | Duplicate publications may follow risk enrichment, delivery retries and Conditional Access splitting; supports publication-time distinction. | An activity Id is not automatically one complete authentication flow or password guess. |
+| S36 | [Microsoft: Multiple sign-in records in Log Analytics](https://learn.microsoft.com/en-us/entra/identity/monitoring-health/howto-analyze-activity-logs-log-analytics#multiple-sign-in-records-in-log-analytics) | Living docs; revised 2026-02-28 | Distinct MFA requests can share a correlation ID; the portal can show their merged final outcome. | Final-flow reconstruction differs from C06's failure-observed activity measurement. CorrelationId is not adopted as a universal uniqueness guarantee. |
+| S37 | [Microsoft: Teams Rooms credential sign-in failures](https://learn.microsoft.com/en-us/troubleshoot/microsoftteams/teams-rooms-and-devices/teams-rooms-resource-account-sign-in-issues) | Living troubleshooting docs; publication/observation date not inferred | Explicitly describes 50126 for incorrect username/password during benign device/account troubleshooting. | Code alone cannot establish deliberate guessing; not a claim that Teams Rooms events belong to the interactive lane. |
+
+**S04 additional artifact check:** The published hash table explicitly separates DLL/APK/EXE samples. C05 seeds only the Radish VPN EXE, whose proxy SDK role is supported by the same article. No binary was downloaded/executed, no SHA1 counterpart verified, and no current control validity inferred.
+
+**S09–S14 additional schema/collection corrections:** Endpoint TimeGenerated and created-versus-initiating process keys are distinct from advanced-hunting Timestamp examples. ReportId's ComputerName/EventTime prose is inconsistent with the listed Log Analytics fields; L03 labels its actual-column tuple as an unvalidated adaptation. S13 explicitly says TVM inventory is not streamed by the normal Sentinel connector; raw event collection still requires selected tables. S14 documents P1/P2 for sign-in ingestion. AADTenantId is listed without a description in S11, so directory mapping remains a verification question.
+
 ### Starting research leads
 
 These links emerged in the initial conversation. Re-read the relevant source before relying on a claim; this list is not a validated evidence ledger.
@@ -419,7 +440,7 @@ These links emerged in the initial conversation. Re-read the relevant source bef
 
 ## Findings journal — append one section per pass
 
-L01 and L02 are recorded below. Append later passes without replacing earlier findings.
+L01–L03 are recorded below. Append later passes without replacing earlier findings.
 
 For each entry use: loop/task identifier; execution time in UTC; question and result; new evidence; mechanism and assumptions; challenge; changes to the hypothesis and candidate registers; hunt/specification changes; handoff. Preserve earlier entries. Add corrections with attribution to the later pass that found them.
 
@@ -501,19 +522,228 @@ Searches covered proxyware, bandwidth monetization, external proxy, covert-netwo
 
 **Handoff to L03.** Specify the three selected candidates once, preserving contact-only and insufficient-coverage outcomes. First settle created-versus-parent process fields for C05; domain/role validity, process identity and optional pair knowledge for C01; result semantics, tenant/account scope, client-cohort collisions and event counts versus real authentication attempts for C06. Do not import XDR-only tables or copy existing analytics without review. Keep C04 as the first fallback if C06's concrete specification shows its aggregation adds no defensible decision benefit. Stop after L03 on the next invocation.
 
+### L03 — First Sentinel specifications and telemetry corrections
+
+**Executed:** 2026-09-09T00:22:30Z UTC (research checkpoint; saved with this pass's state transition).  
+**Task:** T02 only. Read main, the full saved programme/registers/journal/handoff, repository contract and applicable READMEs. Verified official table/connector documentation, revisited the relevant primary mechanism evidence, and obtained two independent schema critiques. **All logic below is design pseudocode, not runnable KQL. No tenant, parser, synthetic or runtime test was executed.** No production change or proxy-node interaction occurred.
+
+**Question and result.** C05, C01 and C06 can be specified for Log Analytics without assuming XDR-only tables or tenant access. All three advance to **specified with unconfirmed ingestion**. C05 remains the smallest first implementation: identify an executed proxy-capable binary and inspect its provenance. C01 now separates observed contact, an approximate ordered sequence, and any protection-block evidence. C06 counts sign-in activities containing credential-failure outcomes, retaining unresolved identities and collection uncertainty. None is a validated detection.
+
+**New evidence and changes.**
+
+- S13 explicitly excludes TVM inventory tables from normal Sentinel event ingestion. C05 cannot quietly depend on `DeviceTvmSoftwareInventory`, even if autocomplete offers it. A source-backed historical EXE hash seed is supplied below; a complete software catalogue is still absent.
+- S28 documents `ConnectionSuccess` even when Network Protection subsequently blocks access. S29 documents extra target-name visibility behind a forward proxy. Therefore neither an action name nor an apparent IP/name pair proves application payload delivery to a direct peer. C01 keeps raw actions, route uncertainty and optional block evidence.
+- S30 documents multiple Azure Monitor rows for MFA activity and a client-supplied, non-guaranteed CorrelationId. C06 deduplicates by scoped activity Id, preserves outcome sets, and never calls its counts password guesses. S31 confirms `TenantId` is the workspace ID, not the customer's directory ID.
+- The S09/S10 ReportId description names ComputerName/EventTime, which are absent from those table schemas. The design below uses actual documented columns and labels its observation tuple as an adaptation requiring verification. No fictitious columns were introduced to satisfy the prose description.
+- S04 publishes DLL, APK and EXE hashes together. A DLL/APK hash cannot be matched against a created executable and called its execution. Only the specifically identified Radish VPN EXE is seeded here; the other proxy-client descriptions are not automatically classified as exit-node software.
+
+#### Shared specification contract
+
+**Scope and time.** Run separately per authorized customer/workspace. `Scope` below is an analyst-supplied workspace/customer mapping, never an IP-derived identity. All intervals are UTC and half-open `[start,end)`. Fix and retain `RunUtc` and `EndUtc` for reproducibility. Default `EndUtc = startofday(RunUtc) - 1 day`: this deliberately leaves at least one day for arrivals, but is an uncalibrated design choice, not a completeness guarantee. C05/C06 use candidate `[EndUtc-7d,EndUtc)` and baseline `[EndUtc-28d,EndUtc-7d)`; C01 uses a 24-hour contact window and reads up to `EndUtc+32m` for complete follow-on windows. No baseline event becomes a candidate merely through enrichment.
+
+MDE event chronology uses `TimeGenerated`; process start fields establish process-instance identity. C06 uses `CreatedDateTime` for chronology and a separate bounded `TimeGenerated` scan through `RunUtc` to admit later publications (S32). Start that scan two days before the earliest intended event as a provisional guard; report missing/invalid event times and out-of-range records. Late or rewritten timestamps can defeat the bounds: inspect actual lag before implementation, record unknown coverage, and do not silently widen to all history. Portal time filters must include the scan guard and enrichment tail. No latency assessment was performed here.
+
+**Relations and optional data.** Capitalized helper relations/functions below are expressly defined design inputs or derived results, not native Kusto tables, watchlists or installed functions. An absent optional table is handled by a separate implementation branch selected after coverage inspection; simply mentioning a nonexistent table in a query is not robust optionality. No connector, licence, table plan, retention span, platform coverage or field-population check has been performed.
+
+**Process join.** A created process joins network/parent evidence by `(Scope, DeviceId, ProcessUniqueId = InitiatingProcessUniqueId)` with both unique IDs populated. If either side lacks that ID, the only permitted fallback is `(Scope, DeviceId, ProcessId = InitiatingProcessId, ProcessCreationTime = InitiatingProcessCreationTime)` with populated PID and exact start time, one matching instance, and no contradictory populated unique IDs. Do not round start times or join PID alone. Store `ProcessKeyQuality = unique-id / pid-and-start / unavailable / conflicting`. Missing keys preserve an observation and disable process-sequence claims; they never become one shared empty process.
+
+**MDE observation handling.** Keep the table name, Scope, DeviceId, DeviceName, TimeGenerated, ReportId, ActionType and relevant process/destination fields. Collapse only identical projected observations and retain their raw multiplicity. The proposed event locator `(Scope, table, DeviceId, TimeGenerated, ReportId)` is not asserted to be globally unique; conflicting payloads remain separate and flagged. Do not use ReportId alone, or transform log-event counts into socket counts. Broad aggregation and bounded evidence examples occur after matching and ordering.
+
+**Coverage output.** Every specification has a coverage/status row even if there are no findings: required source present/absent/unknown; selected scope/category/platform; requested and observed intervals; missing-key counts; baseline state; optional sources inspected; result truncation. Zero matching rows means only zero matches in the inspected coverage. A daily event count alone cannot prove that all intended endpoints or sign-ins were collected. Existing approval records may enrich a result; no record means authorization unknown.
+
+#### C05 specification — Executed proxyware with provenance context
+
+**Behaviour and mechanism.** Find execution evidence for identified proxy-capable software, then ask whether the deployment was authorized and how it arrived. This advances H08's software-governance question. S17 establishes why authentic proxyware and malicious installation chains must be adjudicated separately. This first specification does not detect unknown embedded SDKs or prove relay activity.
+
+**Required fields / inputs.** DeviceProcessEvents: `TimeGenerated`, `ActionType`, `DeviceId`, created-file `SHA256` or `SHA1` for exact identification; `FileName`, `FolderPath`, `ProcessCommandLine`, `ProcessId`, `ProcessCreationTime`, `ProcessUniqueId` and corresponding initiating-process fields for context and joins. Metadata leads may use created-process `ProcessVersionInfoProductName`, `ProcessVersionInfoCompanyName`, `ProcessVersionInfoOriginalFileName`; these are not authenticated identity. S10/S34 ground this mapping and the proposed `ProcessCreated` selection. Missing process keys do not discard an exact-file observation.
+
+Define `SoftwareCatalogue(ProductId, ImageKind, MatchKind, HashAlgorithm, Value, MetadataPredicates, SourceURL, PublishedAt, ReviewedAt, RoleClaim, Disposition)`. Every metadata rule must specify at least two independently recorded attributes, such as product/original-name, and is still only a spoofable lead. Filename alone is insufficient. Never compare a DLL hash to the host executable hash. A reviewed SHA1 alternative must come from evidence for the same artifact; a SHA256 cannot be converted to SHA1.
+
+**Small historical catalogue seed — sourced, not downloaded or executed.**
+
+| ProductId / ImageKind | MatchKind / value | Evidence, date and permitted meaning |
+|---|---|---|
+| Radish VPN Client / EXE | SHA256 exact: `59cbdecfc01eba859d12fbeb48f96fe3fe841ac1aafa6bd38eff92f0dcfd4554` | S04, published 2026-01-28, source reviewed 2026-09-09. Google identifies this EXE and reports Radish VPN incorporating proxy SDK functionality. Disposition: historical identified sample. A match supports source-reported file identity; it does not characterize every Radish version, establish present control infrastructure, or prove unauthorized execution. |
+
+This fills one narrow catalogue input, not product-wide coverage. SHA256 population is unconfirmed, no matching SHA1 was verified, and no metadata-only seed is supplied. Hash identity does not expire like IP ownership, but the associated role claim can still be corrected. Keep source review and disposition with each match.
+
+**Optional dependencies.** DeviceNetworkEvents for observed same-process activity; the preceding DeviceProcessEvents history for first-observed/changed context and an immediate parent's creation record; an analyst-supplied, dated approval relation. File certificates, installer evidence and deployment-system records remain manual triage pivots, with availability unknown. Parent `InitiatingProcessSignatureStatus` is never copied into a claim about the child executable's signature. TVM inventory is excluded from this specification.
+
+```text
+DESIGN PSEUDOCODE — NOT EXECUTABLE KQL
+P = scoped DeviceProcessEvents in [EndUtc-28d, EndUtc)
+    select ActionType == "ProcessCreated"; retain raw action and coverage counts
+    normalize hex case; apply shared observation handling
+Matched = match P to SoftwareCatalogue:
+    exact branch: ImageKind == EXE, matching nonempty same-algorithm hash
+    metadata branch: all declared created-process predicates match
+    keep all MatchIds; exact takes display precedence, not duplicate findings
+Candidates = Matched where TimeGenerated in [EndUtc-7d, EndUtc)
+History = Matched where TimeGenerated in [EndUtc-28d, EndUtc-7d)
+For each candidate observation/process instance:
+    look up history by (Scope, DeviceId, ProductId)
+    compare hash, path, immediate-parent identity only when both populated
+    label history state: previously observed / first observed in inspected span /
+                         baseline unavailable; never "new installation" from absence
+    OPTIONAL parent-record join via shared process contract, within P's read bounds
+    OPTIONAL network join via shared process contract in
+             [candidate.TimeGenerated, candidate.TimeGenerated+30m)
+             (read the 30-minute tail beyond EndUtc when needed)
+    OPTIONAL approval lookup by explicit product/device/user scope and event validity
+    left-preserve the candidate if any enrichment is missing or ambiguous
+Aggregate repeated observations per process instance + ProductId;
+unkeyed observations remain individually locatable. Return match evidence and context.
+```
+
+**Expected output.** One row per matched instance/product (or unkeyed observation): scope/device, first/last observation, process key quality, created-file identity/path/command, match basis/source/disposition, immediate parent, observed-history state, approval state, optional network evidence and its coverage, and next action. First review is 50 rows ordered exact before metadata, then most recent; return total matched rows and truncation, retaining locators for the rest. This is a review budget, not a maliciousness score.
+
+**Benign alternatives / hit meaning.** Approved bandwidth sharing, personal consent, a lab and ordinary software deployment can match exactly; metadata spoofing can mimic weaker entries. An exact hit establishes a sensor-reported created process matching a published artifact. It establishes neither successful enrolment nor forwarding, malware in the installation chain, local-network exploitation, or account/session compromise. Approval changes the policy decision; it does not certify the surrounding host as uncompromised.
+
+**Minimal missing-input question / fallback.** Are ProcessCreated observations and created-file hashes actually present for the intended Windows population and 7/28-day spans? What fraction has valid process keys, and which source-reviewed identities and approvals are available? Without process events, an independently selected DeviceNetworkEvents branch can match its *initiating* executable hash and report a process-attributed network observation, with no creation/installation-history claim. Without either source, C05 is unassessable. Without hash population and without reviewed metadata predicates, the single supplied seed cannot match; do not substitute filename guessing.
+
+**Readiness / next validation.** Specified with unconfirmed ingestion; possible future policy analytic. L04 must test match strength, missing keys/history, approved and unauthorized authentic installations, malicious bundling and the DLL-versus-host-image error. Production compromise classification remains rejected without separate evidence.
+
+#### C01 specification — Role-valid control contact with optional ordered enrichment
+
+**Behaviour and mechanism.** Preserve a process-associated event to verified proxy bootstrap/control infrastructure. When independent evidence identifies a Tier Two connect/proxy port pair, examine the same process for the corresponding sequence and an additional destination. S04 motivates this specific architecture; the connection-event approximation is our hypothesis H02. Active relaying is not observable from this sequence alone.
+
+**Required fields / inputs.** DeviceNetworkEvents: `TimeGenerated`, `DeviceId`, `ActionType`, `RemoteIP`, `RemotePort`, `RemoteUrl`, `Protocol`, initiating-process identity and the shared event/process keys (S09). Name evidence and IP evidence are separate match routes. Define `ControlIntel(IntelId, MatchType, Value, IncludeApex, Role, ValidFrom, ValidTo, ObservedAt, SourceURL, ReviewedAt, Disposition)`; optional `TaskPairs(PairId, IntelRelationship, ServerIP, ConnectPort, ProxyPort, Protocol, ValidFrom, ValidTo, SourceURL)` must independently establish applicability, not merely list two observed ports. Neither input is assumed ingested or currently populated.
+
+Normalize a URL/FQDN to a lowercase hostname, removing a trailing dot; use a URL parser for full URLs. Reject parse failures as missing name context. Match exact hostnames or a declared domain suffix on a dot boundary; match its apex only if IncludeApex permits it. Never use a substring match. Match canonical parsed IPs exactly; do not resolve a historical domain today and pretend that IP belonged to it at event time. Current/historical role validity requires a reviewed bounded interval covering the event. Missing validity, retired, sinkholed or reassigned indicators go to a **historical/uncertain-association** lane, not the role-valid control lane. Such leads can still merit software review.
+
+**Optional dependencies.** DeviceProcessEvents/C05 identity and approval context; the reviewed TaskPairs relation; DeviceEvents protection evidence (S28/S33). No baseline, fan-out threshold, exit feed or byte count is required. S29 makes route inspection necessary before interpreting same-IP/different-port patterns as the actual Tier Two server rather than a corporate gateway. A DNS fallback remains a client-attributed query lead only; no new DNS schema is specified here.
+
+```text
+DESIGN PSEUDOCODE — NOT EXECUTABLE KQL
+N = scoped DeviceNetworkEvents in [EndUtc-1d, EndUtc+32m)
+    retain raw ActionType; apply shared observation and process-key handling
+Anchors = N in [EndUtc-1d, EndUtc) matching ControlIntel by host or IP
+          classify event-time role validity and raw observed outcome
+          keep every anchor, including unavailable process keys
+For each role-valid anchor A with a usable same-process key:
+    eligible sequence events are Protocol == "Tcp" and
+        ActionType == "ConnectionSuccess" (literal population/semantics to verify)
+    Pair evidence can be attempted only with an applicable TaskPairs record
+    T1 = observed connect-port event to its ServerIP at/after A.Time,
+         within A.Time+30m (A itself can be T1 if it is that connect event)
+    T2 = same-process event to the same ServerIP and its proxy port:
+         T1.Time < T2.Time <= A.Time+30m
+    D  = same-process ConnectionSuccess event with nonempty RemoteIP:
+         T2.Time < D.Time <= T2.Time+2m
+         RemoteIP != ServerIP; exclude supplied control/task infrastructure matches
+         label destination class; unknown threat role is not "benign destination"
+    retain actual ordered tuples (T1,T2,D), actions, locators and deltas;
+    equal timestamps do not establish strict order
+    if no applicable pair exists: report pair knowledge unavailable;
+        observed multiple ports remain generic context, not a task sequence
+    if route attribution is unresolved: label sequence route-ambiguous
+    OPTIONAL correlate each event with DeviceEvents protection evidence:
+        shared process tuple + normalized matching RemoteUrl or RemoteIP
+        within +/-2m; retain block/audit action, time and match basis
+        ambiguous or missing process keys cannot support an exact-process block join
+LEFT-ENRICH Anchors with aggregated sequence and block context;
+never filter Anchors on existence of a subsequent event, pair, process row or block row.
+```
+
+Anchor matching retains raw dispositions rather than classifying all events as completed contacts. `ConnectionSuccess` is only an eligibility filter for the ordered-event experiment, and is not proof of allowed HTTP traffic. The literal action/protocol values require local schema and population verification. A non-success anchor can remain an attempted-contact lead; it must not be described as a completed bootstrap exchange. Same-process enrichment cannot reconstruct missing tasks, byte forwarding or simultaneous sockets. Split workers, prior long-lived connections, same-timestamp records, quiet relays and forward-proxy routing are deliberate limits. Do not compensate with a device-wide join.
+
+For the optional protection branch, S33 documents `TimeGenerated`, `DeviceId`, `RemoteUrl`, `RemoteIP`, `ActionType`, `InitiatingProcessId` and `InitiatingProcessCreationTime`; use the full available shared process tuple. S28 supplies `ExploitGuardNetworkProtectionBlocked` and `ExploitGuardNetworkProtectionAudited`. The +/-2m window is an unvalidated association tolerance, not a causal ID. Aggregate it as `matching-block-observed / audit-observed / no-match-in-inspected-coverage / not-inspected / ambiguous`. No block match never means allowed. A matched block documents that protection observation, not the absence of other successful paths.
+
+**Expected output.** One row per anchor observation with all intelligence matches, validity/disposition, device/process and key quality, observed action, route state, optional pair/ordered event examples, block evidence state, optional software identity/approval and gaps. Store up to five ordered examples per anchor plus total tuple count and truncation. First review: 50 anchors ordered role-valid before uncertain historical association, then sequence evidence, then event time; keep total counts and complete anchor locators. Reduce joins to candidate process keys and bounded times before tuple construction; a display cap is not a query-cost bound.
+
+**Benign alternatives / hit meaning.** Approved SDKs, updaters, conferencing/P2P, browsers, shared hosting and corporate proxies can produce associations or apparent sequences. A hit establishes an observed endpoint/process association with the specified evidence, or an attempted/uncertain historical contact. A sequence is compatible with a documented mechanism but does not establish a received proxy task, active proxy participation, unauthorized software, compromised neighbours, or endpoint/session compromise. Protection evidence can change triage without clearing the host automatically.
+
+**Minimal missing-input question / fallback.** Is DeviceNetworkEvents streamed into Log Analytics for this population, with usable process keys, action/protocol values and hostname/IP attribution? Is there even one control-role observation valid for the hunt window, and any independently verified task-port relationship? Current valid control evidence and pairs remain unsupplied. With control evidence but no pairs, contact-only is a complete primary result. With historical evidence only, retain the labelled historical-association branch. With no intelligence, prefer C05; do not silently replace this hunt with all unusual destinations. With no endpoint telemetry, existing client-attributed DNS could support a separately specified lower-confidence question, without process or sequence claims.
+
+**Readiness / next validation.** Specified with unconfirmed ingestion; hunt first. L04 must compare contact-only and enrichment, including a quiet relay, updater/forward-proxy lookalikes, protection block, stale intelligence and missing keys. Remove the sequence ranking if it adds no decision value; no degree of plausible ordering substitutes for forwarding ground truth.
+
+#### C06 specification — Multi-day credential-failure activity cohorts
+
+**Behaviour and mechanism.** Review sparse failures distributed across IPs/days that may disappear under per-IP thresholds. S18 motivates a multi-day question, while S20/S21 and simple app-wide failures remain comparison baselines. C06 returns a cohort selected for investigation, not a coordinated campaign or a residential-proxy detector.
+
+**Required fields / scope.** SigninLogs only: `CreatedDateTime`, `TimeGenerated`, `Id`, `ResultType`, `IPAddress`, `AppId`, `ClientAppUsed`, `IsInteractive`, and usable identity evidence; retain `AADTenantId`, `ResourceTenantId`, `ResourceIdentity`, `UserId`, `UserPrincipalName`, `AlternateSignInName`, `DeviceDetail`, `UserAgent`, `OriginalRequestId`, `CorrelationId` when populated (S11). Scope by explicitly mapped workspace plus directory. `AADTenantId` is a documented column whose table description is blank: verify its connector/customer mapping before using it as the directory key; never fill it with TenantId. With a documented single-directory scope, a supplied directory constant is a labelled fallback. Ambiguous multi-directory rows remain a coverage exception, not one mixed cohort.
+
+This first lane requires `IsInteractive == true` and records excluded false/missing counts. Non-interactive categories are not unioned: S25's confidential-client source caveat prevents a universal current-request egress interpretation. This also means attacks represented only in other categories can be missed. Required sign-in export/retention is unknown; S14 documents P1/P2 for sign-in ingestion. No P2 risk field or exit feed is needed for the primary output.
+
+**Activity and identity semantics.** Within `(Scope, mapped directory, source table, Id)`, combine repeat publications into one activity with first/last TimeGenerated, raw multiplicity, distinct result-code set and `Has50126`. Retain earliest/latest CreatedDateTime. Conflicting identity, IP, app, event time or client grouping values make the activity ambiguous: route it to an evidence/coverage output rather than choosing an arbitrary arg_max payload for a precise edge. Do not discard a previously observed 50126 simply because a later publication adds another outcome. Missing Id rows retain raw counts/locators but do not enter distinct-activity rates. CorrelationId and OriginalRequestId are investigative context, not universal attempt-dedup keys. S35 supports repeated-publication handling; S36's reconstruction of a final flow outcome answers a different question. The measure is **distinct observed sign-in activity IDs containing 50126**, never password guesses or verified attacked accounts.
+
+Use two separate identity lanes: a populated, usable UserId denotes a resolved identifier in the verified directory scope; otherwise preserve a submitted identifier from AlternateSignInName, falling back to UserPrincipalName with `IdentityBasis` explicit. Do not merge those string identifiers with resolved IDs or equate guest aliases across directories. Preserve original spelling; compare case-normalized UPN-style values only within that lane. Non-UPN alternate identifiers remain type-unresolved exact strings. Rows lacking either usable identity or source IP remain counted coverage exceptions. Canonicalize valid IP representation, retaining the raw value; NAT/CGNAT, IPv6 address churn and corporate gateways remain multiple explanations for IP breadth.
+
+**Client cohort.** The initial concrete key is `(Scope, directory, AppId, ResourceTenantId, ResourceIdentity, IdentityBasis, ClientAppUsed, BrowserBucket)`. BrowserBucket is a *derived* field: take populated `DeviceDetail.browser`, trim it, remove only a trailing space-plus-numeric-version suffix, and lowercase; retain the raw value. Empty becomes a labelled unknown bucket, not an anomaly. No unspecified UserAgent parser is required: retain raw UA examples only. Unknown app/resource/client fields produce a lower-specificity labelled cohort. Do not sum resolved and submitted lanes into an asserted account count. This grouping is a review convenience; correlated/spoofable client traits do not identify an operator.
+
+```text
+DESIGN PSEUDOCODE — NOT EXECUTABLE KQL
+S = scoped SigninLogs with TimeGenerated in [EndUtc-30d, RunUtc)
+    keep scanned publications through conflict handling before event-time selection
+A = activity-level reduction with identity/outcome/conflict handling above;
+    conflicting IsInteractive values are also ambiguous
+Eligible = unambiguous, locatable A with usable identity/IP,
+    stable CreatedDateTime in [EndUtc-28d, EndUtc) and IsInteractive == true
+    count excluded/invalid/missing-ID records separately
+F = Eligible where Has50126
+Edges = group F by CohortKey, IdentityKey, CanonicalIP, UTC day:
+        exact activity count; first/last event time; bounded activity-ID examples
+AccountDays = sum edge counts by CohortKey, IdentityKey, day
+SourceDays = sum edge counts by CohortKey, CanonicalIP, day
+For candidate week and each of the three preceding 7-day weeks separately:
+    compute distinct identities, IPs, identity-IP pairs, active days,
+    activity counts and account-day/source-day count distributions
+    count identities seen from >=2 IPs and IPs contacting >=2 identifiers
+    label these as overlap/rotation summaries only, not campaign linkage
+CandidateNewPairs = candidate distinct (CohortKey, IdentityKey, IP)
+                    left-anti baseline distinct same tuple
+Baseline = median of the three separate weekly metrics, not 21-day distincts / 3
+For each candidate day, expected count = median of the previous 3 matching weekdays
+    only with separately supported coverage for those dates;
+    zero-fill absence of failures only on dates with established collection coverage
+Compute all-outcome distinct-activity denominator from Eligible with the same
+    cohort key and comparison interval (identical eligibility to numerator);
+    report failure share with raw numerator/denominator, not as attack probability
+LEFT-ATTACH cohort metrics to candidate activity summaries; optional context must
+    not remove candidates. Emit baseline-unavailable or new-cohort lanes explicitly.
+Compare with the simpler (scope, directory, app, identity-basis) daily summaries.
+```
+
+**Baseline eligibility and ranking.** Comparable history requires the selected category/scope for all three prior weeks, no unresolved collection change, and at least three populated same-cohort baseline days; the last is a provisional stability rule, not proof of representative behavior. Unknown coverage disables anomaly ranking. A genuinely new client cohort has descriptive output, not an infinite novelty score. When comparable, rank lexicographically by candidate identity breadth minus median weekly breadth, then the 7-day sum of positive weekday activity excess, then new-pair count; show each component and never add them as independent risk evidence. New IP-pair count is subordinate because address churn can inflate it. Within each lane, retain account-day and source-day median/p95/max observed activity counts and active-day count, with no mandatory high-rate filter. Compute exact distinct counts over preaggregated tuples; approximate counts, if substituted later for cost, must be labelled.
+
+First review budget: 15 comparable cohorts plus five descriptive cohorts ordered by identity breadth, with separate coverage totals; fill unused slots from the other lane. This is a deterministic 20-cohort review allocation, not a detection threshold. Supply at most ten representative edge/activity locators per cohort, including both low-rate and largest contributors, and report truncation. Preserve a way to retrieve all selected edges within the original scope/window. No all-pairs IP graph or fuzzy UA clustering is required.
+
+**Optional context.** Same-table later successes can be fetched separately for the same resolved identity within 24 hours, reading through EndUtc+1d if needed; include different IPs and label same-IP agreement separately. This is a follow-on sign-in, not successful credential reuse or causal linkage. Other error outcomes, independent alerts and post-authentication records are triage pivots; their absence cannot clear the cohort. A source-date-valid exit feed may annotate an IP, but is neither supplied nor a gate. No new audit-table join is introduced in this pass.
+
+**Expected output.** Cohort key/lane and time bounds; exact failure-activity, identity, IP, pair and active-day counts; low-rate distributions; new-pair and overlap summaries; baseline/weekday and all-outcome comparisons; raw/missing/conflicting activity counts; bounded evidence locators/UA examples; baseline/collection state; and next action. A coverage row explains why a metric is unavailable rather than silently returning zero.
+
+**Benign alternatives / hit meaning.** Typos among many browser users, password resets, broken apps, reorganizations, mobility, VPN rotation and unrelated attackers can merge. S37 explicitly documents 50126 during benign incorrect-credential troubleshooting. A hit establishes selected invalid-credential activity and measured overlap under the stated identity/category coverage. It proves no common password, coordination, source device count, residential-proxy transport, password validation, session theft or account compromise. S18's campaign rate is motivation, not a threshold copied into this hunt.
+
+**Minimal missing-input question / fallback.** Does this workspace have 28 comparable days of interactive SigninLogs; what is the directory mapping; how often are Id, CreatedDateTime, UserId/submitted identifier and IP usable; and how many activities have conflicting publications? Without baseline, emit the descriptive 7-day lane. Without browser/resource population, reduce to explicitly labelled app/client summaries. Without resolved identity, keep submitted-identifier activity separate. Without reliable activity IDs, return raw descriptive failures and missing-ID counts only, not activity-rate claims. With no required sign-in source, unassessable.
+
+**Readiness / next validation.** Specified with unconfirmed ingestion; hunt-only. L04 must compare sparse same-region failures against ordinary popular-client populations, repeated publications and missing identity/coverage, using S20/S21 and the app-only baseline. Retire cohort complexity if it mainly merges unrelated traffic or fails to improve an analyst's decision. The specification exposes no fatal schema blocker, so C04 remains a reserve; C06's discrimination is still unresolved.
+
+#### Independent challenge, limits and handoff
+
+One reviewer formed its recommendations before seeing the preferred cards. It independently favored process-attributed endpoint evidence, strict event ordering and credential-failure clustering, while identifying the ReportId documentation mismatch, PID reuse and activity-count traps. A separate identity reviewer challenged directory scope, submitted-versus-resolved identifiers, duplicate publications and week-normalization. Those objections are implemented above. L03's additional primary-source check made C01's action/route limits concrete and excluded TVM inventory and DLL-as-executable matching from C05. No disagreement was resolved by treating a plausible query as validation.
+
+**Candidate/hypothesis changes.** C05/H08 receive a concrete created-process design and one historical exact-file seed. C01/H02 receive role/route/action-aware output and strictly optional sequence/block enrichment. C06/H09 receive activity/identity lanes, explicit client normalization, equal-duration baseline comparisons and a simpler-baseline rejection condition. The three mechanisms remain proposed; specification readiness is not evidence that the hypotheses work. C02/C03/C04 remain unchanged in this pass. No novelty or compromise-detection claim was established.
+
+**Bounded search.** This pass checked the selected Log Analytics schemas and current connectors, primary software/protocol evidence, Microsoft process-event examples, Network Protection/forward-proxy semantics, standard workspace fields and sign-in logging/error semantics. The generic error-code page retrieval did not expose 50126, and the direct error lookup returned an internal error; the narrow 50126 interpretation remains grounded in the official S21 rule and the successful targeted official checks recorded in the ledger. No public node was queried for IOC freshness, no software sample was fetched, and no tenant population, ingestion, cost, recall, precision or runtime behavior was assessed.
+
+**Next pass: L04 / T03 — Test cases and triage.** Create the synthetic expected-result and triage sheets for these three designs only. Include authentic approved/unauthorized proxyware, an SDK DLL versus host executable, PID reuse/missing process keys, quiet/contact-only activity, stale/sinkholed intelligence, forward-proxy and blocked-connection lookalikes, repeated sign-in publications, unresolved identities, absent baseline, same-region sparse failures and popular-client collisions. Keep missing coverage as unknown, define disconfirmation, and distinguish on-paper expectations from any actual synthetic execution. Stop after L04; production promotion remains separate.
+
+
 ## Current handoff
 
-**Next pending pass: L03 / T02 — Build the first hunt specifications and check telemetry.**
+**Next pending pass: L04 / T03 — Make the early hunts testable and investigable.**
 
-L01 and L02 are complete. Use the six ranked cards, H00–H10 and S01–S27. Specify **C05, C01 and C06** in that order, with documented Sentinel / Log Analytics schema, bounded windows, event-time semantics, entity keys, filters, aggregations, joins, output and interpretation. Keep all logic in this research file. L04 remains pending for synthetic cases and triage sheets.
+L01–L03 are complete. Use the C05/C01/C06 specifications in the L03 journal, updated H00–H10 and S01–S37. Create clearly labelled synthetic expected-result and triage sheets for these three candidates. Describe what was actually executed, if anything; never upgrade on-paper reasoning to a passing test.
 
-- C05: smallest useful process-execution hunt; review created-process metadata versus parent fields, software-match strength and unknown authorization. A signature is not installation-chain proof.
-- C01: role/time-valid control-contact baseline with optional same-process task-channel enrichment. Preserve quiet/contact-only leads; do not require fan-out or reconstruct throughput/socket state.
-- C06: sparse multi-day credential-failure cohort hunt, no success, geographic-diversity or exit-feed gate. Compare explicitly with S20/S21 and a simple tenant/app baseline. Common client traits do not prove coordinated spraying; confirm event counts and submitted-versus-resolved identity semantics.
+- C05: exact historical EXE identity versus metadata, DLL/host-image confusion, authentic approved/unauthorized software and malicious bundling; missing hashes, PID reuse, parent context and absent baseline.
+- C01: preserve quiet/contact-only leads; test valid versus stale/sinkholed control evidence, strict event order and process identity, forward-proxy routing, ConnectionSuccess with protection blocking, and absent optional pairs/events. A sequence cannot establish payload forwarding.
+- C06: reduce bounded publications before event-time selection; count eligible activity IDs containing 50126; separate resolved/submitted identity lanes and directory scope. Test repeated/conflicting/missing IDs, absent baseline, same-region sparse attacks and popular-client collisions. Match numerator/denominator eligibility, compare equal-duration weekly breadth and existing/app-only baselines.
 
-C04 is the conditional reserve if C06's specification adds no defensible decision benefit. C03 needs actual local/loopback visibility and implementation applicability; C02 needs valid, attributable flow records. None of the tenants' required tables or fields is confirmed. A small reviewed software catalogue and role/time-aware control evidence remain unsupplied; state the exact minimal inputs and lower-dependency branch where valid.
+For each sheet give expected output, benign/suspicious/ambiguous and missing-data cases, rejection conditions, triage pivots and the evidence that changes escalation/dismissal/unresolved review. Keep proxy participation, network exposure, endpoint compromise and session compromise separate. C04 remains the first reserve; C03/C02 retain their collection blockers.
 
-Re-fetch the current main file and blob SHA before saving; preserve concurrent changes and stop if L03 has already been completed. Execute exactly one pass. No promotion, deployment, third-party proxy interaction or employee-home collection is authorized.
+The Radish VPN EXE seed is source-reviewed historical identity only. Actual customer ingestion, executable-hash/process-key/sign-in-ID population, directory mapping, complete baseline, approvals, current control intelligence and task pairs remain unconfirmed. No query, parser, synthetic or tenant validation has occurred. No runnable module or deployment is authorized.
+
+Re-fetch the current main file and blob SHA before saving; preserve concurrent changes and stop if L04 has already been completed. Execute exactly one pass.
 
 ## Reusable invocation
 
