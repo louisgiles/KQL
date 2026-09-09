@@ -6,7 +6,7 @@
 **Canonical file:** threat-work/research/resprox-research-loops.md  
 **Original sources:** [ResProx](./ResProx)  
 **Created:** 2026-09-08  
-**Readiness:** C11 is the lead endpoint experiment; L08 requires held-out non-control audience evidence before C01 can add context. C12/C03 remain conditional local-reach investigations, with the universal same-row DNS-binding claim withdrawn. C04-G/C05/C01/C06 remain practical specifications/baselines; C02/C10 stay parked. L08 adds 13 narrow offline JavaScript checks, not KQL, sensor or efficacy validation. All tenant ingestion remains unconfirmed; no production change.
+**Readiness:** L09 retains C11 as a descriptive endpoint experiment but suspends default conjunction-first ranking: fixed-budget synthetic results do not establish a clear win. Held-out controller accounting and exact-instance C01 context remain. C12/C03 are conditional local-reach investigations; C04-G/C05/C01/C06 remain practical specifications/baselines; C02/C10 stay parked. A08 adds a 24-entity synthetic comparison with 21 assertions, not KQL, sensor or field validation. All tenant ingestion remains unconfirmed; no production change.
 
 ## Run accounting and scheduling
 
@@ -190,6 +190,8 @@ Review likely false-positive sources, minimum baseline requirements, rarity and 
 
 Search primary papers, technical disclosures, standards, and documented detection/product capabilities using alternative vocabulary and older adjacent work. Compare the current candidates with the closest existing implementations under equivalent assumptions and visibility. Distinguish new mechanism, new measurement, engineering integration, and practical adaptation. Identify what existing logic already solves and what a proposed improvement would need to demonstrate.
 
+**L09 handoff refinement:** Compare C11's retained descriptive self-new/peer-prevalence measurement with the closest process-conditioned peer/history method under equivalent visibility. Default conjunction-first ranking is suspended after A08, not validated by selected nuisance removal. Do not fit new weights to its labels; distinguish a useful role-change summary from a distinct mechanism. C12 remains conditional integration, not a new rebinding mechanism.
+
 **Deliverable:** A prior-art comparison for the leading candidates, exact unresolved gaps, bounded search limitations, and resulting changes to the candidate portfolio.
 
 **Completion test:** Retain novelty claims only where a specific contribution remains. Useful established hunts may remain valuable even when they are not novel.
@@ -246,12 +248,12 @@ Lead with the ranked detection/hunt portfolio. For each shortlisted candidate st
 
 ## State — update after each saved pass
 
-**Programme status:** in progress; L01–L08 plus additional L04.5 and L04.5(2) completed (8 of 15 numbered passes)  
-**Next pass:** L09 / T08 — Test surviving contrast, then tune and cost  
-**Last completed pass:** L08  
-**Last result journal entry:** [L08 — Held-out audience and the false local-collapse join](#l08--held-out-audience-and-the-false-local-collapse-join)  
-**Unresolved execution blocker:** none; L08 source/prior-art comparison, cross-source specifications and narrow synthetic checks completed.  
-**Research-data blockers:** Actual table/category ingestion, population/field coverage, directory mapping, retention and runtime remain unconfirmed. L08 additionally requires comparable route/name visibility, independently role-verified control intelligence and instance-level disjoint audience witnesses for the C11 combination. C12/C03 require process-attributed special-use peer events and, for stronger interpretation, client-attributed DNS answers, intermediary-role mapping or receiving-service evidence; none is confirmed. A same-row name/private IP does not establish a DNS binding. S05's IPIDEA path was reportedly fixed on 2025-12-28, so current applicability needs independent version/provider evidence. C02 still requires attributable flow counters, intervals and NAT/DHCP mapping. C11 needs repeated exact hashes and self/peer history. C05 lacks a complete catalogue/approval register; C01 lacks current control pairs; C10 lacks an attributable TLS sensor. C09 and C04-G retain their L06 blockers. Other saved dependencies remain unchanged.
+**Programme status:** in progress; L01–L09 plus additional L04.5 and L04.5(2) completed (9 of 15 numbered passes)  
+**Next pass:** L10 / T09 — Closest prior-art comparison and remaining measurement gap  
+**Last completed pass:** L09  
+**Last result journal entry:** [L09 — Fixed-budget comparison: useful contrast, no clear ranking win](#l09--fixed-budget-comparison-useful-contrast-no-clear-ranking-win)  
+**Unresolved execution blocker:** none; L09 fixed-budget synthetic comparison, candidate revision and unexecuted KQL cost plan completed.  
+**Research-data blockers:** Actual table/category ingestion, population/field coverage, directory mapping, retention and runtime remain unconfirmed. L09's synthetic benchmark does not supply independent workload/authorization truth or prove actual sensor comparability; C11 ranking needs an independent equal-budget comparison before optimization/promotion. L08 additionally requires comparable route/name visibility, independently role-verified control intelligence and instance-level disjoint audience witnesses for the C11 combination. C12/C03 require process-attributed special-use peer events and, for stronger interpretation, client-attributed DNS answers, intermediary-role mapping or receiving-service evidence; none is confirmed. A same-row name/private IP does not establish a DNS binding. S05's IPIDEA path was reportedly fixed on 2025-12-28, so current applicability needs independent version/provider evidence. C02 still requires attributable flow counters, intervals and NAT/DHCP mapping. C11 needs repeated exact hashes and self/peer history. C05 lacks a complete catalogue/approval register; C01 lacks current control pairs; C10 lacks an attributable TLS sensor. C09 and C04-G retain their L06 blockers. Other saved dependencies remain unchanged.
 
 | Loop | Task | Status | Last updated UTC | Result / blocker |
 |---|---|---|---|---|
@@ -265,7 +267,7 @@ Lead with the ranked detection/hunt portfolio. For each shortlisted candidate st
 | L06 | T05 Identity and session hunts | completed | 2026-09-09T02:32:24Z | C09 source-to-signature assumptions weakened; C04-G rule-seeded token recurrence specified, 13 constructed reducer variants checked offline. No KQL/tenant execution. See L06 journal. |
 | L07 | T06 Network and local-access hunts | completed | 2026-09-09T03:35:59Z | C12 name-to-local collapse created; C03 narrowed by topology and implementation; C02 remains input-gated; unsupported visibility removed. No execution. See L07 journal. |
 | L08 | T07 Cross-source correlations | completed | 2026-09-09 | C11 held-out audience and same-instance C01 join; C12 DNS-binding claim withdrawn; non-Edge AdditionalFields/materialize path; 13 narrow JS assertions passed. No KQL/tenant execution. |
-| L09 | T08 Tuning and cost | pending | — | — |
+| L09 | T08 Tuning and cost | completed | 2026-09-09 | A08: 1,613 synthetic records / 24 entities, 21 assertions; no clear K=3 ranking win; C11 conjunction-first priority suspended, descriptive facets retained; no KQL/tenant run. |
 | L10 | T09 Prior-art gap | pending | — | — |
 | L11 | T10 Ecosystem and measurement | pending | — | — |
 | L12 | T11 Unconventional hunt opportunities | pending | — | — |
@@ -330,16 +332,18 @@ Allowed pass statuses: pending, completed, blocked. An inconclusive research res
 
 **L08 current decision:** Keep C11 as the lead experiment, testing non-control audience change independently of the controller that supplies C01 context. No automatic join/rank uplift. C12 remains useful conditional integration but loses the breakthrough label and same-row DNS-binding claim. C04-G and C05 are practical baselines, not substitutes for meeting the novelty goal. See the [L08 comparison and specifications](#l08--held-out-audience-and-the-false-local-collapse-join).
 
+**L09 current decision (supersedes ranking priority above):** C11 remains a descriptive role-change experiment, not a demonstrated breakthrough or default top-ranked hunt. A08 removes selected nuisances but shows overlapping target yield at K=3, a higher-ranked ordinary role change, approved twins and a common-audience blind spot. Retain the held-out accounting and exact-instance join; suspend conjunction-first priority and avoid a mandatory conjunction/control gate. [Full comparison](#l09--fixed-budget-comparison-useful-contrast-no-clear-ranking-win).
+
 ### C11 — Same binary, different job
 
 - **Behaviour / question:** Does an unchanged executable image behave as a narrow application/service on most comparable devices, but acquire a materially different destination audience on a minority—and did the same device transition without an image change?
 - **Mechanism / evidence:** H17. S04/S55 establish that proxy capability can be embedded in an ordinary application and that Windows bandwidth-sharing applications relay third-party destinations. Enrollment, provider eligibility, configuration or tasking can therefore change the network role without changing the host executable. The exact-hash peer group holds application bytes/version constant; a same-device transition adds temporal contrast. Neither contrast identifies the cause.
 - **Required telemetry:** DeviceNetworkEvents for a sufficiently repeated exact initiating-process SHA1, with Scope, DeviceId, TimeGenerated, ActionType, LocalIP/Port, RemoteIP/Port, RemoteUrl, Protocol and process-instance fields. SHA256 can supplement but is documented as sometimes unpopulated (S56). Required table, endpoint population, hash/process-key population, comparable device-days and URL/IP coverage are unconfirmed.
 - **Optional telemetry:** DeviceProcessEvents for start/lineage and image continuity; DeviceImageLoadEvents for separately observed module identity; C01 role-valid contact; C05 catalogue/approval; customer-supplied device role, software configuration/feature flags and deployment history; C10 TLS/SNI evidence only where its sensor contract is met. Missing optional data preserves the role-divergence lead.
-- **Concrete design:** Use a fixed seven-day candidate window and preceding fourteen-day self/peer history, separately per customer. Normalize successful and attempted observations into separate lanes. Define typed destination lanes: parsed lowercase exact hostname where source semantics support a target name, or canonical exact peer IP as peer-only evidence. Compare like-for-like lanes and retain route/name-coverage state; do not resolve names later, conflate logical targets with intermediary addresses, collapse public-suffixes without a versioned list, or treat missing names as direct-IP proof. Group by exact SHA1 and retain product/path/version as context, not identity. Require multiple covered devices before peer comparison; otherwise emit insufficient-peer-support. For each device/hash, report candidate destination keys, active hours and ports; each key's leave-one-device-out peer prevalence; overlap with that device's earlier set; and peer distribution. Rank a fixed review budget first by concurrent **peer divergence plus self-transition**, then peer-only divergence, exposing all components rather than one risk score. A low-volume device can rank if a few new destinations are exceptional for both itself and its exact-hash peers. Stable core destinations remain visible. Do not call a statistical tail a second “mode” until tested.
+- **Concrete design:** Use a fixed seven-day candidate window and preceding fourteen-day self/peer history, separately per customer. Normalize successful and attempted observations into separate lanes. Define typed destination lanes: parsed lowercase exact hostname where source semantics support a target name, or canonical exact peer IP as peer-only evidence. Compare like-for-like lanes and retain route/name-coverage state; do not resolve names later, conflate logical targets with intermediary addresses, collapse public-suffixes without a versioned list, or treat missing names as direct-IP proof. Group by exact SHA1 and retain product/path/version as context, not identity. Require multiple covered devices before peer comparison; otherwise emit insufficient-peer-support. For each device/hash, report candidate destination keys, active hours and ports; each key's leave-one-device-out peer prevalence; overlap with that device's earlier set; and peer distribution. L09 suspends default conjunction-first ranking. Expose self-new, peer-prevalence and their intersection as descriptive facets, with raw/held-out counts and tied groups where a budget is applied. Keep peer-only/self-only and coverage-exception lanes visible; no conjunctive alert gate or automatic confidence score. A low-volume device can rank if a few new destinations are exceptional for both itself and its exact-hash peers. Stable core destinations remain visible. Do not call a statistical tail a second “mode” until tested.
 - **Expected output:** Scope, device/process/hash and match quality; candidate/baseline/peer coverage; peer count; prior/current destination-set sizes and overlap; low-peer-prevalence destination examples with raw events; action/port/hour context; optional module/control/approval evidence; explanation/coverage state and next pivot.
 - **Benign alternatives and triage:** The strongest twin is an approved forwarder or security agent enabled on only some devices. Other alternatives are browser/WebView helpers, cloud sync/conferencing/P2P, geography or feature flags, server/client roles, user configuration and staged rollout. Verify exact hash and coverage, then device role/configuration, authorization, process lineage/modules and raw connections. A hit establishes role divergence for identical bytes under inspected coverage. It establishes neither relaying, lack of consent, malware, local exposure nor account/session compromise.
-- **Readiness / decisive test:** **Idea with schema-grounded design; unconfirmed ingestion; hunt-only.** In an authorized isolated lab, run the same instrumented binary build on matched nodes with its controlled local forwarding feature disabled/enabled; include an approved forwarder, browser, updater, sync/conferencing and P2P controls. Compare C11 at one review budget with simple destination count, peer-only contrast and C01 contact-only. Reject the claimed benefit if the self-plus-peer contrast adds no useful separation or mostly sorts ordinary role/configuration differences. Park tenant use where repeated exact hashes or comparable coverage are absent. No such test or collection occurred in L05.
+- **Readiness / decisive test:** **Idea with schema-grounded design; unconfirmed ingestion; hunt-only.** In an authorized isolated lab, run the same instrumented binary build on matched nodes with its controlled local forwarding feature disabled/enabled; include an approved forwarder, browser, updater, sync/conferencing and P2P controls. Compare C11 at one review budget with simple destination count, peer-only contrast and C01 contact-only. Reject the claimed benefit if the self-plus-peer contrast adds no useful separation or mostly sorts ordinary role/configuration differences. Park tenant use where repeated exact hashes or comparable coverage are absent. No such sensor/collection test occurred in L05 or L09. A08 executed only a normalized synthetic count-score comparison: selected nuisance patterns were removed, but K=3 did not show a clear target-yield win and an approved twin remained identical. Next compare independent workload/configuration truth with simpler process-role-change summaries; do not tune to the constructed labels.
 
 **L08 correction to C11/C01:** Keep the original IOC-free C11 lane. For the experimental C01 combination, remove role-valid controller destinations from candidate/self/peer scoring, preserve their raw evidence separately, and require a disjoint audience witness on the exact process instance. Never transfer a seven-day device/hash aggregate's contact to every instance. Keep target-host and peer-IP lanes separate; changed visibility is unassessable. The [L08 specification](#c11--c01-hold-the-controller-out-of-the-audience) defines the bounded join and next comparison. A07 checks only simplified set/identity operations, not the full candidate.
 
@@ -450,12 +454,14 @@ L04 adds on-paper controls and triage to C05/C01/C06. L04.5 adds lifecycle/owner
 
 | H15 | Outcome-conditioned omission within repeated target workloads may expose adaptive scheduling despite changing IPs. | weakened in L06; C09 restricted experiment | S50/S60–S62 establish mode-dependent removal, including non-success responses. | Random app/resource selection and concurrent dispatch undermine the frozen ordered stream; 50057 reappears in continued paired rounds; input exhaustion also removes targets. | Establish actual recurrence/category coverage, inspect B across app/resource values, and compare cessation with plain target timelines. No source-backed universal success/pruning signature. |
 | H16 | A TLS fingerprint observed on a socket attributed to a relay process may belong to an upstream client, exposing application-role mismatch. | mechanism strengthened, operational branch conditional/parked in L05; C10 | S55 directly observes target-facing customer TLS fingerprints through Windows proxy nodes; S52/S53 support forwarding/sensor fields; S54 establishes prior art. | S55 required dedicated packet capture; shared TLS engines collide. DNE has no JA4 and standard ASIM supplies no causal process/TLS key. Approved forwarders and multi-stack apps remain twins. | Reopen operationally only with an existing pre-NAT/on-host TLS source and unique tuple/process attribution; then run controlled relay/direct/multi-stack comparison. |
-| H17 | An unchanged exact binary with a self-new/peer-divergent destination audience may expose a conditional network-role change. | proposed; narrowed in L08; C11 | S04/S55/S56; A07 checks simplified held-out sets and instance joins. S76/S77 establish nearby prior art. | Controller novelty can duplicate C01 evidence; visibility/role/configuration changes and approved forwarding remain twins. | L09: compare held-out peer/self contrast with simpler baselines at equal review budget, keeping labels separate and coverage comparable. |
+| H17 | Self-new/peer-divergent audiences of an unchanged binary can describe role change; superiority as a hunt ranking is a separate claim. | descriptive hypothesis retained; default ranking priority suspended in L09 | S04/S55/S56; A07/A08 show selected feature accounting and nuisance removal. S76/S77 establish prior art. | At K=3 all tested methods had overlapping 0–1 target-yield ranges; ordinary role change outranks activation, approved twin matches, and common audience can hide a target. | L10: closest process-conditioned peer/history comparison; then independent equal-budget evaluation before ranking/promotion. |
 
 | H18 | Exact-token recurrent origin use can add investigation context beyond one observed network handoff around an interesting workload action. | proposed in L06; standalone theft inference rejected | S44–S46/S64–S67 ground fields and outcomes; A06 distinguishes constructed AABB from ABAB while the authorized twin matches. | One client with alternating routes or approved shared-token workers is a twin. The small reducer does not validate adapters, batch coverage, joins or analyst benefit. | Compare identical seeded cases with/without the facet; remove it if it adds no useful decision context. |
 | H19 | Independently client-attributed local answers, associated-process transport and receiver evidence can improve local-target triage. | weakened/narrowed in L08; C12 integration | S05/S68/S69/S71; S29 requires separating logical target and intermediary peer; S75 establishes local-answer prior art. | Same-row name/private-IP is not a DNS binding; forward proxies/helpers, sinkholes and approved forwarders defeat the universal interpretation. | First test internal intermediary versus direct local target under identical displayed name/peer context; verify exact client-answer/receiver contracts before stronger claims. |
-| H20 | A rare new control destination can create the C11 anomaly that is then incorrectly treated as corroborating C01. | supported logical counterexample in L08; prevalence unknown | A07 removes constructed control-only novelty while preserving a separate audience witness. | The check is not a full score/adapter or field-frequency measurement; distinct witnesses can still share a benign cause. | Fixed-budget held-out feature comparison with role/configuration and missingness controls. |
+| H20 | A rare new control destination can circularly create the C11 anomaly used to corroborate C01. | supported constructed mechanism; field prevalence unknown | A07 and A08 remove control-only novelty while preserving the C01 lead and disjoint audience. | A08's K=5 yield advantage is fixture/budget-dependent; no general ranking or field-frequency result. | Retain held-out accounting; test incremental review benefit on independent data without selecting favourable budgets. |
 | H21 | A DNE row containing a nonlocal name and special-use IP universally proves that name resolved to a local target. | rejected in L08 | S29 separates forward-proxy peer and target-name visibility; S68 does not declare a DNS-answer/consumption relation. | Some direct-path sensor observations may support it after verification; the universal implication is false. | Preserve co-observation, and require independent client-answer/topology/service evidence for stronger interpretation. |
+
+| H22 | A peer-rarity gate can suppress unauthorized workload that shares destinations with ordinary peers; commonness does not establish legitimacy. | supported logical counterexample in L09; prevalence unknown | A08 D24 equals ordinary rollout features; zero-peer sensitivity also drops the D01/D02 shared audience. | Constructed latent labels do not show real prevalence, attacker behaviour or detector-wide coverage; rarity may still prioritize useful leads. | Preserve common-audience/self-change visibility and compare with independent task truth; do not use rarity absence as a benign verdict. |
 
 Use proposed, supported, weakened, rejected, merged, or unresolved. Record reasons for transitions; repeated mention does not increase confidence.
 
@@ -614,6 +620,17 @@ All accessed **2026-09-09 UTC**. Public-source research and the separately ident
 | A07 | [L08 narrow synthetic check](#executed-narrow-synthetic-check-a07), executed 2026-09-09 | Thirteen passing JavaScript assertions on constructed normalized sets and process/time identity. Full reproducible code and exclusions in the journal. Not a KQL, sensor or efficacy test. |
 
 **Targeted rechecks:** S28 [Network Protection](https://learn.microsoft.com/en-us/defender-endpoint/network-protection), revised 2026-08-12, supplies non-Edge DeviceEvents actions and documented AdditionalFields members, separates Edge SmartScreen, and warns that ConnectionSuccess may coexist with blocking. S29 [forward-proxy investigation](https://learn.microsoft.com/en-us/defender-endpoint/investigate-behind-proxy), revised 2026-07-15, separates target-name visibility from proxy-peer observations. S33 [DeviceEvents](https://learn.microsoft.com/en-us/azure/azure-monitor/reference/tables/deviceevents) and S68 [DNE](https://learn.microsoft.com/en-us/azure/azure-monitor/reference/tables/devicenetworkevents) document shared initiating-process keys; population is unconfirmed. S69 [ASIM DNS](https://learn.microsoft.com/en-us/azure/sentinel/normalization-schema-dns) makes answer parsing/source-client mapping conditional. S71 [IANA IPv4 registry](https://www.iana.org/assignments/iana-ipv4-special-registry/iana-ipv4-special-registry.xhtml) distinguishes zero-address, loopback and private-use classes; it is not a test of OS socket behaviour.
+
+### L09 source additions and executed evidence
+
+Accessed **2026-09-09 UTC**.
+
+| ID | Source / date | Contribution and limit |
+|---|---|---|
+| S78 | [Microsoft: KQL best practices](https://learn.microsoft.com/en-us/kusto/query/best-practices?view=microsoft-fabric), revised 2025-06-09 | Early time/selective filtering, reduced data, projected reusable intermediates and cardinality-aware aggregation/join planning. No local query cost or runtime has been measured. |
+| A08 | [L09 fixed-budget comparison](#l09--fixed-budget-comparison-useful-contrast-no-clear-ranking-win), executed 2026-09-09 | 1,613 normalized synthetic records / 24 entities; 21 assertions passed; complete source, fixed parameters, labels, budget and tie results preserved. Evaluates set/count features and simplified instance relationships, not KQL, source adapters, sensor output, independent analyst benefit or field efficacy. |
+
+Rechecked S68 [DNE schema](https://learn.microsoft.com/en-us/azure/azure-monitor/reference/tables/devicenetworkevents) for hash/process/time fields and workspace TenantId; schema presence does not establish ingestion. S74 [materialize()](https://learn.microsoft.com/en-us/kusto/query/materialize-function?view=microsoft-fabric), revised 2025-08-14, still requires filtering/projection and benchmarking; caching is not new telemetry. S29 [forward-proxy investigation](https://learn.microsoft.com/en-us/defender-endpoint/investigate-behind-proxy) supports the separate C12 observation-point warning. No new source supports an efficacy or novelty upgrade.
 
 ### Starting research leads
 
@@ -1618,23 +1635,294 @@ This pass performed **self-critique**, not a new independent reviewer evaluation
 **Next: L09/T08**, applying Q01. Execute a reproducible fixed-budget comparison of C11 raw versus held-out peer-only, self-only and peer+self, with C01-only as a separate baseline. Include ordinary feature rollout, changed proxy/name visibility, shared-hash different instances, missing history, low-volume relay-like change and an identical authorized twin. Freeze features and scoring before adjudication labels; report ties rather than choosing favourable tie-breaks. Optimize only a surviving contrast. For C12, test the intermediary counterexample before adding joins; it is not a third breakthrough slot by default.
 
 
+## L09 — Fixed-budget comparison: useful contrast, no clear ranking win
+
+**Executed:** 2026-09-09 UTC, L09/T08 only. Starting canonical blob `1aed558bdd214efb5abcd6bdde86fcb2fe964887`; repository/area instructions and Q01 rechecked. At invocation start Q01's next review (06:13:05 UTC) was not due; its L09 requirements were applied without modifying the direction file. No numbered pass beyond L09 is completed here.
+
+**Result:** The C11 peer+self contrast removes two constructed distractions—stable specialist destinations and fleet-common new destinations—and holding out controllers removes contact-only inflation. **It does not earn default investigative ranking priority.** At the preselected three-case review budget, every tested method has an overlapping 0–1 target-yield range across ties. An ordinary role change ranks above the two-destination unauthorized activation and its approved twin. At five slots the held-out conjunction includes a quiet target missed by the raw/peer-only top five, but this budget-dependent result is not a general efficacy claim.
+
+### A08: frozen comparison and honest scope
+
+Executed the embedded JavaScript twice with unchanged scoring/fixtures; the verification rerun reproduced the results. **1,613 normalized synthetic observations, 24 device/build entities, 21 passing assertions.** This is a deterministic counterexample benchmark, not a sampled population, blind study, KQL implementation or sensor emulator.
+
+Before the first execution, fixed: fourteen baseline day indices, seven candidate day indices, at least five covered same-hash peers, peer prevalence <=0.10, distinct-destination-count scores, primary budget K=3 and reported sensitivities K=1/5 and rarity 0/0.05/0.10/0.20. No parameter was selected from its resulting target yield. The author intentionally constructed useful and defeating cases; separating labels from scoring does not erase designer bias.
+
+**Input contract:** Each synthetic record has scope, device, image hash, process instance, day/minute and already normalized target. DNE-like target/name and process semantics are assumed for this arithmetic, not tested. Route, action and destination-type lanes are held constant; real action mapping, name/peer disambiguation, source event IDs, real hashes, dates and intelligence validity are outside this evaluator. Coverage flags and the six-control-target set are supplied fixture inputs, not inferred from absence of events or an invented Sentinel table.
+
+For a fair comparison, all six methods use the same 21 assessable H1 devices with twenty eligible peers each. Three entities are separately unassessable: missing history, changed name visibility, and a singleton H2 build. C01 contact-only could operate on a broader population; the common-support experiment does not impose C11's history/peer gates on its real standalone specification.
+
+**Scores, all computed without truth labels:**
+
+- `count`: all candidate distinct destinations.
+- `raw`: count of candidate destinations absent from self-history and present on at most 10% of eligible other devices; controls retained.
+- `peer`: rare destination count after removing controls.
+- `self`: self-new destination count after removing controls.
+- `both`: destinations satisfying both conditions after removing controls.
+- `contact`: one if any candidate control contact exists, otherwise zero; no arbitrary intelligence-confidence tie-break.
+- Optional `witness`: held-out audience event follows control by >0 to 30 minutes on exactly the same scope/device/hash/process instance. This is displayed, not added to the score.
+
+These count scores instantiate the contrast; they are not a validation of every possible C11 ranking or the complete prior pseudocode. Zero-score rows do not fill spare review slots. No peer-only fallback is silently added to the conjunction. Tied boundary groups retain all members and the number of available slots; their target-yield interval is the exact minimum/maximum over all tie selections, not a favourable identifier ordering.
+
+### What the constructed cases returned
+
+| Entity / constructed explanation | Raw | Held peer | Held self | Held both | Contact / exact witness | Consequence |
+|---|---:|---:|---:|---:|---|---|
+| D01 unauthorized activation | 2 | 2 | 2 | 2 | 1 / true | Retained role-change lead |
+| D02 approved exact twin | 2 | 2 | 2 | 2 | 1 / true | Every tested feature equals D01; no consent/misuse separation |
+| D03 control-only contact | 5 | 0 | 0 | 0 | 1 / false | Controller removal prevents duplicate corroboration; contact lead survives |
+| D04 stable specialist | 0 | 6 | 0 | 0 | 0 / false | Self-history defeats peer-only distraction |
+| D05 approved role/configuration change | 3 | 3 | 3 | 3 | 0 / false | Still outranks D01: novelty is not authorization |
+| D06 quiet unauthorized activation | 1 | 1 | 1 | 1 | 0 / false | Survives as a lead but is below K=3; mandatory C01 would lose it |
+| D07 distinct same-hash instances | 2 | 2 | 2 | 2 | 1 / false | Device/hash contact exists, but exact-instance corroboration does not |
+| D08/D09/D10 coverage/peer controls | null | null | null | null | separately preserved | Unassessable, never zero-risk |
+| D11–D23 ordinary common rollout | 0 | 0 | 8 | 0 | 0 / false | Peer contrast suppresses the fleet-common self-change |
+| D24 unauthorized common-audience twin | 0 | 0 | 8 | 0 | 0 / false | Same suppression hides the chosen target; commonness cannot clear it |
+
+The three evaluation-only target labels are D01, D06 and D24. They were attached after feature calculation and never used in score/eligibility/tie decisions. D24 deliberately has the same feature vector as an ordinary rollout member: labels are different latent explanations for the same observations, not proof a real attack would produce these records.
+
+| Method | Target yield at K=3, across ties | Target yield at K=5 | Interpretation |
+|---|---|---|---|
+| Destination count | 0–1 | 0–1 | Selects from fourteen common-rollout cases |
+| Raw conjunction | 0–1 | 1 | At K=3, D03/D05 consume two slots |
+| Held peer-only | 0–1 | 1 | At K=3, D04/D05 consume two slots |
+| Held self-only | 0–1 | 0–1 | Common rollout consumes the budget |
+| Held peer+self | 0–1 | 2 | D05 consumes the first slot; at K=5 quiet D06 is included |
+| C01 contact-only | 0–1 | 1, using four positive leads | Does not observe D06/D24; no fifth positive is invented |
+
+**Change that survives:** a more interpretable description of *which* contrast generated the lead, and the removal of controller-only evidence from a purported independent audience. **Change not earned:** “combined score is the best hunt” or “rank every conjunction above simpler leads.” The one favourable five-slot result cannot override the primary budget, the approved twin or D24's exclusion. No analyst decisions, time savings or field precision/recall were measured.
+
+**Sensitivity:** At rarity=0 the shared D01/D02 audience ceases to be “rare,” because each has one peer with that audience; D06 enters the three-slot result instead. At 0.05, 0.10 and 0.20 the held-conjunction rankings in this fixture are identical. Exact zero-peer novelty therefore drops one target because an approved peer shares its workload. With twenty eligible peers, these thresholds have coarse count meanings; they are not calibrated probabilities. We do not tune to zero merely because its K=3 target count looks better.
+
+Assertions additionally verified row-order and duplicate-row invariance, label-field independence, the approved/unauthorized twins, missingness states, preservation of raw C11 when role intelligence is unavailable, and exact-instance witness rejection. One C12 projection assertion confirms that the same supplied name/private-peer/port tuple is compatible with either an internal forward proxy or a direct local target. **It is not a sensor test showing that either emits that tuple.** S29 remains the primary observation-point support.
+
+### Revised C11 card and tuning disposition
+
+**Behaviour/mechanism:** describe self-new and peer-unusual network audiences for an unchanged exact executable; investigate unexplained role change. Do not use majority behaviour as a legitimacy verdict or turn self-new+peer-rare into a necessary condition for relay abuse.
+
+**Required telemetry:** DNE in the intended Log Analytics workspace with exact initiating image hash, device/process identity, event time and comparable typed destination/action lanes; a defensible manifest of observable self/peer periods. The held-out branch additionally needs independently reviewed event-time control-role inputs. Actual tenant availability remains unknown. Optional C01, lineage/modules, independent configuration/approval and protection data must not suppress primary leads.
+
+**Concrete logic retained:** Seven candidate days plus fourteen prior days; build distinct device/hash/typed-destination memberships and expose `self_new`, `peer_prevalence`, `control_excluded`, raw/held-out counts and actual process witnesses. Candidate rarity is a proposed review facet, not a maliciousness score. Keep peer-only, self-only, conjunction, contact-only and unassessable lanes discoverable instead of silently losing low-volume or common-audience cases behind a conjunctive alert gate. This is a proposed implementation revision; A08 tested its components, not a complete multi-lane workbench.
+
+**Expected output / triage:** one device/build lead with its coverage state, contributing raw events, explained feature counts, tied rank group if used, and the exact missing decision evidence. Check independent deployment/configuration changes first; an expected role can explain the behaviour, but absence of that record is not an unauthorized-deployment finding. C01 contact-only remains available for policy/provenance investigation. Request stronger workload or authorization evidence before a misuse conclusion; forwarding/exposure/compromise are separate claims.
+
+**Tuning decision:** **hunt-only, not an alert candidate on these scores. Default conjunction-first ranking is suspended.** Do not tune away the approved twin by executable name, signer or broad application allowlisting; that would also remove its unauthorized twin. Do not fit thresholds to this tiny fixture. Retain the held-out accounting correction and explicit instance identity. No new minimum traffic-rate gate is introduced.
+
+**Next decisive validation / kill criterion:** On a separate authorized dataset or controlled sensor fixture with independent task/configuration truth, compare blind review of the facets with ordinary per-process destination-change summaries at a predeclared budget. Require comparable sensor mode, target-name coverage, build exposure and device role; measure coverage exceptions separately. Retire the added ranking if it provides no reproducible incremental decision benefit. The current evidence already rejects treating this score as proof of misuse; it does not establish that descriptive C11 has no investigative value.
+
+### Cost plan for the retained descriptive hunt — unexecuted KQL design
+
+S78/S74 support early filtering and bounded reusable expressions. For a first implementation, scope one reviewed repeated image hash and one workspace/customer to 21 days; this is a bounded experiment, not a complete fleet detector. Scope is derived context, not an assumed DNE `Scope` column.
+
+1. Filter TimeGenerated and supplied hash/scope before target parsing; project only necessary identity, time, destination, action and evidence fields.
+2. Reduce raw observations to distinct device/hash/destination/period/lane membership, retaining raw locators separately. Compute eligible cohort size and destination-support device counts once. Leave-one-device-out prevalence is `(support - own_presence)/(eligible_devices - 1)`; do not join every device to every peer's raw events. The denominator includes covered eligible devices, not just devices that contacted the target.
+3. Join candidate membership to self-history on scope/device/hash/typed-target/lane. Preserve coverage exceptions and keep raw-versus-held-out views; exclusions and changing role-intelligence coverage alter denominators.
+4. Retrieve raw process-instance witnesses and optional protection/lineage only for selected evidence keys. Aggregate matches before left enrichment. An output cap does not limit the earlier scan.
+5. Use `materialize()` only for a bounded filtered/projected intermediate reused by multiple facets. Do not cache the entire multi-week fleet history. For non-Edge NP, retain L08's DeviceEvents/AdditionalFields extraction and separate Edge lane. No ingestion/update policy or materialized view is created.
+6. Measure actual scanned data, result cardinality, CPU, peak memory and runtime in the intended workspace before claiming an optimization. Exact duplicate membership counts suit this small experiment; approximate distinct counts require separate threshold-error evaluation.
+
+Let R be input rows and E distinct membership edges. The proposed dataflow avoids a raw all-peer cross-product and works primarily on R/E and group summaries; this is a structural cost argument, not a measured complexity guarantee for Kusto. The JavaScript reference intentionally uses simple in-memory peer scans for clarity and is **not** the proposed production plan.
+
+No additional ranking optimization is justified before independent benefit is established. Source-specific missing DNS, service, flow or TLS data remain reasons to keep C12/C02/C10 conditional rather than manufacture fields.
+
+### Hypothesis changes and handoff
+
+- **H17/C11:** partial arithmetic support for removing selected nuisance categories; incremental ranking value remains unresolved. Suspend default conjunction-first ranking and its breakthrough status; retain a bounded descriptive experiment.
+- **H20:** controller-removal accounting remains supported by constructed checks. A08 does not establish the field prevalence of circular corroboration.
+- **H22 added:** peer commonness can suppress an unauthorized workload that shares ordinary destinations. A08 demonstrates the logical false-negative mechanism, not its real-world frequency.
+- **C12/H19/H21:** no upgrade. Projection ambiguity survives; topology/receiver evidence remains necessary for stronger interpretation.
+- **C05/C04-G remain practical baselines; C01 remains independent contact context.** No production promotion, tenant ingestion or query validity is established.
+- Self-critique only in this pass; no new independent reviewer assessment is claimed.
+
+**Next L10/T09:** compare the retained descriptive C11 measurement against the closest existing process-conditioned peer/history method, under equivalent input visibility. Classify the contribution precisely and identify a source-supported missing observation if the current facets merely reproduce established role-change detection. Do not revive conjunction-first ranking, add score weights to fit A08, or call C12 a novel DNS-rebinding mechanism. Preserve a materially different future challenger for L12 rather than padding the active portfolio.
+
+### A08 reproducibility appendix
+
+Run the following JavaScript with Node.js. All fixtures and evaluation logic are self-contained and synthetic. Script SHA-256: `079f7c07ce02cecebbf025459d084a8d39e89ea3194927b4aa35ed5cfe28a3f2` (file includes final newline). No dependencies beyond Node's standard assertion module.
+
+<details>
+<summary>Exact executed reference source</summary>
+
+```javascript
+// A08: normalized synthetic observations, not DNE/KQL or a sensor simulator.
+// Frozen design: 14 baseline days, 7 candidate days, min 5 peers,
+// rarity <= 0.10, distinct-destination counts, K=3; sensitivities below.
+// Labels appear only after all feature scores have been calculated.
+const assert = require('node:assert/strict');
+const controls = new Set(Array.from({length: 6}, (_,i) => `c${i}.example`));
+const core = ['core.example'];
+const names = (prefix,n) => Array.from({length:n},(_,i)=>`${prefix}${i}.example`);
+const fixture = [];
+function add(id, prior, current, extra = {}) {
+  const scope='W1', hash=extra.hash || 'H1', proc=`${id}-P1`;
+  const rows=[];
+  for (let day=0; day<21; day++) {
+    for (const target of (day<14 ? prior : current)) {
+      rows.push({scope,device:id,hash,proc,day,minute:day*1440+10,target});
+    }
+  }
+  fixture.push({id,scope,hash,baselineKnown:true,currentKnown:true,
+    nameComparable:true,rows,...extra});
+}
+add('D01',core,[...core,...names('x',2),'c0.example']);
+add('D02',core,[...core,...names('x',2),'c0.example']);
+add('D03',core,[...core,...names('c',6)]);
+add('D04',[...core,...names('s',6)],[...core,...names('s',6)]);
+add('D05',core,[...core,...names('f',3)]);
+add('D06',core,[...core,'q0.example']);
+add('D07',core,[...core,...names('z',2)]);
+// A second instance contacts the controller; it cannot lend P1 its contact.
+fixture.find(x=>x.id==='D07').rows.push({scope:'W1',device:'D07',hash:'H1',
+  proc:'D07-P2',day:14,minute:14*1440+5,target:'c0.example'});
+add('D08',[],[...core,...names('m',4)],{baselineKnown:false});
+add('D09',core,[...core,...names('v',4)],{nameComparable:false});
+add('D10',core,[...core,...names('u',4)],{hash:'H2'});
+for(let i=11;i<=24;i++) add(`D${i}`,core,[...core,...names('r',8)]);
+// Supply a controller-before-audience observation for D01 and its exact twin.
+for(const id of ['D01','D02']) fixture.find(x=>x.id===id).rows.push({
+  scope:'W1',device:id,hash:'H1',proc:`${id}-P1`,day:14,
+  minute:14*1440+5,target:'c0.example'});
+
+function score(data, cutoff=0.10, rolesKnown=true) {
+  const stable = data.filter(d=>d.baselineKnown&&d.currentKnown&&d.nameComparable);
+  const sets = new Map(data.map(d=>[d.id,{
+    past:new Set(d.rows.filter(e=>e.day>=0&&e.day<14).map(e=>e.target)),
+    now:new Set(d.rows.filter(e=>e.day>=14&&e.day<21).map(e=>e.target))
+  }]));
+  return data.map(d=>{
+    const peers=stable.filter(p=>p.id!==d.id&&p.scope===d.scope&&p.hash===d.hash);
+    const reason=!d.baselineKnown?'missing-history':!d.currentKnown?'missing-current':
+      !d.nameComparable?'visibility-change':peers.length<5?'insufficient-peers':null;
+    const {past,now}=sets.get(d.id);
+    const peerRate=t=>peers.filter(p=>sets.get(p.id).now.has(t)).length/peers.length;
+    const novel=[...now].filter(t=>!past.has(t));
+    const rare=[...now].filter(t=>peerRate(t)<=cutoff);
+    const held=[...now].filter(t=>!controls.has(t));
+    const audience=held.filter(t=>!past.has(t)&&peerRate(t)<=cutoff);
+    const current=d.rows.filter(e=>e.day>=14&&e.day<21);
+    const anchors=current.filter(e=>controls.has(e.target));
+    const witness=rolesKnown&&current.some(b=>audience.includes(b.target)&&anchors.some(a=>
+      a.scope===b.scope&&a.device===b.device&&a.hash===b.hash&&a.proc&&a.proc===b.proc&&
+      b.minute>a.minute&&b.minute-a.minute<=30));
+    return {id:d.id,reason,peerCount:peers.length,
+      count:reason?null:now.size,
+      raw:reason?null:novel.filter(t=>rare.includes(t)).length,
+      peer:reason||!rolesKnown?null:held.filter(t=>rare.includes(t)).length,
+      self:reason||!rolesKnown?null:held.filter(t=>!past.has(t)).length,
+      both:reason||!rolesKnown?null:audience.length,
+      contact:!d.currentKnown||!rolesKnown?null:Number(anchors.length>0),
+      witness:!rolesKnown||reason?null:witness,
+      roleState:rolesKnown?'supplied':'unassessable'};
+  });
+}
+const scored=score(fixture);
+const sensitivities=[0,0.05,0.10,0.20].map(cutoff=>({cutoff,scored:score(fixture,cutoff)}));
+
+// Evaluation-only ground truth: never read by score() or used to break ties.
+const labels={D01:'unauthorized activation',D02:'approved exact twin',
+  D03:'control-only contact',D04:'stable specialist',D05:'approved role change',
+  D06:'quiet unauthorized activation',D07:'unrelated same-hash instances',
+  D08:'missing history',D09:'changed name visibility',D10:'singleton build',
+  D24:'unauthorized common-audience twin'};
+const targets=new Set(['D01','D06','D24']);
+function review(rows,method,k) {
+  // Equal common-support population for comparisons; contact-only's broader
+  // standalone coverage is preserved in scored, not erased by this evaluator.
+  const ranked=rows.filter(x=>!x.reason&&x[method]>0).sort((a,b)=>b[method]-a[method]);
+  const selected=Math.min(k,ranked.length);
+  if(!selected)return {selected:0,above:[],boundary:[],slots:0,targetRange:[0,0]};
+  const boundaryScore=ranked[selected-1][method];
+  const above=ranked.filter(x=>x[method]>boundaryScore);
+  const boundary=ranked.filter(x=>x[method]===boundaryScore);
+  const slots=selected-above.length;
+  const certain=above.filter(x=>targets.has(x.id)).length;
+  const possible=boundary.filter(x=>targets.has(x.id)).length;
+  return {selected,above:above.map(x=>x.id).sort(),boundary:boundary.map(x=>x.id).sort(),slots,
+    targetRange:[certain+Math.max(0,slots-(boundary.length-possible)),
+      certain+Math.min(slots,possible)]};
+}
+let checks=0;
+const eq=(a,b)=>{assert.deepEqual(a,b);checks++;};
+const byId=(rows,id)=>rows.find(x=>x.id===id);
+eq(score([...fixture].reverse()),[...scored].reverse());
+eq(score(fixture.map(d=>({...d,rows:[...d.rows,...d.rows]}))),scored);
+eq(score(fixture.map(d=>({...d,truth:'swapped label'}))),scored);
+eq(byId(scored,'D03').both,0);
+eq(byId(scored,'D01').both,2);
+eq(byId(scored,'D04').peer,6);
+eq(byId(scored,'D04').both,0);
+eq(byId(scored,'D11').self,8);
+eq(byId(scored,'D11').both,0);
+eq(byId(scored,'D08').reason,'missing-history');
+eq(byId(scored,'D09').reason,'visibility-change');
+eq(byId(scored,'D10').reason,'insufficient-peers');
+eq(byId(scored,'D07').witness,false);
+eq(byId(scored,'D01').witness,true);
+eq(byId(scored,'D02').witness,true);
+const stripId=x=>{const {id,...rest}=x;return rest;};
+eq(stripId(byId(scored,'D01')),stripId(byId(scored,'D02')));
+eq(stripId(byId(scored,'D11')),stripId(byId(scored,'D24')));
+eq(byId(score(fixture,0.10,false),'D01').both,null);
+eq(byId(score(fixture,0.10,false),'D01').raw,byId(scored,'D01').raw);
+eq(byId(score(fixture.map(d=>d.id==='D01'?{...d,currentKnown:false}:d)),'D01').reason,'missing-current');
+// C12 counterexample checks only the insufficiency of a normalized projection.
+const c12={scope:'W1',device:'E1',proc:'P1',name:'public.example',peer:'10.0.0.5',port:8080};
+const c12Projection=({name,peer,port})=>({name,peer,port});
+eq(c12Projection({...c12,truth:'internal forward proxy'}),
+   c12Projection({...c12,truth:'direct local target'}));
+const methods=['count','raw','peer','self','both','contact'];
+console.log(JSON.stringify({protocol:{days:[14,7],minPeers:5,cutoff:0.10,budgets:[1,3,5]},
+  rows:fixture.reduce((n,d)=>n+d.rows.length,0),devices:fixture.length,checks,
+  labels,features:scored,comparison:[1,3,5].map(k=>({k,methods:Object.fromEntries(methods.map(m=>[m,review(scored,m,k)]))})),
+  raritySensitivity:sensitivities.map(({cutoff,scored:r})=>({cutoff,bothAt3:review(r,'both',3),bothAt5:review(r,'both',5)}))
+},null,2));
+```
+
+</details>
+
+<details>
+<summary>Exact budget/tie results from A08</summary>
+
+| Budget | Method | Slots used | Target-yield range | Above boundary | Boundary slots and members |
+|---|---|---|---|---|---|
+| 1 | both | 1 | 0–0 | — | 1 of 1: D05 |
+| 1 | contact | 1 | 0–1 | — | 1 of 4: D01, D02, D03, D07 |
+| 1 | count | 1 | 0–1 | — | 1 of 14: D11–D24 |
+| 1 | peer | 1 | 0–0 | — | 1 of 1: D04 |
+| 1 | raw | 1 | 0–0 | — | 1 of 1: D03 |
+| 1 | self | 1 | 0–1 | — | 1 of 14: D11–D24 |
+| 3 | both | 3 | 0–1 | D05 | 2 of 3: D01, D02, D07 |
+| 3 | contact | 3 | 0–1 | — | 3 of 4: D01, D02, D03, D07 |
+| 3 | count | 3 | 0–1 | — | 3 of 14: D11–D24 |
+| 3 | peer | 3 | 0–1 | D04, D05 | 1 of 3: D01, D02, D07 |
+| 3 | raw | 3 | 0–1 | D03, D05 | 1 of 3: D01, D02, D07 |
+| 3 | self | 3 | 0–1 | — | 3 of 14: D11–D24 |
+| 5 | both | 5 | 2–2 | D01, D02, D05, D07 | 1 of 1: D06 |
+| 5 | contact | 4 | 1–1 | — | 4 of 4: D01, D02, D03, D07 |
+| 5 | count | 5 | 0–1 | — | 5 of 14: D11–D24 |
+| 5 | peer | 5 | 1–1 | D04, D05 | 3 of 3: D01, D02, D07 |
+| 5 | raw | 5 | 1–1 | D03, D05 | 3 of 3: D01, D02, D07 |
+| 5 | self | 5 | 0–1 | — | 5 of 14: D11–D24 |
+
+</details>
+
+
 ## Current handoff
 
-**Next pending numbered pass: L09 / T08 — Test the surviving contrast before tuning/cost.**
+**Next pending numbered pass: L10 / T09 — Closest prior art and the remaining measurement gap.**
 
-L01–L08 plus the two authorized interstitials are complete: **8 of 15 numbered passes**. Q01's pending-task refinements were applied to L08/L09; read the latest [direction supplement](./resprox-direction-reviews.md) on every invocation and check its next due time. This pass did not create a new direction review or change that file.
+L01–L09 plus two authorized interstitials are complete: **9 of 15 numbered passes**. Read the latest direction supplement and check whether its review is due. L09 applied Q01 without changing that separate file.
 
-C11 remains the lead experiment: **exclude the controller from the supposedly independent new audience**, then test whether exact-build peer+self contrast adds decision value. C01 enrichment requires disjoint raw witnesses on the exact process instance within the specified window; no hash-only transfer, causal/task claim or automatic ranking uplift. Retain IOC-free C11 and contact-only C01.
+A08 ran twice unchanged on 1,613 normalized synthetic observations / 24 device-build entities; 21 assertions passed. At the preselected K=3 all six methods had overlapping 0–1 target-yield ranges across ties. Held-out peer+self filters the controller-only, stable-specialist and common-rollout distractions, but an ordinary role change ranks first and the approved twin remains identical. K=5 admits two chosen targets versus one for raw/peer-only; this fixture-specific sensitivity is not a general ranking win.
 
-C12 loses its breakthrough label and universal same-row DNS-binding claim. Logical target and internal proxy/helper peer may coexist. Preserve name/private-peer leads; require client-attributed exact answers/topology or source-specific receiving-service evidence before strengthening the interpretation. Zero-address, loopback and private ranges remain distinct. DNS consistency is not proof of consumption; service receipt is not compromise.
+**C11 is now a descriptive experiment; default conjunction-first ranking and breakthrough priority are suspended.** Retain raw/held-out feature accounting, explicit self/peer facets, coverage exceptions and exact process-instance C01 witnesses. Keep contact-only and nonconjunctive leads accessible. Common peer activity and zero rarity are not benign verdicts; A08 includes an unauthorized common-audience twin.
 
-Louis's non-Edge pattern is explicit: scoped reusable DeviceEvents protection data may be materialized, with documented AdditionalFields members parsed. Edge SmartScreen remains separate. Materialize is query caching, not telemetry. A nearby block annotation is not the fate of every same-process request.
+C12 remains conditional integration: a logical target name plus a private peer does not establish DNS resolution or service receipt. The executed check covers only projection ambiguity, not sensor emission. C04-G/C05 remain practical baselines; C01 remains independently useful contact context; C02/C10 remain input-gated.
 
-L08 executed 13 narrow JavaScript projection/join assertions (A07), separate from L06's 13 token-reducer cases. No KQL, source adapter, protection/DNS/service join, complete C11 scorer, sensor/lab or tenant test ran. L09's fixed-budget comparison remains unexecuted.
+L10 should identify the closest primary implementation of process-conditioned peer/history network-change analysis and compare actual features/telemetry. State whether the remaining contribution is new measurement, integration or established adaptation. Do not invent a field, inflate novelty, use A08 labels to tune a win, or pre-complete L12's materially different challenger.
 
-For L09 freeze candidate features/scoring before labels; compare raw C11, held-out peer-only, self-only and peer+self, and C01-only, with ordinary role/configuration changes, missing history, sensor/proxy visibility changes, distinct instances sharing a hash, quiet role change and the approved-forwarder twin. Report all ties/unassessable cases. Tune only an increment that survives, or explicitly reject it. C12's first test is the internal-forward-proxy counterexample. C04-G/C05 remain practical baselines; C02/C10 stay parked. No demonstrated unique contribution yet.
+No KQL, source adapter, sensor/lab or tenant execution occurred. The cost plan is unexecuted: filter 21-day single-build scope, aggregate distinct memberships before joins, use eligible-peer denominators, preserve raw locators and materialize only bounded reused intermediates. Non-Edge DeviceEvents/AdditionalFields and separate Edge SmartScreen semantics remain as saved in L08.
 
-Re-fetch current main/blob SHA before saving; preserve concurrent work and stop if L09 has already completed. Exactly one pending numbered pass; research file only, no collection/deployment.
+Re-fetch main and blob SHA immediately before saving, preserve concurrent work, and stop if L10 is already complete. Research-file changes only; no new collection, deployment, additional schedule or unrelated repository write.
 
 ## Reusable invocation
 
