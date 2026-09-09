@@ -6,7 +6,7 @@
 
 ## Review cadence and honest execution boundary
 
-- Current requested interval: **60 minutes**, superseding 120 minutes. Last direction-review checkpoint: **2026-09-09T07:55:32Z** (Q04 below). Next review becomes due: **2026-09-09T08:55:32**.
+- Current requested interval: **60 minutes**, superseding 120 minutes. Last direction-review checkpoint: **2026-09-09T08:53:29Z** (Q05 below). Next review becomes due: **2026-09-09T09:53:29Z**.
 - The explicit hourly request supersedes the older 120-minute wording in the research README for cadence only; that README is outside this run's two-file write scope. All other repository requirements remain in force.
 - Read the latest main programme and this supplement before reviewing. Perform one direction review, never a numbered research pass under this review task. A numbered research invocation should apply saved refinements and check the latest checkpoint before duplicating a due review.
 - Make a reasoned keep, strengthen, merge, park or reject decision. Retaining the direction is valid. Record actual checkpoint, next due time, changed requirements and rationale; carry pending-task/handoff refinements into the canonical programme without changing completed work. Re-fetch each file and SHA immediately before writing, preserving concurrent changes.
@@ -40,8 +40,8 @@ These requirements supplement each task's existing principal lens and completion
 | **L10 — Prior-art gap** | Q02: freeze role-change, participation and unauthorized-use endpoints separately; preserve A08's original labels/results. Compare actual features of the closest primary process-conditioned peer/history implementation under equivalent visibility. Identify one residual observable and changed decision, or classify C11 as established adaptation and stop ranking elaboration. Do not restore conjunction-first priority. A bounded search cannot certify global uniqueness. |
 | **L11 — Ecosystem/measurement** | Q03: cross participating-peer fraction with shared-audience overlap while holding the focal device/build/workload fixed; report coverage separately. Compare self-only, peer-only and intersection at one predeclared budget. Reject peer rarity as a participation proxy if target support/coverage explains it; retain only demonstrated role-review value beyond self-history. |
 | **L12 — Unconventional opportunities** | Q04: retain Q03's search outside destination rarity and its audience-overlap controls. Choose an actionable analyst decision; remote-authorship proof is not a mandatory hunt endpoint. Compare the simplest method and benign twin, with explicit rejection. Do not pad the empty breakthrough slate. |
-| **L13 — Portfolio/experiments** | Q04: at most two or three survivors. Isolate C11's exact-build contribution against ordinary process/application destination-history delta at matched visibility/windows/budget. Report matched-eligible outcomes and whole-population hash/history exclusions separately. Predeclare truth, decision or review-effort outcome and rejection; missing sensor data remains untested. |
-| **L14 — Challenge** | Attempt to reproduce the claimed distinction using ordinary benign behavior and the closest known method. Obtain genuinely independent critique when available; label self-critique honestly when it is not. Resolve material objections with changed logic, a narrower claim or rejection. |
+| **L13 — Portfolio/experiments** | Q05: reuse merged C11 back-test/coverage, adjudicating other/unknown-hash-only differences and population exclusions. Keep C13 as one C01 enrichment experiment. Design sensor-grounded control/task/target mapping before pulse ranking; exclude both connect and proxy-readiness channels. Park missing observability. No collection authorized. |
+| **L14 — Challenge** | Q05: retain independent critique; challenge C13 with repeated common-timer work and a separately authorized task-delay/withholding protocol at fixed polling/lifetime. Freeze epoch/lag/placebo rules. Reject causal interpretation if the timer explains it and ranking investment without decision value beyond C01. Preserve approved-forwarder twins. |
 | **L15 — Final brief** | Lead with the surviving insights and executable next decisions, not the research chronology. State separately whether the useful-hunt goal and the distinctive-idea goal were met. Explain what remains untested. No breakthrough claim follows from a candidate count, attractive name or completed schedule. |
 
 
@@ -80,7 +80,7 @@ Practical baselines C05/C04-G and independent C01 contact context remain availab
 
 ## Q04 — Test the value of holding the executable constant
 
-**Checkpoint:** 2026-09-09T07:55:32Z; next due 2026-09-09T08:55:32. **Basis:** latest main programme blob `9de957d09c4cefc14c05931cf71c21e37323ef74`, including completed L11/A10, current tasks/registers/ledger/handoff and current repository/area instructions. L12/L13 remain pending. One planning review; no numbered pass, new primary-source research, independent critique or experiment.
+**Checkpoint:** 2026-09-09T07:55:32Z; next due 2026-09-09T08:55:32Z. **Basis:** latest main programme blob `9de957d09c4cefc14c05931cf71c21e37323ef74`, including completed L11/A10, current tasks/registers/ledger/handoff and current repository/area instructions. L12/L13 remain pending. One planning review; no numbered pass, new primary-source research, independent critique or experiment.
 
 **Verdict:** Keep C11 as the strongest retained role-change experiment; the breakthrough slate remains empty. A10 defeats participation inference from peer support, not every possible investigative use of network history. Conversely, an unchanged image plus new destinations is an observed audience change, not proof that the application's functional role changed. The remaining uncertainty is whether exact-build conditioning buys a useful decision over ordinary application destination history.
 
@@ -92,6 +92,21 @@ Practical baselines C05/C04-G and independent C01 contact context remain availab
 **Next-task changes:** L12 keeps its search outside destination-rarity variants, but must select an actionable analyst decision rather than require unique remote-authorship proof. A benign twin narrows attribution; it does not alone disprove hunt utility. L13 must isolate the exact-build contribution with a fair destination-history comparator and expose eligibility losses from upgrades, missing hashes and short history. Do not rank complexity by results on its easiest retained subset.
 
 C05/C01/C04-G/C06 remain practical baselines; C02/C10 remain input-gated and C07/C08 retain their reopening conditions. No new candidate, readiness promotion, completed-work rewrite or numbered advance.
+
+## Q05 — Sensor fidelity before pulse ranking
+
+**Checkpoint:** 2026-09-09T08:53:29Z; next due 2026-09-09T09:53:29Z. **Basis:** main programme blob `746f459fb8bd73310eaef88988cb092507becae4`, including L12/A11, current tasks/registers/ledger/handoff and repository instructions; PR #39's merge and main-branch C11 module were also checked. L13/L14 remain pending. One direction review only: no numbered pass, new source study, independent reviewer, experiment or deployment.
+
+**Verdict:** C11 is the nearest-term practical experiment, now implemented for back-testing but not field-validated. Keep C13 as a conditional C01 enrichment experiment; do not count it as another independent detector or breakthrough. The breakthrough slate remains empty.
+
+| Leader / decision | Mechanism, observable and comparator | Increment, benign explanation and next rejection test |
+|---|---|---|
+| **C11 — keep; reuse the implementation** | Embedded capability may change an observed hostname audience without changing image bytes. The merged DNE query compares workspace/device/path/name history with and without SHA1. | Possible increment is a changed role/configuration-review decision. C11-only hosts were already observed under another or unknown hash; upgrades/reversions and approved feature changes are strong alternatives. Adjudicate that difference under matched eligibility/budget and report excluded population. Retire hash complexity if it adds no decision or review-effort benefit. |
+| **C13 — keep as C01 enrichment; sensor-gated** | A control exchange may precede non-control work on the same process instance. Observable input is repeated DNE connection epochs, not task receipt itself. Compare C01 contact-only/one-sequence triage and ordinary event-conditioned timing. | Possible increment is prioritizing which existing lead merits review. Approved forwarders, pull updaters and a repeated common timer can match. First map instrumented control/task/target activity to emitted events; exclude connect and proxy-readiness channels from work. Park absent/unreliable mapping. Then challenge timing with delayed/withheld task delivery and fixed polling/local work; reject the response claim if the timer explains it, and ranking value without an incremental decision. |
+
+**Why change the next tasks:** A11's single shifted placebo and one-off startup control do not exclude repeated common-cause scheduling. Its 8/8 result is constructed reducer behavior, not task causality or sensor fidelity. L13 therefore reuses C11's existing comparison and defines C13's observation gate; L14 designs the repeated-timer/intervention challenge before further scoring. These are future tests requiring separate authorization for collection, not tests performed here.
+
+C12 remains conditional local-reach integration, outside the leading experiments. Practical C05/C04-G/C01/C06 and the recorded reopening conditions for parked alternatives remain unchanged. PR #39's merge is engineering progress only: static syntax/schema checks are recorded, but no Kusto-engine, sensor/lab or field validation is established.
 
 ## Update format
 
