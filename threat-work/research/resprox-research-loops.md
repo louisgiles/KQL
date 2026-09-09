@@ -6,7 +6,7 @@
 **Canonical file:** threat-work/research/resprox-research-loops.md  
 **Original sources:** [ResProx](./ResProx)  
 **Created:** 2026-09-08  
-**Readiness:** L12 adds C13, a provisional control-to-work pulse hunt: repeated role-valid control epochs followed by excess non-control connection events on the same process instance. Its measurement is independent of destination rarity and survives constructed shared/disjoint audience assignment, but approved forwarders and polling updaters are exact twins. Persistent control sockets or suppressed repeated connection events are unassessable. C13 may rank C01 leads for role/configuration review; it cannot establish relay participation, remote authorship, unauthorized use or compromise. The breakthrough slate remains empty. C05/C04-G/C01/C06 remain practical specifications/baselines; C11 remains descriptive; C12/C03 conditional; C02/C10 parked. A11 is deterministic synthetic reducer testing, not KQL, sensor, field or production validation.
+**Readiness:** L13 selects three operationally distinct survivors: C05 as the first practical software-policy hunt, C11 as the nearest single-table field-value experiment using the merged PR #39 module, and C01 with C13 folded in as a controller- and sensor-gated enrichment. On matched support, application-new destinations are necessarily also build-new; C11's only incremental cases are destinations already seen under another or unknown hash. Exact-build complexity earns a place only if those cases improve an independently adjudicated decision at the same review budget after upgrade/reversion and coverage exclusions. The breakthrough slate remains empty. A12 verified comparison algebra on constructed sets; no KQL, Kusto-engine, sensor, lab, customer or tenant execution occurred.
 
 ## Run accounting and scheduling
 
@@ -264,12 +264,12 @@ Lead with the ranked detection/hunt portfolio. For each shortlisted candidate st
 
 ## State — update after each saved pass
 
-**Programme status:** in progress; L01–L12 plus additional L04.5 and L04.5(2) completed (12 of 15 numbered passes)  
-**Next pass:** L13 / T12 — Portfolio and decisive experiments  
-**Last completed pass:** L12  
-**Last result journal entry:** [L12 — Control-to-work pulse survives audience assignment](#l12--control-to-work-pulse-survives-audience-assignment)  
-**Unresolved execution blocker:** none; L12 tested a predeclared temporal reducer and added C13 as a provisional hunt-ranking experiment. No KQL, source adapter, sensor, lab or tenant test ran.  
-**Research-data blockers:** The breakthrough slate remains empty. C13 requires current role-valid controller pairs, repeated independently logged control connections, stable same-process-instance keys and validated action lanes; persistent sockets, event suppression or missing control intelligence make it unassessable. Its updater and approved-forwarder twins require configuration/approval truth, and remote authorship still needs payload/task/receiver evidence. A11 establishes only reducer behaviour on constructed timestamps. Actual DNE ingestion, ActionType population, process-key coverage, retention, connection-event fidelity and runtime remain unconfirmed. C11 still needs exact-hash/history field comparison; C12/C03 retain client-answer/topology/receiving-service blockers. C02 requires flow counters and mapping; C05 lacks a complete catalogue/approval register; C01 lacks current control pairs; C10 lacks an attributable TLS sensor; C09 and C04-G retain their saved blockers.
+**Programme status:** in progress; L01–L13 plus additional L04.5 and L04.5(2) completed (13 of 15 numbered passes)  
+**Next pass:** L14 / T13 — Independent challenge of the hunt portfolio  
+**Last completed pass:** L13  
+**Last result journal entry:** [L13 — Exact-build value lives in the displaced review slots](#l13--exact-build-value-lives-in-the-displaced-review-slots)  
+**Unresolved execution blocker:** none; L13 ranked three survivors, reused the merged C11 module, verified its comparison algebra with A12 and froze decisive field/sensor protocols. No KQL, Kusto-engine, sensor, lab or tenant test ran.  
+**Research-data blockers:** The breakthrough slate remains empty. C11 field value needs authorized execution of the merged coverage/back-test queries plus blinded adjudication; absent SHA1, new/upgraded builds, sparse named history and missing candidate hostnames must be counted outside matched results. A12 proves only set relations and expected null paths. C05 still requires a reviewed catalogue and event-time approval register. C01+C13 requires current role-valid control and proxy-readiness tuples, repeated event mapping and an authorized timer/intervention test; persistent sockets or unrecoverable mappings park it. Actual table/category ingestion, retention, field population, runtime and review yield are unconfirmed. C12/C03 retain client-answer/topology/receiver blockers; C02 requires flow counters/mapping; C10 lacks attributable TLS; C04-G/C06 retain their recorded dependencies.
 
 | Loop | Task | Status | Last updated UTC | Result / blocker |
 |---|---|---|---|---|
@@ -287,7 +287,7 @@ Lead with the ranked detection/hunt portfolio. For each shortlisted candidate st
 | L10 | T09 Prior-art gap | completed | 2026-09-09 | Closest primary implementations inspected; exact-build destination membership is a residual measurement, not demonstrated novelty or relay attribution. C11 remains descriptive/rank-suspended. No KQL/tenant execution. |
 | L11 | T10 Ecosystem and measurement | completed | 2026-09-09 | A10 crossed peer participation and target overlap with coverage controls; 19 assertions, deterministic rerun. Peer rarity rejected as participation proxy/ranking gate; self-history retained for role review only. No KQL/tenant execution. |
 | L12 | T11 Unconventional hunt opportunities | completed | 2026-09-09 | C13 control-to-work pulse added as a provisional C01-ranking experiment; shared/disjoint audiences survived A11, but updater/approved-forwarder twins and persistent-socket visibility prevent a relay verdict. 15 assertions; no KQL/tenant run. |
-| L13 | T12 Portfolio and experiments | pending | — | — |
+| L13 | T12 Portfolio and experiments | completed | 2026-09-09 | Three survivors selected: C05 practical, C11 field experiment, C01+C13 conditional. A12 proved matched-support subset semantics and exclusions across 91 checks; decisive fixed-budget and sensor protocols frozen. No KQL/tenant run. |
 | L14 | T13 Independent hunt review | pending | — | — |
 | L15 | T14 Final hunt brief | pending | — | — |
 
@@ -372,6 +372,9 @@ Allowed pass statuses: pending, completed, blocked. An inconclusive research res
 **L11 correction to C11:** The candidate logic now leads with self-history. Report every assessable self-new typed destination for an exact build, including common-audience cases. Attach PeerSupport = ObservedSupportingPeers / EligibleCoveredPeers with numerator, denominator, coverage lane and controller-held-out/raw status; never translate it into participation prevalence, cleanliness or authorization. Do not require PeerSupport at or below a cutoff and do not rank on the self-plus-peer intersection. When target-lane visibility changes, emit unassessable. A hit establishes only observed role/audience change. Next validation is an authorized labelled comparison of self-history against simpler first-network-use/process-delta review; retire the exact-build complexity if it changes no decision.
 
 
+**L13 correction to C11:** [PR #39](https://github.com/louisgiles/KQL/pull/39) is merged and the [back-test module](../hunts/endpoint/resprox-c11/README.md) supplies the comparison and coverage inventory; do not duplicate it. On matched support, application history is the union containing exact-build history. Therefore an application-new destination must also be build-new. C11's only incremental category is a destination already seen for the same device/path/name under another or unknown historical hash. Treat that category as a version/configuration adjudication queue, not stronger anomaly evidence. Run both queries with one frozen split/cohort/action, export `IncludeUnchanged=true`, report whole-population exclusions separately, and compare independently adjudicated changed decisions at K=20 per method using the same method-independent order. Retire exact-build conditioning if C11-only cases mostly reproduce upgrades/reversions/missing-hash history or do not improve decision yield/review time. No field comparison has run.
+
+
 ### C13 — The controller's pulse appears in the work
 
 - **Behaviour / analyst decision:** Among processes already producing a C01 role-valid control lead, which ones repeatedly show a short-lag increase in separate non-control connection events on the same process instance? Use the result to prioritize raw protocol, software-role, configuration and approval review; do not classify residential-proxy participation.
@@ -382,6 +385,9 @@ Allowed pass statuses: pending, completed, blocked. An inconclusive research res
 - **Expected output:** Scope/device/process and controller-evidence provenance; process lifetime; covered control epochs; pre/post event counts and deltas; pulse and placebo ratios; target examples without rarity scoring; action/visibility lane; approval/configuration context; assessable/unassessable reason and next pivot.
 - **Benign alternatives / what a hit establishes:** An updater, orchestration client, pull-based sync product, security agent or approved forwarder can poll and then open other connections with the same timing. A hit establishes repeated same-process temporal coupling under observed connection events, consistent with externally triggered work. It does **not** establish that a control response caused the work, that bytes were forwarded, residential transport, remote authorship, unauthorized use, endpoint compromise or session compromise.
 - **Readiness / next validation:** **Idea with a schema-grounded reducer; hunt-only; unconfirmed ingestion.** A11's constructed timestamps show the measure is unchanged by shared versus disjoint audiences and can remove contact-only/startup/independent cases, but the updater and approved-forwarder twins score identically. Run an authorized sensor test with a known relay, pull updater, approved forwarder, idle controller and persistent-socket variant. Compare C13 against C01 contact-only/one-sequence review at one budget. Kill ranking value if repeated polls are not separately emitted, negative/shifted lags perform similarly, process start explains the uplift, or C13 changes no analyst decision beyond C01. Keep the breakthrough slate empty unless an independent field comparison demonstrates benefit.
+
+
+**L13 portfolio correction:** C13 is not an independent survivor; it is an optional C01 enrichment. Before implementing timing logic, map instrumented control polling, task delivery, proxy-readiness and target activity to actual DNE rows. Exclude both the control-connect and proxy-readiness tuples from work. Then hold polling/local workload fixed while task delivery is delivered, withheld and delayed. Park the branch if persistent sockets or event suppression prevent mapping; reject the response claim if the repeated timer reproduces the pulse or no decision changes beyond C01.
 
 **Common contract.** Windows and cutoffs below are proposed design values, not measured thresholds. Use non-overlapping baseline and candidate periods; never turn absent required data into a negative result. Optional evidence must not suppress a primary lead. Each workspace/customer remains a separate scope; do not join different tenants by UPN or IP. An empty name, client field or process key is unknown, not an anomalous value. Readiness labels remain: idea; specified with unconfirmed ingestion; specified with confirmed ingestion; tested in a labelled lab/synthetic setting; runtime-tested in a named authorized environment; rejected. Any future alert additionally needs calibration, cost/runtime checks, adjudicated controls and a separate deployment review.
 
@@ -490,7 +496,7 @@ L04 adds on-paper controls and triage to C05/C01/C06. L04.5 adds lifecycle/owner
 
 | H15 | Outcome-conditioned omission within repeated target workloads may expose adaptive scheduling despite changing IPs. | weakened in L06; C09 restricted experiment | S50/S60–S62 establish mode-dependent removal, including non-success responses. | Random app/resource selection and concurrent dispatch undermine the frozen ordered stream; 50057 reappears in continued paired rounds; input exhaustion also removes targets. | Establish actual recurrence/category coverage, inspect B across app/resource values, and compare cessation with plain target timelines. No source-backed universal success/pruning signature. |
 | H16 | A TLS fingerprint observed on a socket attributed to a relay process may belong to an upstream client, exposing application-role mismatch. | mechanism strengthened, operational branch conditional/parked in L05; C10 | S55 directly observes target-facing customer TLS fingerprints through Windows proxy nodes; S52/S53 support forwarding/sensor fields; S54 establishes prior art. | S55 required dedicated packet capture; shared TLS engines collide. DNE has no JA4 and standard ASIM supplies no causal process/TLS key. Approved forwarders and multi-stack apps remain twins. | Reopen operationally only with an existing pre-NAT/on-host TLS source and unique tuple/process attribution; then run controlled relay/direct/multi-stack comparison. |
-| H17 | Self-new audiences of an unchanged binary can describe role change; peer support describes audience commonness but not participation. | narrowed after L11; self-history retained, peer/intersection ranking rejected | S04/S55/S56 support mechanism/fields; S79–S83 establish prior art; A07/A08/A10 test constructed accounting and failure modes. | Exact bytes do not hold configuration or purpose constant. At fixed focal participation, A10 rarity changes with target overlap and coverage; no independent equal-budget field benefit exists. | Compare self-history with first-network-use/process-delta baselines using independent role/task/approval truth; retire complexity without decision change. |
+| H17 | Exact-build self-history can add a role/configuration-review queue only for destinations already seen under another or unknown application hash; its field decision value is unknown. | narrowed after L13; C11 implemented experiment, not breakthrough | S88–S90 implement the fair comparison/coverage inventory; A12 proves app-new implies build-new on matched support and enumerates null/exclusion paths. | C11-only is structurally enriched for upgrades, reversions, parallel versions and missing-hash history. Exact bytes still do not hold configuration or purpose constant. | Run the frozen K=20 blinded adjudication and exclusion inventory. Retire exact-build conditioning if it changes no decision/review effort or mostly adds version artefacts. |
 
 | H18 | Exact-token recurrent origin use can add investigation context beyond one observed network handoff around an interesting workload action. | proposed in L06; standalone theft inference rejected | S44–S46/S64–S67 ground fields and outcomes; A06 distinguishes constructed AABB from ABAB while the authorized twin matches. | One client with alternating routes or approved shared-token workers is a twin. The small reducer does not validate adapters, batch coverage, joins or analyst benefit. | Compare identical seeded cases with/without the facet; remove it if it adds no useful decision context. |
 | H19 | Independently client-attributed local answers, associated-process transport and receiver evidence can improve local-target triage. | weakened/narrowed in L08; C12 integration | S05/S68/S69/S71; S29 requires separating logical target and intermediary peer; S75 establishes local-answer prior art. | Same-row name/private-IP is not a DNS binding; forward proxies/helpers, sinkholes and approved forwarders defeat the universal interpretation. | First test internal intermediary versus direct local target under identical displayed name/peer context; verify exact client-answer/receiver contracts before stronger claims. |
@@ -501,7 +507,7 @@ L04 adds on-paper controls and triage to C05/C01/C06. L04.5 adds lifecycle/owner
 
 | H23 | Peer support for one focal destination is jointly determined by participating-peer fraction, conditional target overlap and comparable coverage; participation is not identifiable from support alone. | supported analytically and by A10's constructed grid; field distribution unknown | S04 assigns a task FQDN to an exit; S55 observes each node receiving only a portion of distributed campaigns; A10 crosses the two axes and coverage. | Real scheduling can be nonrandom and depend on geography, capacity, customer or provider. The 10% cutoff and deterministic allocation are not estimates. | Obtain task-ground-truth lab/provider data with stable build/coverage; measure participation and conditional audience overlap separately. |
 
-| H24 | Repeated short-lag control-to-noncontrol connection uplift on one process instance can prioritize externally triggered network-role review without destination rarity. | proposed in L12; C13 provisional challenger, not breakthrough | S85 supplies a concrete poll/task/proxy/target sequence; S84 exposes process-instance/time/peer fields; A11 survives constructed shared/disjoint audiences and rejects several weaker patterns. | DNE may log socket creation rather than each poll; persistent channels are unassessable. Updaters and approved forwarders are exact positive twins; no causality, forwarding or authorization follows. | Sensor-test repeated-connection visibility and compare with C01 at one review budget. Reject if placebo lags match, startup explains uplift or no decision changes. |
+| H24 | Repeated short-lag control-to-noncontrol uplift may prioritize C01 leads only if control/task/proxy-readiness/target activity maps to separate same-instance events and survives a common-timer intervention. | narrowed in L13; folded into C01 as conditional enrichment | S85 supplies the mechanism and S84 the possible fields; A11 verifies only the reducer. Q05/L13 define the missing sensor and intervention gates. | Persistent sockets/event suppression can erase epochs. Updaters and approved forwarders are twins; a repeated timer may create the pulse without task causality. | First map instrumented events, excluding connect and proxy-readiness tuples. Then deliver/withhold/delay tasks with polling/work fixed; park on missing mapping and reject if timing or decision benefit fails. |
 
 Use proposed, supported, weakened, rejected, merged, or unresolved. Record reasons for transitions; repeated mention does not increase confidence.
 
@@ -711,6 +717,18 @@ Accessed **2026-09-09 UTC**. The source screen was bounded to the documented mec
 | S86 | [Azure-Sentinel: DCOM Lateral Movement](https://github.com/Azure/Azure-Sentinel/blob/5bd081d1f69cbffc007b4c531a0d2d0a30a081d1/Solutions/FalconFriday/Analytic%20Rules/DCOMLateralMovement.yaml), v1.0.0, blob `ae4b668a036514ca56a5761ab17bdb570b62253d` | Existing Sentinel code correlates DNE and process events by close temporal proximity and uses `materialize()`. This establishes temporal-join implementation prior art, not C13's repeated pre/post response or efficacy. |
 | S87 | [Azure-Sentinel: Potential beaconing activity](https://github.com/Azure/Azure-Sentinel/blob/5bd081d1f69cbffc007b4c531a0d2d0a30a081d1/Solutions/Network%20Session%20Essentials/Analytic%20Rules/PossibleBeaconingActivity.yaml), v1.1.6, blob `b723485281c63f6bfd791a41869da16850af6498` | Existing ASIM rule measures recurrence/frequency of one source-destination flow. C13's residual is event-conditioned post-versus-pre work on the same process instance, not beacon regularity. Different schemas and absent evaluation prevent performance comparison. |
 | A11 | [L12 control-to-work pulse construction](#l12--control-to-work-pulse-survives-audience-assignment), executed 2026-09-09 | Eight constructed control epochs; matched ten-second pre/post windows; minimum six epochs; 75% design cutoff; 30-second shifted placebo; eight entities. Fifteen assertions passed twice byte-identically. Script SHA-256 `9d4e1057afbc92fab42562691766da1b2903ed4e30bdb022e8c0cf8a495f42c7`; output SHA-256 `799bf6d33f7ffe3a54d0baa2f37df23f9869c75c17ff164e0e66cbf1b44dfe1b`. | Tests a small reducer on designer-chosen timestamps. It is not KQL, sensor simulation, a prevalence/precision estimate, a task-causality test or field validation. The benign twins were intentionally identical. |
+
+
+### L13 source additions and executed evidence
+
+Accessed **2026-09-09 UTC**. Repository artifacts were fetched from current main; their validation statements are preserved without upgrading them.
+
+| ID | Primary source / evidence | Contribution and limit |
+|---|---|---|
+| S88 | [PR #39: Add C11 back-test hunt with application-history comparison](https://github.com/louisgiles/KQL/pull/39), merged 2026-09-09 at 08:41:15 UTC, merge commit `f663b00917994a6ec16b6a26a24a06d609198b64` | Adds one C11 back-test, one coverage inventory and a README. The PR records syntax/semantic binding and independent code review, but no Kusto-engine, sensor, lab or tenant execution. Merge is implementation availability, not efficacy. |
+| S89 | [C11 backtest.kql](https://github.com/louisgiles/KQL/blob/main/threat-work/hunts/endpoint/resprox-c11/backtest.kql), blob `a9b7406d31927ff89e994051c2f645d7bdaf0396` | Uses the same workspace/device/path/name identity with and without SHA1, one materialized 21-day DNE slice, explicit app/build assessments and a C11-only other/unknown-hash label. Because build history is a subset of app history on matched support, C11 can add but cannot remove novelty cases. It has not run against data. |
+| S90 | [C11 coverage.kql](https://github.com/louisgiles/KQL/blob/main/threat-work/hunts/endpoint/resprox-c11/coverage.kql), blob `23154ff252de8940ab92aadbbe392864daf5d59d`, and [module README](https://github.com/louisgiles/KQL/blob/main/threat-work/hunts/endpoint/resprox-c11/README.md), blob `4ec55f4bdaf8565bc18345a461d8c5d13601813b` | Inventories actions, missing hash/identity, absent build history, sparse named days and missing candidate names; README defines interpretation and rejection. Observed active/name days are not sensor uptime, and no population counts exist yet. |
+| A12 | [L13 comparison-algebra construction](#l13--exact-build-value-lives-in-the-displaced-review-slots), executed 2026-09-09 | Eight designed cases plus an exhaustive three-host subset enumeration. Ninety-one assertions passed twice byte-identically. Script SHA-256 `02c5a73c242b935e22c76b3a9dbe18d8714e0194e73fe28ba179435f35fb7706`; output SHA-256 `d1c37bf4ba836cd5680222ace7b258d3227a4a7e365d9ef755501ba8e987febe`. | Checks comparison algebra and null paths only. It does not execute KQL, model sensor behavior, adjudicate a real case or estimate operational yield. |
 
 ### Starting research leads
 
@@ -2381,23 +2399,188 @@ console.log(JSON.stringify({
 
 </details>
 
+
+## L13 — Exact-build value lives in the displaced review slots
+
+**Question.** Which candidates deserve the next effort, and exactly what result would keep or kill their added complexity?
+
+**Result.** Select three operationally different survivors: C05 for the smallest software-policy decision, C11 for the nearest field-value experiment, and C01 with C13 folded in as a sensor-gated enrichment. The strongest new conclusion is structural: on matched support, C11's build history is a subset of application history. Every application-new destination is therefore also build-new. C11 adds only destinations already seen under another or unknown hash. Its value is not “more hits”; it exists only if those extra cases improve decisions enough to justify the review slots they displace.
+
+### Portfolio decision
+
+| Rank | Survivor and decision | Value/evidence | Noise/data/cost | Contribution and exact next step |
+|---|---|---|---|---|
+| 1 practical | **C05 — known proxyware execution/provenance** | Directly supports a software-owner, approval or removal decision when identity is exact. Source evidence supports known proxyware and covert bundling. | Authentic approved software is a twin. Requires DPE plus reviewed catalogue/approval; bounded process hunt is comparatively low cost. | Useful established governance hunt, not novel relay detection. Build the dated exact-hash catalogue and event-time approval register, then run P01–P11 controls. |
+| 2 experiment | **C11 — exact-build destination history** | One-table merged implementation; highest information gain about whether hash conditioning changes role/configuration review for familiar applications. | Missing hashes, upgrades, path moves, sparse names/history and legitimate feature changes can dominate. A 21-day DNE scan needs a bounded cohort and runtime recording. | Narrow integration adaptation, not breakthrough. Run S90 coverage first, then S89 at the frozen split and adjudicate C11-only cases at equal budget. |
+| 3 conditional | **C01 with C13 enrichment** | Role-valid controller contact is mechanistically stronger than generic anomaly; timing might prioritize leads independently of target distribution. | No current control pairs; persistent sockets and event suppression may erase the pulse. Updaters/approved forwarders/repeated timers are twins. | C13 is folded into C01, not a detector slot. First map instrumented control/task/proxy-readiness/target activity to DNE; implement timing only if observable. |
+
+C04-G remains the credible identity/session reserve where Graph ingestion and exact token linkage exist. C06 remains a generic sparse-spray hunt rather than residential-proxy attribution. C12 remains a high-consequence local-reach investigation with unresolved client-answer/receiver mapping. C02/C10 stay parked. None is a production detection candidate; the breakthrough slate is empty.
+
+### A12 comparison boundary
+
+The merged query's matched-support algebra was frozen independently of truth labels:
+
+| Designed case | Application history | Exact-build history | Expected comparison |
+|---|---|---|---|
+| Same build previously saw host | seen | seen | neither |
+| No application build saw host | unseen | unseen | both methods |
+| Another known hash saw host | seen | unseen | C11 only |
+| Missing-hash history saw host | seen | unseen | C11 only |
+| Current SHA1 missing | assessable | unavailable | matched comparison unassessable |
+| Current build new at path | assessable | no build history | matched comparison unassessable |
+| Current build has fewer than three named days | assessable | sparse | matched comparison unassessable |
+| Candidate has no usable hostname | coverage only | coverage only | no destination row |
+
+A12 checked those cases and exhaustively enumerated all build/app sets over three hosts while enforcing build ⊆ app. Ninety-one assertions passed twice with identical output. No `app-new && !build-new` state exists under matched semantics. This verifies the comparison model, not the KQL engine or operational value.
+
+### Frozen C11 field protocol
+
+**Population and telemetry.** One workspace/customer at a time; small known Windows cohort; one verified action lane; identical fixed 14-day baseline and 7-day candidate split in S89/S90. Run coverage first. Run the back-test with `IncludeUnchanged=true`. Do not commit exports. Record query duration and row counts locally.
+
+**Independent labels.** Keep four truths separate: observed audience change; independently confirmed application role/configuration change; relay participation from task/receiver evidence; event-time authorization/policy. Unknown stays unknown. The experiment evaluates the second decision only; it cannot calculate relay or unauthorized-use precision without those truths.
+
+**Matched case unit and budget.** Deduplicate to workspace/device/path/name/current-hash/observed-host. Restrict the method comparison to rows where both `AppAssessment` and `C11Assessment` are assessable. Each method orders its candidates by the same method-independent tuple—`FirstObserved`, then device/path/name/hash/host—and receives **K=20** review slots. If either method has fewer than 20 eligible cases, report all and mark the fixed-budget comparison underpowered. Blind method flags during adjudication where practical; review the union of selected cases once.
+
+**Outcomes.** Record the analyst disposition (no further action; owner/configuration review; policy remediation; security escalation), evidence supporting it, review minutes and whether the method changed the next action. Report C11-only additions and application-new cases separately. Also report which application cases were displaced from C11's first 20; that opportunity cost is the actual comparison.
+
+**Whole-population exclusions.** Separately count candidate device/application/build units with missing SHA1, no current-build history, sparse build named days, missing/invalid application identity and no candidate hostname. Report application-history eligibility beside build-history eligibility. New/upgraded builds and absent names are unassessable, never negatives. Do not quote matched-case yield without the excluded denominator.
+
+**Positive interpretation.** Keep exact-build conditioning only if C11's K=20 yields reproducibly more independently confirmed role/configuration decision changes, or equivalent decisions with materially lower review time, after version/configuration explanations and exclusions.
+
+**Negative interpretation.** Retire the hash layer and use ordinary application destination history if C11-only rows are primarily upgrades, reversions, parallel versions or missing-hash history; if changed decisions do not improve at K=20; or if added review cost offsets them. “More destinations” is explicitly not success.
+
+**Inconclusive interpretation.** Missing/unstable names, hashes, history or action semantics; too few eligible cases; mostly unknown adjudication; or noncomparable coverage. First-network-use remains a secondary comparator only after the exact-build versus application-history question is answerable.
+
+### Frozen C01+C13 sensor protocol
+
+Use an authorized instrumented relay and packet/task truth. Hold polling cadence, process, network and local workload fixed across task-delivered, task-withheld and task-delayed conditions. Map control-connect, task response, proxy-readiness and target connection to actual DNE rows and the same process start key. Both controller ports are excluded from work.
+
+- **Proceed:** repeated task and target episodes are separately observable and timing changes with delivered/delayed/withheld tasking beyond shifted/permuted and common-timer controls.
+- **Park:** persistent sockets, event coalescing, missing process keys or unrecoverable role mapping hide the episodes.
+- **Reject causal/ranking value:** fixed polling/local timers reproduce the pulse, or a C01 reviewer reaches the same decision with no extra effort benefit.
+
+This protocol is designed only. It does not authorize collection or imply that C13 is implemented.
+
+### Candidate changes and next implementation steps
+
+- **C05 retained first for practical value:** complete and review the catalogue/approval inputs; it remains policy/provenance, not relay or compromise proof.
+- **C11 retained as the nearest experiment, narrowed again:** implementation exists; field value lives only in adjudicated C11-only cases at a fixed budget. A12 adds no readiness.
+- **C13 merged into C01:** no independent breakthrough slot. Sensor mapping precedes query construction.
+- **C04-G reserved:** use only where Graph table/linkage contracts exist; it investigates token/session use, not proxy participation.
+- **No production promotion:** every survivor remains hunt/research work.
+
+### L14 handoff
+
+Independently challenge these choices. For C11, attempt to reproduce every claimed increment with ordinary upgrades, reversions, parallel versions, feature flags and missing-hash history; focus on displaced K=20 decisions, not hit totals. For C01+C13, challenge with a repeated common timer and approved pull worker under delivered/withheld/delayed tasks; preserve the sensor gate. For C05, attack catalogue identity and approval semantics. Resolve each objection by keeping, narrowing or rejecting the candidate.
+
+Q05 was current; its 2026-09-09T09:53:29Z next checkpoint was not due at invocation start. No direction-review write occurred.
+
+<details>
+<summary>Exact A12 JavaScript</summary>
+
+```javascript
+const assert = require('node:assert/strict');
+
+// Frozen L13 logic model. This checks comparison semantics, not KQL or a sensor.
+const minNamedDays = 3;
+
+function event(day, hash, host) { return { day, hash, host }; }
+
+function assess({ baseline, currentHash, candidateHost, identity = true }) {
+  if (!candidateHost) return { emitted: false, reason: 'no-candidate-hostname' };
+
+  const appNamedDays = new Set(baseline.filter(x => x.host).map(x => x.day)).size;
+  const build = baseline.filter(x => x.hash === currentHash && currentHash);
+  const buildNamedDays = new Set(build.filter(x => x.host).map(x => x.day)).size;
+
+  const appAssessment = !identity ? 'missing application identity'
+    : baseline.length === 0 ? 'no application history'
+    : baseline.filter(x => x.host).length === 0 ? 'no baseline hostname observations'
+    : appNamedDays < minNamedDays ? 'sparse application history'
+    : 'assessable';
+
+  const buildAssessment = !identity ? 'missing application identity'
+    : !currentHash ? 'missing or invalid SHA1'
+    : build.length === 0 ? 'no history for this build at this path'
+    : build.filter(x => x.host).length === 0 ? 'no baseline hostname observations for this build'
+    : buildNamedDays < minNamedDays ? 'sparse build history'
+    : 'assessable';
+
+  const appNew = appAssessment === 'assessable'
+    ? !baseline.some(x => x.host === candidateHost) : null;
+  const c11New = buildAssessment === 'assessable'
+    ? !build.some(x => x.host === candidateHost) : null;
+
+  const comparison = appNew === null || c11New === null ? 'unassessable'
+    : c11New && appNew ? 'both'
+    : c11New && !appNew ? 'c11-only'
+    : !c11New && appNew ? 'unexpected-inconsistency'
+    : 'neither';
+
+  return { emitted: true, appAssessment, buildAssessment, appNew, c11New, comparison };
+}
+
+const h1 = '1'.repeat(40), h2 = '2'.repeat(40), h3 = '3'.repeat(40);
+const stableH2 = [event(1,h2,'core.example'), event(2,h2,'core.example'), event(3,h2,'core.example')];
+const cases = {
+  sameBuildSeen: assess({ baseline: [...stableH2, event(1,h2,'focal.example')], currentHash:h2, candidateHost:'focal.example' }),
+  newToAppAndBuild: assess({ baseline: stableH2, currentHash:h2, candidateHost:'new.example' }),
+  seenOtherHash: assess({ baseline: [...stableH2, event(1,h1,'focal.example')], currentHash:h2, candidateHost:'focal.example' }),
+  seenUnknownHash: assess({ baseline: [...stableH2, event(1,'','focal.example')], currentHash:h2, candidateHost:'focal.example' }),
+  currentHashMissing: assess({ baseline: stableH2, currentHash:'', candidateHost:'new.example' }),
+  newBuildAtPath: assess({ baseline: stableH2, currentHash:h3, candidateHost:'new.example' }),
+  sparseBuild: assess({ baseline: [event(1,h2,'core.example'), event(2,h2,'core.example'), event(3,h1,'other.example')], currentHash:h2, candidateHost:'new.example' }),
+  noCandidateName: assess({ baseline: stableH2, currentHash:h2, candidateHost:'' })
+};
+
+let checks = 0;
+function eq(actual, expected) { assert.deepEqual(actual, expected); checks++; }
+eq(cases.sameBuildSeen.comparison, 'neither');
+eq(cases.newToAppAndBuild.comparison, 'both');
+eq(cases.seenOtherHash.comparison, 'c11-only');
+eq(cases.seenUnknownHash.comparison, 'c11-only');
+eq(cases.currentHashMissing.comparison, 'unassessable');
+eq(cases.currentHashMissing.appNew, true);
+eq(cases.newBuildAtPath.comparison, 'unassessable');
+eq(cases.newBuildAtPath.appNew, true);
+eq(cases.sparseBuild.comparison, 'unassessable');
+eq(cases.noCandidateName.emitted, false);
+
+// Exhaustive small-set proof of the matched-support invariant:
+// build history is a subset of application history, so app-new => build-new.
+const hosts = ['a','b','c'];
+for (let appMask=0; appMask<8; appMask++) {
+  for (let buildMask=0; buildMask<8; buildMask++) {
+    if ((buildMask & ~appMask) !== 0) continue;
+    for (let i=0; i<hosts.length; i++) {
+      const appNew = (appMask & (1<<i)) === 0;
+      const buildNew = (buildMask & (1<<i)) === 0;
+      assert.equal(appNew && !buildNew, false);
+      checks++;
+    }
+  }
+}
+
+console.log(JSON.stringify({ minNamedDays, checks, cases }, null, 2));
+```
+
+</details>
+
 ## Current handoff
 
-**Next pending numbered pass: L13 / T12 — Select the portfolio and design decisive tests.**
+**Next pending numbered pass: L14 / T13 — Independently challenge the hunt portfolio.**
 
-L01–L12 plus two authorized interstitials are complete: **12 of 15 numbered passes**. Read the latest direction supplement and check whether its hourly review is due before L13.
+L01–L13 plus two authorized interstitials are complete: **13 of 15 numbered passes**. Read the latest direction supplement and check whether its hourly review is due before L14.
 
-**L12 verdict:** C13's control-to-work pulse is independent of destination assignment and may prioritize role-valid C01 leads for raw role/configuration review. In A11, shared and disjoint audiences both produced 8/8 positive epochs; contact-only, startup-only and independent-traffic constructions did not. An approved forwarder and polling updater also produced 8/8, and a persistent control socket was unassessable. Therefore C13 is a provisional hunt-ranking experiment, not a relay detector, attribution claim or breakthrough.
+**L13 portfolio:** (1) C05 is the first practical software-policy/provenance hunt once catalogue and approval inputs exist; (2) C11 is the nearest field-value experiment using the merged [PR #39 module](../hunts/endpoint/resprox-c11/README.md); (3) C13 is folded into C01 as a conditional enrichment and must pass sensor mapping before implementation. C04-G is the identity/session reserve. No survivor establishes relay participation, unauthorized use, network exposure, endpoint compromise or session compromise by itself. The breakthrough slate is empty.
 
-The breakthrough slate remains empty. C05/C04-G/C01/C06 are practical under recorded dependencies; C11 is descriptive with ranking suspended; C13 is provisional and controller/sensor-gated; C12 is conditional integration; C02/C10 remain parked.
+**Decisive C11 boundary:** on matched support, application-new implies build-new. C11's only additions are destinations already seen under another or unknown hash. Use S89/S90 with one frozen split/cohort/action, `IncludeUnchanged=true`, independent role/task/approval truth, method-independent ordering and K=20 per method. Report displaced cases, adjudicated decision/review time and whole-population hash/history/name exclusions. Retire exact-build conditioning if its extra queue is mostly version/missingness artefacts or changes no decision.
 
-L13 must obey Q04: at most two or three survivors and a matched comparison of C11 exact-build self-history against ordinary process/application destination-history change at the same visibility, windows and review budget. Report matched-eligible outcomes separately from whole-population exact-hash/history exclusions. Freeze truth and rejection before execution. Include C13 only if its role-valid controller input and repeated-connection observability are explicit; do not tune around missing sensor truth. Preserve contact-only and unassessable outputs.
+**C01+C13 gate:** map instrumented control-connect, task, proxy-readiness and target activity to DNE first; exclude both controller tuples from work. Then challenge delivered/withheld/delayed tasks against fixed polling/local timers. Persistent sockets or unrecoverable mapping park the branch; timer equivalence or no changed decision rejects the enrichment.
 
-**Q05 planning checkpoint:** C11 remains the nearest-term implementation experiment; [PR #39](https://github.com/louisgiles/KQL/pull/39) was merged on 2026-09-09 and its [module](../hunts/endpoint/resprox-c11/README.md) is available on main. Recorded validation is static syntax/schema binding, not Kusto-engine or tenant execution; this review ran no tests. L13 should reuse that comparison and assess C11-only other/unknown-hash cases. C13 stays a provisional C01 enrichment: first require observable control/task/target mapping, then challenge repeated common-timer coupling under the L14 protocol. The breakthrough slate remains empty; completed passes and their validation history are unchanged.
+A12 verified eight expected cases and the build-history subset invariant with 91 assertions twice unchanged. It did not run KQL or model a sensor. PR #39 records static syntax/schema binding only. No Kusto-engine, customer, tenant, lab or field execution occurred. Existing non-Edge `DeviceEvents.AdditionalFields` and bounded `materialize()` guidance remains unchanged.
 
-A11 used constructed timestamps only: eight control epochs, ten-second matched windows, six-epoch minimum, 75% design cutoff and a shifted placebo. Fifteen assertions passed twice unchanged. No KQL, source adapter, sensor, packet, lab or tenant test occurred. Existing non-Edge `DeviceEvents.AdditionalFields` and bounded `materialize()` guidance remains unchanged.
-
-Re-fetch main and blob SHA immediately before saving, preserve concurrent work, and stop if L13 is already complete. Research-file changes only; no new collection, deployment, schedule or unrelated repository write.
+L14 must form an independent view before accepting this ranking, reproduce increments with strong benign cases and resolve objections by keep/narrow/reject. Research-file changes only; no collection, deployment, schedule or unrelated repository write. Re-fetch main and its SHA immediately before saving; stop if L14 is already complete.
 
 ## Reusable invocation
 
