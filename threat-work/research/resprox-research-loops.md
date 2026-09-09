@@ -6,11 +6,11 @@
 **Canonical file:** threat-work/research/resprox-research-loops.md  
 **Original sources:** [ResProx](./ResProx)  
 **Created:** 2026-09-08  
-**Readiness:** C05/C01/C06 specified with unconfirmed ingestion and L04 paper controls; L04.5 adds C07/C08 ideas and C04-G refinement. No query/synthetic execution, validated detection or production change.
+**Readiness:** C05/C01/C06 specified with paper controls; L04.5(2) prioritizes C09 adaptive scheduling and conditional C10 process–TLS attribution. All ingestion and efficacy remain unconfirmed; no query/test execution or production change.
 
 ## Run accounting and scheduling
 
-There are **15 numbered passes: one opening baseline pass, followed by exactly 14 distinct research tasks**. Task 14 is the final synthesis. On 2026-09-09 Louis additionally authorized one manual **L04.5 reframing pass** between L04 and L05. It is recorded separately and does not consume a numbered task or add scheduled invocations.
+There are **15 numbered passes: one opening baseline pass, followed by exactly 14 distinct research tasks**. Task 14 is the final synthesis. On 2026-09-09 Louis additionally authorized **L04.5** and **L04.5(2)** manual reframing passes between L04 and L05. They are recorded separately and do not consume numbered tasks or add scheduled invocations.
 
 The user has authorized **hourly execution in the originating chat**, superseding the earlier request for a 30-minute cadence. The automation was created successfully on 2026-09-08 at 23:36:09 UTC and is enabled with a maximum of 15 scheduled invocations.
 
@@ -49,7 +49,7 @@ This priority and order were revised at the user's request before L01 started. T
 
 ### Working direction added by the user-authorized L04.5 pass
 
-Use abstraction to generate a different investigation question, then identify its discriminating observation and smallest useful test. Prefer changes in ownership, permission, lifecycle, purpose or conserved identity over repeatedly adding anomalies to a proxy-shaped pattern. A benign lookalike limits attribution; it does not alone reject investigative or statistical value. Compare the decision benefit with a simpler baseline and keep the shared coverage/claim safeguards. Record material new evidence and changed choices concisely, linking the shared contract instead of repeating it. The remaining numbered tasks keep their principal lenses; L04.5 does not pre-complete L12 or L14.
+Use abstraction to generate a different investigation question, then identify its discriminating observation and smallest useful test. Prefer changes in ownership, permission, lifecycle, purpose or conserved identity over repeatedly adding anomalies to a proxy-shaped pattern. A benign lookalike limits attribution; it does not alone reject investigative or statistical value. Compare the decision benefit with a simpler baseline and keep the shared coverage/claim safeguards. Record material new evidence and changed choices concisely, linking the shared contract instead of repeating it. The remaining numbered tasks keep their principal lenses; the additional passes do not pre-complete L12 or L14. L04.5(2) narrows exploration to state surviving IP changes and application authorship across relay boundaries; prioritize decisive tests over documentation growth.
 
 ## Instructions for every invocation
 
@@ -125,6 +125,10 @@ Create small, clearly labelled synthetic examples for benign, suspicious, and am
 ## Additional pass L04.5 — Reframe the approach
 
 **Authority / task:** Explicitly requested by Louis after L04. Explore creative, abstract and unconventional mechanisms before the next numbered pass; exercise judgment about what survives. Deliver concise candidate changes, a challenge of the prior framing and a revised L05 handoff. Completed findings are in the L04.5 journal. This manual interstitial is additional to the 15 numbered passes.
+
+## Additional pass L04.5(2) — Find the observations worth testing
+
+**Authority / task:** Louis explicitly requested a second interstitial emphasizing novelty, nuance and thinking. Challenge two concrete mechanisms and save concise candidate changes; preserve the numbered sequence. Completed findings are in the L04.5(2) journal.
 
 ## Task 04 / Loop 05 — Develop endpoint and process hunts
 
@@ -238,12 +242,12 @@ Lead with the ranked detection/hunt portfolio. For each shortlisted candidate st
 
 ## State — update after each saved pass
 
-**Programme status:** in progress; L01–L04 and additional L04.5 completed (4 of 15 numbered passes)  
+**Programme status:** in progress; L01–L04 plus additional L04.5 and L04.5(2) completed (4 of 15 numbered passes)  
 **Next pass:** L05 / T04 — Endpoint and process hunts  
-**Last completed pass:** L04.5 (additional); last numbered pass L04  
-**Last result journal entry:** [L04.5 — Reframe around ownership, revocation and conserved identity](#l045--reframe-around-ownership-revocation-and-conserved-identity)  
-**Unresolved execution blocker:** none; the additional L04.5 public-source reframing and independent challenge completed; no query or test evaluator ran.  
-**Research-data blockers:** Actual table/category ingestion, population/field coverage, directory mapping, retention and runtime remain unconfirmed. C05 has one source-reviewed historical EXE hash seed, not a complete catalogue or approval register. Current event-time-valid control intelligence and task pairs remain unsupplied for C01. C06 needs coverage and activity-ID checks; none requires a proxy-exit feed for its primary question. New C07 requires verified removal/completion and component/device ownership; C08 requires reliable setup/principal/daemon placement evidence; C04-G requires Graph log collection and token-field mapping. None is confirmed.
+**Last completed pass:** L04.5(2) (additional); last numbered pass L04  
+**Last result journal entry:** [L04.5(2) — Hunt what survives delegation](#l0452--hunt-what-survives-delegation)  
+**Unresolved execution blocker:** none; L04.5(2) source inspection and independent challenge completed; no query, fixture evaluator or experiment ran.  
+**Research-data blockers:** Actual table/category ingestion, population/field coverage, directory mapping, retention and runtime remain unconfirmed. C05 has one source-reviewed historical EXE hash seed, not a complete catalogue or approval register. Current event-time-valid control intelligence and task pairs remain unsupplied for C01. C06 needs coverage and activity-ID checks; none requires a proxy-exit feed for its primary question. New C07 requires verified removal/completion and component/device ownership; C08 requires reliable setup/principal/daemon placement evidence; C04-G requires Graph log collection and token-field mapping. C09 needs complete ordered activity/outcome coverage; C10 needs TLS sensor/process attribution. None is confirmed.
 
 | Loop | Task | Status | Last updated UTC | Result / blocker |
 |---|---|---|---|---|
@@ -252,6 +256,7 @@ Lead with the ranked detection/hunt portfolio. For each shortlisted candidate st
 | L03 | T02 First hunt specifications | completed | 2026-09-09T00:22:30Z | C05/C01/C06 specified; process/activity keys, bounded pseudocode, missing-data branches and interpretation corrected; no execution. See L03 journal. |
 | L04 | T03 Test cases and triage | completed | 2026-09-09T00:34:45Z | C05/C01/C06 on-paper synthetic controls and triage; sequence ranking suspended, target/identity/validity joins and later-success semantics corrected; no execution. See L04 journal. |
 | L04.5 | Additional creative reframing, explicitly authorized | completed | 2026-09-09T00:50:53Z | C07 removal-boundary and C08 configured-principal ideas; C04-G token linkage; revised method and L05 priority. No execution. |
+| L04.5(2) | Additional mechanism challenge, explicitly authorized | completed | 2026-09-09T01:19:16Z | C09 outcome-conditioned target omission; C10 process–TLS mismatch; novelty narrowed, C07/C08 reprioritized; no execution. |
 | L05 | T04 Endpoint and process hunts | pending | — | — |
 | L06 | T05 Identity and session hunts | pending | — | — |
 | L07 | T06 Network and local-access hunts | pending | — | — |
@@ -279,13 +284,20 @@ Allowed pass statuses: pending, completed, blocked. An inconclusive research res
 | 5 | C03 — Proxy-associated process reaching a local service; network exposure | Potentially consequential if a local-access path and receiving service are both observable. | Implementation/version applicability and local/loopback logging can fail entirely. | Defer detailed specification until coverage question is answerable. |
 | 6 | C02 — Source-aware unmanaged-device traffic change; network/device investigation | Covers devices outside endpoint onboarding if suitable local collection already exists. | Flow semantics, attribution and baseline availability are large dependencies; traffic anomalies are nonspecific. | Park the volume branch without appropriate flow records. |
 
-**L04.5 exploration decision:** Keep the numbered implementation baseline C05/C01/C06. Give C07 first exploration priority in L05 and C08 a conditional check; C04-G improves the reserve's potential join and belongs in L06. These are evidence/effort choices, not measured precision rankings. Full new cards appear once in the L04.5 journal.
+**L04.5 exploration decision (priority superseded by L04.5(2) below):** Keep the numbered implementation baseline C05/C01/C06. The first interstitial gave C07 first exploration priority in L05 and C08 a conditional check; C04-G improves the reserve's potential join and belongs in L06. These are evidence/effort choices, not measured precision rankings. Full new cards appear once in the L04.5 journal.
 
 | Exploration priority | Candidate / distinct question | Required new dependency | Readiness / next decision |
 |---|---|---|---|
-| First in L05 | [C07 — fresh execution after verified removal](#c07--fresh-component-execution-after-verified-removal): what brought a component back? | Exact removal/completion, installation scope and product/component/device mapping; process observations | Idea; discriminate shared-owner/upgrade/reinstall controls before calling it an unexplained return. |
-| Conditional in L05 | [C08 — configured principal and service ownership](#c08--configured-commercial-principal-versus-accountable-service-ownership): whose service account was this deployment configured to serve? | Reliable supported setup parameters and launch-versus-workload placement; dated ownership for a policy conclusion | Idea; inspect one redacted valid setup and approved shared-account/remote-daemon control. |
+| Governance reserve after L04.5(2) | [C07 — fresh execution after verified removal](#c07--fresh-component-execution-after-verified-removal): what brought a component back? | Exact removal/completion, installation scope and product/component/device mapping; process observations | Idea; discriminate shared-owner/upgrade/reinstall controls before calling it an unexplained return. |
+| Conditional governance reserve | [C08 — configured principal and service ownership](#c08--configured-commercial-principal-versus-accountable-service-ownership): whose service account was this deployment configured to serve? | Reliable supported setup parameters and launch-versus-workload placement; dated ownership for a policy conclusion | Idea; inspect one redacted valid setup and approved shared-account/remote-daemon control. |
 | C04 refinement for L06 | [C04-G — token-linked Graph workload](#c04-g--follow-a-token-into-the-workload-when-egress-changes) | MicrosoftGraphActivityLogs and verified token linkage; sign-in sources optional enrichment | Conditional idea; assess exact token timeline value rather than inventing another proxy classifier. |
+
+**L04.5(2) exploration ranking:** C09 first for a less conventional, sign-in-based hypothesis; C10 second for a firmer protocol mechanism with additional collection. Full cards and rejection tests are in the latest journal. C05 remains the practical baseline; this is not a measured detection-quality ranking.
+
+| Priority | Candidate | Readiness / next decision |
+|---|---|---|
+| 1 | C09 — Outcome-conditioned target omission across changing addresses | Idea; in L06 compare frozen order-only templates with pruning, preserving every recurrence opportunity. |
+| 2 | C10 — Process owner versus TLS profile | Conditional idea; in L05 assess an existing sensor's unique socket/process mapping; park if unavailable. |
 
 **Common contract.** Windows and cutoffs below are proposed design values, not measured thresholds. Use non-overlapping baseline and candidate periods; never turn absent required data into a negative result. Optional evidence must not suppress a primary lead. Each workspace/customer remains a separate scope; do not join different tenants by UPN or IP. An empty name, client field or process key is unknown, not an anomalous value. Readiness labels remain: idea; specified with unconfirmed ingestion; specified with confirmed ingestion; tested in a labelled lab/synthetic setting; runtime-tested in a named authorized environment; rejected. Any future alert additionally needs calibration, cost/runtime checks, adjudicated controls and a separate deployment review.
 
@@ -358,7 +370,7 @@ Allowed pass statuses: pending, completed, blocked. An inconclusive research res
 
 ## Hypothesis register — maintain, merge, and retire explicitly
 
-L04 adds on-paper controls and triage to C05/C01/C06. L04.5 adds lifecycle/ownership hypotheses and token-workload linkage, and rejects treating a benign twin as proof a hunt has no decision value. No hypothesis has been empirically validated. Earlier findings remain historical; L04 corrections supersede differing L03 details.
+L04 adds on-paper controls and triage to C05/C01/C06. L04.5 adds lifecycle/ownership hypotheses and token-workload linkage, and rejects treating a benign twin as proof a hunt has no decision value. L04.5(2) adds H15/H16 and removes C07/C08's leading exploration priority. No hypothesis has been empirically validated. Earlier findings remain historical; L04 corrections supersede differing L03 details.
 
 | ID | Precise claim and mechanism | Status | Supporting evidence | Counterevidence / assumptions | Next discriminating observation |
 |---|---|---|---|---|---|
@@ -379,6 +391,9 @@ L04 adds on-paper controls and triage to C05/C01/C06. L04.5 adds lifecycle/owner
 | H12 | A fresh component owned exclusively by a removed product can expose a violated lifecycle expectation after verified completion, unless another owner/reinstall explains it. | proposed; C07 created L04.5 | S39–S43 give scoped vendor expectation and possible removal collection; C07 supplies the causal contrast. | Incomplete removal/reboot, another installed host, repair/upgrade or bad ownership mapping can explain the return; opt-out does not prohibit all network traffic. | Compare complete removal on otherwise identical hosts with/without a legitimate second owner, then inspect fresh process origin. |
 | H13 | A documented setup's configured commercial principal can reveal deployment coordination or unresolved service ownership across launch clients. | proposed; C08 created L04.5 | S38 documents account parameters; S49 separates Docker launch client and workload placement. | Account labels do not prove payee, auth success or nodes; approved central accounts and missing/ambiguous parsing undermine an ownership allegation. | One redacted valid setup plus approved-account and multiple-clients-to-one-daemon controls. |
 | H14 | Stable token linkage can connect suspicious Graph requests to authentication across egress changes more precisely than user/IP/time alone. | supported as a documented mapping; detection benefit proposed in C04-G | S44–S46 document fields, collection and case-sensitive UTI join. | Population, tenant mapping and multiplicity unverified; shared tokens/concurrent legitimate workers prevent replay proof. | Reconstruct an approved multi-egress workflow and an independently confirmed misuse example; compare with request-only triage. |
+
+| H15 | Outcome-conditioned omission within repeated target sequences can expose adaptive scheduling despite changing IPs. | proposed; C09 | S50 establishes one tool's pruning behavior; detector is an inference. | Shared directory state, approved jobs, input exhaustion, ordering and collection gaps; no causal proof. | Held-out incremental value over order-only ranking, with all opportunities and shuffled-outcome controls. |
+| H16 | Unexpected process–TLS relationships can prioritize possible relay participation without known control infrastructure. | proposed adaptation; C10 | S52 supports blind forwarding; S54 establishes attribution prior art. | Multi-stack/delegating applications and ambiguous sensor joins; novelty of the primitive rejected. | Controlled relay/direct/multi-stack comparison after proving tuple attribution. |
 
 Use proposed, supported, weakened, rejected, merged, or unresolved. Record reasons for transitions; repeated mention does not increase confidence.
 
@@ -480,6 +495,18 @@ All accessed **2026-09-09 UTC**. Dates below are displayed revisions/publication
 | S47 | [Xue et al., cross-layer RTT fingerprinting](https://www.ndss-symposium.org/wp-content/uploads/2025-966-paper.pdf) | NDSS 2025, Feb 24–28 | Primary adjacent study of session-termination/RTT mismatch under packet/on-path visibility. Only mechanism/visibility sections used; not validated for these logs or a universal residential-proxy signature. |
 | S48 | [Huang et al., Shining Light into the Tunnel](https://arxiv.org/html/2404.10610v2) | Version 2, 2024-04-30 | Primary RESIP packet/flow classification prior art. Reported experimental efficacy is not adopted for MDE connection-event telemetry. |
 | S49 | [Docker contexts](https://docs.docker.com/engine/manage-resources/contexts/) | Living documentation; date not asserted | Context/environment can select remote daemons without visible host arguments, invalidating CLI-device-equals-workload-device assumptions. |
+
+### L04.5(2) — Targeted evidence and prior art
+
+All accessed **2026-09-09 UTC**; source inspection only. S09/S11 schemas were rechecked. No observed tenant activity follows from these sources.
+
+| ID | Primary source / date | Contribution and limit |
+|---|---|---|
+| S50 | [o365spray orchestration](https://github.com/0xZDH/o365spray/blob/master/o365spray/core/handlers/sprayer/spray.py); master inspected, blob `bfb0655b2e2031ddadf63f322fc2fcaa08e50045`; publication date not asserted | Paired-password iterations remove tool-classified valid credentials; unequal list lengths also change targets. No evidence of this C09 pattern's prevalence or stable request order. |
+| S51 | [Microsoft Entra error codes](https://learn.microsoft.com/en-us/entra/identity-platform/reference-error-codes); living reference | 50057 means disabled, reversible; 50053 has multiple causes. A result is not proof of response receipt or attacker knowledge. |
+| S52 | [RFC 9110 §9.3.6](https://www.rfc-editor.org/rfc/rfc9110.html#section-9.3.6); June 2022 | CONNECT tunnel semantics preserve forwarded data; not every proxy implementation uses blind forwarding. |
+| S53 | [Suricata 8.0.6 EVE format](https://docs.suricata.io/en/suricata-8.0.6/output/eve/eve-json-format.html); versioned documentation | Flow tuples/context and explicitly enabled TLS JA3/JA4 fields; no Sentinel ingestion or join is established. |
+| S54 | [Cisco: TLS fingerprinting in the real world](https://blogs.cisco.com/security/tls-fingerprinting-in-the-real-world); 2019-04-29 | Already combines endpoint process/OS and network fingerprints; limits C10 to an adaptation, not a new attribution primitive. |
 
 ### Starting research leads
 
@@ -974,21 +1001,47 @@ S46 maps the case-sensitive Graph `SignInActivityId` to the token's UTI and docu
 
 **Limits and next action.** Public-source research, bounded adjacent prior-art inspection and independent reasoning only; no KQL, fixture evaluator, tenant data, binary, intervention or proxy node was used. L05 should answer whether one of the two endpoint relationships has obtainable discriminating evidence, revise/reject the candidate accordingly, and keep the output compact. Full shared telemetry/attribution safeguards remain in the existing contract instead of being repeated in every later entry.
 
+### L04.5(2) — Hunt what survives delegation
+
+**Additional pass, explicitly authorized by Louis; 2026-09-09.** Question: can we find two observations worth testing that the previous framing missed? Result: **one less conventional scheduling hypothesis and one protocol-grounded adaptation survive. Neither is a demonstrated breakthrough.** The useful distinction is between the address/process carrying an action and the state or client generating it.
+
+#### C09 — The IP changes; the campaign remembers
+
+**Behaviour / mechanism.** A repeated target list shrinks after a consequential outcome, while attempts against neighboring targets continue through changing addresses. The missing account may deserve more attention than the remaining failures. S50's inspected o365spray orchestration removes tool-classified valid credentials from subsequent paired-password iterations. That establishes a real pruning mechanism, not stable target ordering, residential transport or campaign prevalence. Unequal per-user password-list lengths can also remove a target without success.
+
+**Required / optional data.** Initially one verified SigninLogs category: directory scope, AppId/resource, AuthenticationProtocol, CreatedDateTime, scoped Id, SignInIdentifier/type, IPAddress and ResultType, plus demonstrable interval coverage (S11). Preserve submitted versus resolved identities and L04 activity/conflict handling. Optional directory-change audit and post-authentication workload evidence help adjudicate ownership and impact. Additional categories need separate semantics; no ingestion is assumed.
+
+**Concrete prototype, not executed.** Use seven discovery days followed by seven held-out days. Freeze the directory/app/resource/protocol stream before examining outcomes. Learn contiguous, distinct-target A→B→C triplets occurring in at least three nonoverlapping 30-minute windows. Do not mine arbitrary subsequences. In the holdout, examine B's first observed result `0`, and separately `50057`. Define subsequent opportunities from A plus 30 minutes, regardless of whether B or C appears; keep windows nonoverlapping and count every scorable opportunity. Score A→C adjacency with B absent throughout that window. Require at least three scored omissions with changed source addresses and continued neighboring activity; compare with pre-outcome omissions. These numbers are provisional. Missing coverage, identifier conflicts, tied ordering or unresolved authentication-flow outcomes produce **unscorable**, not an omission. CreatedDateTime is initiation time, not response receipt; the sequence cannot establish client knowledge or response causality. Result `0` is a successful sign-in, not proof a guessed password worked; `50057` is reversible account disablement, only a hypothesized stopping condition (S51).
+
+**Output / interpretation / triage.** Return B, outcome-event locator, frozen neighbors, before/after presence and opportunity counts, source changes and coverage. Also report B's appearances elsewhere in the post-outcome stream: within-window omission is not campaign-wide removal. This is an altered repeated workload **consistent with adaptive scheduling across addresses**. Review the scheduled job's owner and independent follow-on activity before alleging misuse. Approved validation/migration jobs, shared directory updates, input exhaustion, concurrent streams and missing events are strong alternatives. A hit does not establish proxy use, credential reuse or account compromise.
+
+**Readiness / decisive test.** Hunt idea. Freeze templates without outcome information, then compare order-only ranking with order-plus-pruning at the same review budget. Use matched ordinary-failure targets, shuffled outcome times and the approved-job twin. Reject the added mechanism if omission precedes outcomes or supplies no incremental review value. Randomized or one-pass campaigns are outside this version's reach. The new contribution sought is outcome-conditioned disappearance, beyond C06's shared-client failure counts.
+
+#### C10 — The process owns TCP; who supplied TLS?
+
+**Behaviour / mechanism.** A blind tunnel forwards the remote client's TLS handshake while its exit process owns the destination socket (S52; S04's byte-relay mechanism). Ask whether that process's observed TLS profiles fit its actual application role. This could expose an unfamiliar embedded relay without known proxy domains or high traffic volume. A mismatch alone does not prove a foreign author.
+
+**Required / optional data and logic.** Require DeviceNetworkEvents process attribution plus an existing, pre-interception TLS sensor and demonstrated device/tuple/time mapping. DNE does not contain JA4. S53 documents one possible source: Suricata EVE tuples, flow_id/flow-start context and explicitly enabled TLS fingerprints; its Sentinel table/parser remains unspecified. For one scoring day, uniquely join outgoing TCP flows to the scoped DeviceId/process lifetime using local/remote addresses and ports, protocol, attributable flow start and verified clock tolerance. Preserve ambiguous joins separately. Compare profiles with the preceding 14 days for the same executable hash, OS/runtime and destination context; sparse reference coverage means unknown. Return the largest unexplained departures with process, profile, baseline support and flow evidence. Optional module/provenance and C01 control evidence help explain them.
+
+**Benign alternatives / meaning.** Approved forwarders, security agents, embedded TLS libraries, runtime/configuration changes and impersonating clients can all explain a mismatch. A fingerprint identifies neither a unique application nor a person. The result establishes an unexplained process–TLS relationship, not relay participation or compromise. It is an investigation lead for application ownership and component review.
+
+**Readiness / decisive test.** Conditional hunt idea. Design a controlled two-client/one-forwarder comparison against direct traffic and a multi-stack application, checking attribution first. The approved forwarder is a positive participation control; consent needs separate evidence. Reject if the signal vanishes after role/runtime/destination conditioning. Without the sensor join, park it. S54 already establishes process/TLS attribution: **reject novelty of the primitive**; retain the relay-oriented use as an adaptation.
+
+**Independent challenge and changed choice.** Two reviewers generated mechanisms before seeing the portfolio; a third challenged both. Its preference for C10's firmer mechanism is reasonable. C09 gets first research priority because its proposed observation is less conventional and its starting telemetry more accessible, not because it has higher demonstrated confidence. Shared target state defeats a causal claim for C09; legitimate delegation defeats a forwarding claim for C10. Both corrections are incorporated. C07/C08 remain governance reserves, losing first exploration priority. No third idea is padded into the shortlist. This bounded prior-art check establishes neither global novelty nor efficacy.
+
+**Execution boundary.** Public-source inspection, synthetic examples and independent reasoning only. No query, fixture evaluator, packet experiment, tenant investigation or production change ran. L05 remains the next numbered task.
+
 ## Current handoff
 
 **Next pending numbered pass: L05 / T04 — Develop endpoint and process hunts.**
 
-L01–L04 and the user-authorized additional L04.5 are complete. There are still **4 of 15 numbered passes complete**. Read the concise L04.5 cards first, then the relevant L03/L04 specification and controls. Registers now include C07/C08, C04-G, H12–H14 and S38–S49. No KQL, fixture evaluator or tenant query has run.
+L01–L04 plus manual L04.5 and L04.5(2) are complete: **4 of 15 numbered passes**. Read the latest short journal first. No query, fixture evaluator, packet experiment or tenant investigation has run.
 
-**First exploration priority: C07.** Ask what fresh component execution after a verified complete uninstall would reveal that hash/control contact alone would not. Establish installation instance, user/machine scope, exact device/component ownership and completion/reboot state. The matched control is a second still-installed app legitimately owning the same SDK, plus authorized reinstall/repair. Absence of a reinstall log is not proof none occurred. Keep opt-out separate: ordinary control traffic cannot establish continued resource sharing.
+For L05, challenge C10's endpoint/socket attribution and realistic TLS collection path; preserve the approved-forwarder and multi-stack controls. If that dependency is unavailable, park the branch explicitly and retain C05 as the practical baseline. C07/C08 are governance reserves, no longer the primary creative bets. Do not relabel established process fingerprinting as novel.
 
-**Conditional second: C08.** Validate a documented setup-account parameter on one redacted launch record. Compare registered service ownership; preserve configured principal versus actual beneficiary and launch-client versus workload-host distinctions. Multiple clients can target one remote Docker daemon. Missing/ambiguous principals are not one cohort. C05 remains the simpler identification/provenance baseline.
+Carry C09 to L06 as the first identity research question: does outcome-conditioned omission improve on repeated target order alone? Define recurrence opportunities independently of omissions; preserve complete denominators and B's activity elsewhere. Tool-level pruning is evidenced; its visibility and value in tenant logs are not. C04-G remains a conditional workload pivot.
 
-Keep C01 as a process-association path and test enrichment for decision benefit rather than unique malware proof. Compare browsers, sync/conferencing, updaters, P2P, approved sharing and quiet/intermittent relays. For L06, retain C04-G's more precise Graph token linkage as a dependency check before more client-similarity aggregation; do not execute that later task now. C06 remains the existing failures-only shortlist; C03/C02 retain their collection limits.
-
-Deliver one material endpoint-candidate improvement or justified rejection and the smallest discriminating test. Keep repeated caveats in the shared contract and avoid another large restatement. No tenant collection, uninstallation/opt-out intervention, public-node interaction, runnable module or deployment is authorized.
-
-Re-fetch main and its blob SHA before saving; preserve concurrent changes and stop if L05 has already completed. Execute exactly one next numbered pass.
+Save one material candidate change or rejection per next numbered pass. Keep outputs compact, reuse the shared contract, and do not add candidates to fill a quota. Fetch main and its SHA before writing, preserve concurrency and stop if the selected pass is already complete. Scope remains research-file-only; deployment and collection changes require separate authorization.
 
 ## Reusable invocation
 
