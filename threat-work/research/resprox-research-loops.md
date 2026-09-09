@@ -206,6 +206,8 @@ Map the documented lifecycle and incentives only as far as needed to produce det
 
 **Q02 direction refinement:** Test the selective-activation assumption, not another growth narrative. Ask whether wider activation of the same build makes its imported workload look peer-normal. Design one matched comparison varying the fraction of participating peers while holding the focal workload, build and sensor coverage fixed; include coordinated benign rollout, shared-destination relay and quiet-relay controls. Keep independent participation truth separate from authorization and ordinary role change; no approval label is a feature. Measure eligible covered installation-days and baseline/candidate support, not public IPs or apparent fleet size. Require a source-backed lifecycle prediction and obtainable discriminating observation; if neither survives, record that negative and leave the novel-observable challenge to L12. This review designs requirements only; it runs no experiment.
 
+**Q03 direction refinement:** Peer rarity is not participation prevalence. Cross two independent factors: participating-peer fraction and shared-audience overlap, while holding the focal device/build/workload and comparable sensor visibility fixed. Report coverage as a third, non-causal axis. A fully participating pool with disjoint targets may remain rare; a small pool sharing one target may look common. Compare self-only, peer-only and intersection at one predeclared review budget, with participation, approval and ordinary rollout truth separate. Reject peer rarity as a participation proxy if destination support/coverage explains it; retain it only as an audience-commonness facet if it adds role-review value beyond self-history. Do not interpret a disappearing or persistent rarity score as proof that participation changed.
+
 **Deliverable:** Mechanism-backed predictions, a defensible unit and denominator for measurement, and concrete candidate changes or new opportunities derived from those predictions.
 
 **Completion test:** The ecosystem analysis changes a hunt, a measurement, or its interpretation; background exposition alone is insufficient.
@@ -215,6 +217,8 @@ Map the documented lifecycle and incentives only as far as needed to produce det
 **Question:** What detection opportunity have the current candidates and assumptions caused us to overlook?
 
 Revisit the two original sources independently of the leading candidate. Explore materially different problem frames and mechanisms from adjacent fields where the mapping is sound. Consider transitions, relationships, negative space only when coverage is known, or changes in operating purpose. Preserve alternatives outside familiar-IP reasoning. For each promising idea, specify a falsifiable prediction, minimum observable evidence, and the smallest discriminating test.
+
+**Q03 direction refinement:** The active breakthrough slate is empty after L10; C11 is an engineering adaptation and C12 conditional integration. Start from the shared failure: destination rarity measures observed audience distribution, not remote authorship. Derive one materially different observable whose proposed decision survives both high-overlap and disjoint-audience relay worlds, using realistically obtainable Sentinel / Log Analytics telemetry. Compare it with its simplest known method and strongest benign twin, then state the minimum test and kill condition. Do not rename C11, add another entropy/rarity score, or revive C10/C07/C08 without resolving their recorded telemetry or ownership blocker. An honest finding that ordinary endpoint logs cannot expose authorship is preferable to padding.
 
 **Deliverable:** An independent set of wildcard candidate cards, a comparison with the current leaders, and explicit reasons to pursue or reject them.
 
@@ -1995,6 +1999,8 @@ Q02 refinements were current and applied. Its next direction checkpoint was not 
 **Next pending numbered pass: L11 / T10 — Activation prevalence and peer-normalization failure.**
 
 L01–L10 plus two authorized interstitials are complete: **10 of 15 numbered passes**. Read the latest direction supplement and check whether its hourly review is due before L11.
+
+**Q03 direction review:** C11 is removed from the breakthrough slate and retained only as an exact-build role-change measurement experiment; C12 remains conditional integration. L11 must vary participating-peer fraction and audience overlap independently, with coverage separate. L12 must seek an observable that survives both shared- and disjoint-audience relay worlds rather than another destination-rarity variant. [Review rationale and kill conditions](./resprox-direction-reviews.md#q03--peer-support-is-not-participation-prevalence).
 
 L10 inspected the closest primary implementations found under comparable endpoint telemetry. New/rare network-process detection, per-host process rarity and good-versus-suspect destination deltas are established. C11's remaining candidate contribution is only the exact-build destination-membership measurement across self history and leave-one-device-out peers. It can surface role change for an already-networking common process; it cannot establish relay participation, unauthorized use, endpoint compromise or session compromise. Ranking remains suspended.
 
