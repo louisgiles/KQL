@@ -6,7 +6,7 @@
 **Canonical file:** threat-work/research/resprox-research-loops.md  
 **Original sources:** [ResProx](./ResProx)  
 **Created:** 2026-09-08  
-**Readiness:** C05/C01/C06 specified with paper controls; L04.5(2) prioritizes C09 adaptive scheduling and conditional C10 process–TLS attribution. All ingestion and efficacy remain unconfirmed; no query/test execution or production change.
+**Readiness:** C05/C01/C06 specified with paper controls; C11 is the leading behavior-led endpoint experiment; C10 is parked absent attributable TLS collection; C09 leads L06. All ingestion and efficacy remain unconfirmed; no query execution or production change.
 
 ## Run accounting and scheduling
 
@@ -242,12 +242,12 @@ Lead with the ranked detection/hunt portfolio. For each shortlisted candidate st
 
 ## State — update after each saved pass
 
-**Programme status:** in progress; L01–L04 plus additional L04.5 and L04.5(2) completed (4 of 15 numbered passes)  
-**Next pass:** L05 / T04 — Endpoint and process hunts  
-**Last completed pass:** L04.5(2) (additional); last numbered pass L04  
-**Last result journal entry:** [L04.5(2) — Hunt what survives delegation](#l0452--hunt-what-survives-delegation)  
-**Unresolved execution blocker:** none; L04.5(2) source inspection and independent challenge completed; no query, fixture evaluator or experiment ran.  
-**Research-data blockers:** Actual table/category ingestion, population/field coverage, directory mapping, retention and runtime remain unconfirmed. C05 has one source-reviewed historical EXE hash seed, not a complete catalogue or approval register. Current event-time-valid control intelligence and task pairs remain unsupplied for C01. C06 needs coverage and activity-ID checks; none requires a proxy-exit feed for its primary question. New C07 requires verified removal/completion and component/device ownership; C08 requires reliable setup/principal/daemon placement evidence; C04-G requires Graph log collection and token-field mapping. C09 needs complete ordered activity/outcome coverage; C10 needs TLS sensor/process attribution. None is confirmed.
+**Programme status:** in progress; L01–L05 plus additional L04.5 and L04.5(2) completed (5 of 15 numbered passes)  
+**Next pass:** L06 / T05 — Identity and session hunts  
+**Last completed pass:** L05  
+**Last result journal entry:** [L05 — Endpoint role bifurcation and the TLS collection verdict](#l05--endpoint-role-bifurcation-and-the-tls-collection-verdict)  
+**Unresolved execution blocker:** none; L05 public-source endpoint research and candidate design completed.  
+**Research-data blockers:** Actual table/category ingestion, population/field coverage, directory mapping, retention and runtime remain unconfirmed. C11 requires repeated exact hashes, comparable endpoint coverage and self/peer history; none is confirmed. C05 has one historical EXE seed, not a complete catalogue/approval register. Current control intelligence/pairs remain unsupplied for C01. C10 needs an existing attributable TLS sensor and is parked without it. C09 needs complete ordered activity/outcome coverage; C04-G needs Graph collection/token mapping. Other saved candidate dependencies remain unchanged.
 
 | Loop | Task | Status | Last updated UTC | Result / blocker |
 |---|---|---|---|---|
@@ -257,7 +257,7 @@ Lead with the ranked detection/hunt portfolio. For each shortlisted candidate st
 | L04 | T03 Test cases and triage | completed | 2026-09-09T00:34:45Z | C05/C01/C06 on-paper synthetic controls and triage; sequence ranking suspended, target/identity/validity joins and later-success semantics corrected; no execution. See L04 journal. |
 | L04.5 | Additional creative reframing, explicitly authorized | completed | 2026-09-09T00:50:53Z | C07 removal-boundary and C08 configured-principal ideas; C04-G token linkage; revised method and L05 priority. No execution. |
 | L04.5(2) | Additional mechanism challenge, explicitly authorized | completed | 2026-09-09T01:19:16Z | C09 outcome-conditioned target omission; C10 process–TLS mismatch; novelty narrowed, C07/C08 reprioritized; no execution. |
-| L05 | T04 Endpoint and process hunts | pending | — | — |
+| L05 | T04 Endpoint and process hunts | completed | 2026-09-09T01:34:34Z | C11 same-hash peer/self role-bifurcation hunt created; C10 mechanism strengthened but normal Sentinel path parked; no execution. See L05 journal. |
 | L06 | T05 Identity and session hunts | pending | — | — |
 | L07 | T06 Network and local-access hunts | pending | — | — |
 | L08 | T07 Cross-source correlations | pending | — | — |
@@ -298,6 +298,26 @@ Allowed pass statuses: pending, completed, blocked. An inconclusive research res
 |---|---|---|
 | 1 | C09 — Outcome-conditioned target omission across changing addresses | Idea; in L06 compare frozen order-only templates with pruning, preserving every recurrence opportunity. |
 | 2 | C10 — Process owner versus TLS profile | Conditional idea; in L05 assess an existing sensor's unique socket/process mapping; park if unavailable. |
+
+**L05 endpoint decision:** Add C11 as the first behavior-led endpoint experiment and unknown-SDK complement to C05/C01. C11 asks whether an *unchanged exact binary* splits into different network roles across devices and time. C10's transport mechanism is strengthened by S55, but its normal Sentinel collection path is not: keep it conditional/parked unless an existing pre-NAT TLS source can be attributed uniquely to the endpoint socket. C05 remains the most immediately implementable policy hunt.
+
+| L05 priority | Candidate | Operational value | Current disposition |
+|---|---|---|---|
+| 1 experimental | C11 — same binary, different network role | Can expose conditional activation inside an unfamiliar or otherwise legitimate application without a known hash catalogue or control IOC. | **Idea with schema-grounded design; unconfirmed ingestion.** Test against same-hash peers, the same device's earlier behavior, and approved role/configuration changes. |
+| 1 practical baseline | C05 — identified proxyware execution/provenance | Smallest path to a defensible software-policy decision. | Remains specified; exact identity cannot cover unknown SDKs or prove participation. |
+| Conditional enrichment | C01 — role-valid control contact | Strong association when event-time intelligence exists. | Remains specified; no current input supplied. |
+| Park by default | C10 — process owner versus relayed TLS author | Protocol-proximate evidence of a conduit role. | Conditional research/lab idea; no native DNE fingerprint, standard ASIM TLS-fingerprint field or proven MSSP socket join. |
+
+### C11 — Same binary, different job
+
+- **Behaviour / question:** Does an unchanged executable image behave as a narrow application/service on most comparable devices, but acquire a materially different destination audience on a minority—and did the same device transition without an image change?
+- **Mechanism / evidence:** H17. S04/S55 establish that proxy capability can be embedded in an ordinary application and that Windows bandwidth-sharing applications relay third-party destinations. Enrollment, provider eligibility, configuration or tasking can therefore change the network role without changing the host executable. The exact-hash peer group holds application bytes/version constant; a same-device transition adds temporal contrast. Neither contrast identifies the cause.
+- **Required telemetry:** DeviceNetworkEvents for a sufficiently repeated exact initiating-process SHA1, with Scope, DeviceId, TimeGenerated, ActionType, LocalIP/Port, RemoteIP/Port, RemoteUrl, Protocol and process-instance fields. SHA256 can supplement but is documented as sometimes unpopulated (S56). Required table, endpoint population, hash/process-key population, comparable device-days and URL/IP coverage are unconfirmed.
+- **Optional telemetry:** DeviceProcessEvents for start/lineage and image continuity; DeviceImageLoadEvents for separately observed module identity; C01 role-valid contact; C05 catalogue/approval; customer-supplied device role, software configuration/feature flags and deployment history; C10 TLS/SNI evidence only where its sensor contract is met. Missing optional data preserves the role-divergence lead.
+- **Concrete design:** Use a fixed seven-day candidate window and preceding fourteen-day self/peer history, separately per customer. Normalize successful and attempted observations into separate lanes. Define destination key as a parsed lowercase exact hostname when valid, otherwise canonical exact RemoteIP; do not resolve names later, collapse public-suffixes without a versioned list, or treat missing names as direct-IP proof. Group by exact SHA1 and retain product/path/version as context, not identity. Require multiple covered devices before peer comparison; otherwise emit insufficient-peer-support. For each device/hash, report candidate destination keys, active hours and ports; each key's leave-one-device-out peer prevalence; overlap with that device's earlier set; and peer distribution. Rank a fixed review budget first by concurrent **peer divergence plus self-transition**, then peer-only divergence, exposing all components rather than one risk score. A low-volume device can rank if a few new destinations are exceptional for both itself and its exact-hash peers. Stable core destinations remain visible. Do not call a statistical tail a second “mode” until tested.
+- **Expected output:** Scope, device/process/hash and match quality; candidate/baseline/peer coverage; peer count; prior/current destination-set sizes and overlap; low-peer-prevalence destination examples with raw events; action/port/hour context; optional module/control/approval evidence; explanation/coverage state and next pivot.
+- **Benign alternatives and triage:** The strongest twin is an approved forwarder or security agent enabled on only some devices. Other alternatives are browser/WebView helpers, cloud sync/conferencing/P2P, geography or feature flags, server/client roles, user configuration and staged rollout. Verify exact hash and coverage, then device role/configuration, authorization, process lineage/modules and raw connections. A hit establishes role divergence for identical bytes under inspected coverage. It establishes neither relaying, lack of consent, malware, local exposure nor account/session compromise.
+- **Readiness / decisive test:** **Idea with schema-grounded design; unconfirmed ingestion; hunt-only.** In an authorized isolated lab, run the same instrumented binary build on matched nodes with its controlled local forwarding feature disabled/enabled; include an approved forwarder, browser, updater, sync/conferencing and P2P controls. Compare C11 at one review budget with simple destination count, peer-only contrast and C01 contact-only. Reject the claimed benefit if the self-plus-peer contrast adds no useful separation or mostly sorts ordinary role/configuration differences. Park tenant use where repeated exact hashes or comparable coverage are absent. No such test or collection occurred in L05.
 
 **Common contract.** Windows and cutoffs below are proposed design values, not measured thresholds. Use non-overlapping baseline and candidate periods; never turn absent required data into a negative result. Optional evidence must not suppress a primary lead. Each workspace/customer remains a separate scope; do not join different tenants by UPN or IP. An empty name, client field or process key is unknown, not an anomalous value. Readiness labels remain: idea; specified with unconfirmed ingestion; specified with confirmed ingestion; tested in a labelled lab/synthetic setting; runtime-tested in a named authorized environment; rejected. Any future alert additionally needs calibration, cost/runtime checks, adjudicated controls and a separate deployment review.
 
@@ -393,7 +413,8 @@ L04 adds on-paper controls and triage to C05/C01/C06. L04.5 adds lifecycle/owner
 | H14 | Stable token linkage can connect suspicious Graph requests to authentication across egress changes more precisely than user/IP/time alone. | supported as a documented mapping; detection benefit proposed in C04-G | S44–S46 document fields, collection and case-sensitive UTI join. | Population, tenant mapping and multiplicity unverified; shared tokens/concurrent legitimate workers prevent replay proof. | Reconstruct an approved multi-egress workflow and an independently confirmed misuse example; compare with request-only triage. |
 
 | H15 | Outcome-conditioned omission within repeated target sequences can expose adaptive scheduling despite changing IPs. | proposed; C09 | S50 establishes one tool's pruning behavior; detector is an inference. | Shared directory state, approved jobs, input exhaustion, ordering and collection gaps; no causal proof. | Held-out incremental value over order-only ranking, with all opportunities and shuffled-outcome controls. |
-| H16 | Unexpected process–TLS relationships can prioritize possible relay participation without known control infrastructure. | proposed adaptation; C10 | S52 supports blind forwarding; S54 establishes attribution prior art. | Multi-stack/delegating applications and ambiguous sensor joins; novelty of the primitive rejected. | Controlled relay/direct/multi-stack comparison after proving tuple attribution. |
+| H16 | A TLS fingerprint observed on a socket attributed to a relay process may belong to an upstream client, exposing application-role mismatch. | mechanism strengthened, operational branch conditional/parked in L05; C10 | S55 directly observes target-facing customer TLS fingerprints through Windows proxy nodes; S52/S53 support forwarding/sensor fields; S54 establishes prior art. | S55 required dedicated packet capture; shared TLS engines collide. DNE has no JA4 and standard ASIM supplies no causal process/TLS key. Approved forwarders and multi-stack apps remain twins. | Reopen operationally only with an existing pre-NAT/on-host TLS source and unique tuple/process attribution; then run controlled relay/direct/multi-stack comparison. |
+| H17 | An unchanged exact binary that diverges from same-hash peers and its own prior destination audience may expose conditional acquisition of a relay-like network role. | proposed in L05; C11 | S04 documents embedded SDK/task activation; S55 observes varied third-party destinations through Windows proxy apps; S56 supplies process/hash/destination fields. | Approved forwarders, security agents, feature flags, geography and device roles can be observational twins. Repeated exact hashes and comparable coverage may be unavailable. This detects divergence, not proxying or intent. | Controlled identical-build forwarding-disabled/enabled comparison against benign role/configuration controls; compare with destination count, peer-only and contact-only baselines. |
 
 Use proposed, supported, weakened, rejected, merged, or unresolved. Record reasons for transitions; repeated mention does not increase confidence.
 
@@ -508,6 +529,18 @@ All accessed **2026-09-09 UTC**; source inspection only. S09/S11 schemas were re
 | S53 | [Suricata 8.0.6 EVE format](https://docs.suricata.io/en/suricata-8.0.6/output/eve/eve-json-format.html); versioned documentation | Flow tuples/context and explicitly enabled TLS JA3/JA4 fields; no Sentinel ingestion or join is established. |
 | S54 | [Cisco: TLS fingerprinting in the real world](https://blogs.cisco.com/security/tls-fingerprinting-in-the-real-world); 2019-04-29 | Already combines endpoint process/OS and network fingerprints; limits C10 to an adaptation, not a new attribution primitive. |
 
+### L05 source additions — endpoint role bifurcation and C10 feasibility
+
+All accessed **2026-09-09 UTC**. This was a bounded endpoint/prior-art check, not an exhaustive novelty review.
+
+| Source ID | Direct source and date | Contribution | Limit |
+|---|---|---|---|
+| S55 | [Khan et al., “A First Look at User-Installed Residential Proxies From a Network Operator's Perspective”](https://opendl.ifip-tc6.org/db/conf/cnsm/cnsm2024/1571050912.pdf), CNSM 2024 | Primary controlled study ran eight Windows bandwidth-sharing applications for 7.5 months and inspected 13.82M flows/368GB using 5-tuples, SNI and JA4. It observed relayed destination variety and explains that a target-facing TLS fingerprint can belong to the remote proxy customer. This directly supports C10's authorship mechanism and C11's destination-audience premise. | Dedicated VMs and packet capture supplied ground truth unavailable in ordinary DNE. One provider showed about 20,000 FQDNs, not a transferable threshold. JA4 clients collide when software shares a TLS engine; SNI/context were required. Single nodes/ISP classifications limit generalization. |
+| S56 | [Microsoft: DeviceNetworkEvents](https://learn.microsoft.com/en-us/azure/azure-monitor/reference/tables/devicenetworkevents), revised 2026-07-27 | Officially documents endpoint process hash/identity plus local/remote address, port, URL, protocol and event time needed by C11. | No bytes, TLS fingerprint or guaranteed ingestion/population. SHA256 can be empty; use exact SHA1 where available. |
+| S57 | [Microsoft: DeviceImageLoadEvents](https://learn.microsoft.com/en-us/azure/azure-monitor/reference/tables/deviceimageloadevents), revised 2026-08-27 | Possible optional evidence for a DLL loaded by the process, with initiating-process identity and file hashes. | Collection/population are unconfirmed; absence of an image-load row cannot establish an SDK was absent. Static linking and unobserved loads remain outside it. |
+| S58 | [Microsoft: ASIM Network Session schema](https://learn.microsoft.com/en-us/azure/sentinel/normalization-schema-network), schema 0.2.7, accessed 2026-09-09 | Distinguishes endpoint, intermediary, flow and IDS observations; supports explicit topology/source semantics and custom parsers. | The inspected standard schema does not supply a native JA4/JA3 field or endpoint-process-to-TLS causal key. AdditionalFields cannot be treated as a portable contract. |
+| S59 | [MITRE ATT&CK DET0325](https://attack.mitre.org/detectionstrategies/DET0325/), created 2025-10-21; modified 2026-05-12 | Existing prior art includes unusual processes, proxy destinations, lineage and high-entropy/high-volume connections. | C11's proposed contribution is the within-exact-binary peer/self contrast, not the generic anomaly primitive. Its novelty and efficacy remain unproved. |
+
 ### Starting research leads
 
 These links emerged in the initial conversation. Re-read the relevant source before relying on a claim; this list is not a validated evidence ledger.
@@ -524,7 +557,7 @@ These links emerged in the initial conversation. Re-read the relevant source bef
 
 ## Findings journal — append one section per pass
 
-L01–L04 and the additional L04.5 pass are recorded below. Append later passes without replacing earlier findings.
+L01–L05 and the additional L04.5/L04.5(2) passes are recorded below. Append later passes without replacing earlier findings.
 
 For each entry use: loop/task identifier; execution time in UTC; question and result; new evidence; mechanism and assumptions; challenge; changes to the hypothesis and candidate registers; hunt/specification changes; handoff. Preserve earlier entries. Add corrections with attribution to the later pass that found them.
 
@@ -1031,17 +1064,55 @@ S46 maps the case-sensitive Graph `SignInActivityId` to the token's UTI and docu
 
 **Execution boundary.** Public-source inspection, synthetic examples and independent reasoning only. No query, fixture evaluator, packet experiment, tenant investigation or production change ran. L05 remains the next numbered task.
 
+### L05 — Endpoint role bifurcation and the TLS collection verdict
+
+**Executed:** 2026-09-09T01:34:34Z UTC (research checkpoint; completion depends on the accompanying successful commit).  
+**Task:** T04 only. Read current main including L04.5/L04.5(2), all registers/state/handoff, repository contract and applicable READMEs. Rechecked primary proxy measurements, official Sentinel/MDE schemas and bounded prior art. No agent delegation was used because the current execution instructions did not authorize it. **No KQL, fixture, packet experiment, tenant query, collector change, binary or production action ran.**
+
+**Question and result.** The best endpoint experiment is no longer “find a process with many destinations.” It is **C11: find an unchanged exact binary whose network role bifurcates across otherwise comparable installations, especially when one device also changes relative to its own past without a hash change.** The process is its own control and its same-hash peers are the second control. This can reveal conditional proxy activation inside an unfamiliar host application without requiring a known proxyware catalogue or live control IOC. It still detects a role difference, not maliciousness.
+
+C10's mechanism survives more strongly than its collection path. S55 directly observed target-facing TLS fingerprints belonging to traffic authors upstream of user-installed Windows proxy nodes, which is the “process owns TCP; another client authored TLS” relationship. But that study used exhaustive packet capture on dedicated VMs. DeviceNetworkEvents has the attributable socket fields but no TLS fingerprint; ASIM's standard network schema does not create the missing causal join. Therefore C10 is **parked by default** for ordinary Sentinel workspaces and retained only where an already deployed, pre-NAT/on-host TLS source can be uniquely joined. New collection is outside this programme.
+
+**Why C11 is different.** A relay imports somebody else's destination choices. Generic destination diversity confuses that with browsers, updaters and P2P. C11 instead asks whether identical program bytes have two operational lives: a dominant service-coherent life and a minority “foreign audience” life. The peer comparison controls version and image identity. The same-device comparison controls long-standing purpose and flags a transition. Their intersection is the important observation; no single fan-out cutoff is proposed.
+
+The causal claim is deliberately narrow. Google documents SDKs embedded into existing applications and provider tasking (S04). S55 demonstrates that voluntarily installed Windows proxy applications emit large and varied third-party traffic, but also shows why a fingerprint or destination count is insufficient. Provider eligibility, geography, feature configuration and customer demand can make the same authentic binary behave differently without compromise. An approved forwarder enabled on only some machines is an exact observational twin. C11 is consequently a **network-role hunt**, with authorization and compromise as later, separate decisions.
+
+**Concrete hunt contract.** The full card is in the register. Use exact process SHA1 as the cohort identity, not filename/signature/product metadata; retain those as context. Compare seven candidate days with fourteen preceding days, per customer, using only periods with described coverage. A hostname and fallback IP are separate exact destination identities; missing names stay missing. For every device/hash expose leave-one-device-out destination prevalence, same-device set transition, peer distribution, raw examples and coverage. Do not hard-code a “relay score”; return a fixed review budget in two lanes—peer-plus-self divergence, then peer-only—and measure whether the first lane improves analyst decisions. Quiet relays remain eligible because a small number of destinations can be exceptional to both controls.
+
+The minimum data question is: are there enough covered devices running the same SHA1 for a peer comparison, and is the same device observed across both windows? Where only one installation exists, C11 loses its key control and falls back to a labelled self-transition description; it must not call itself bifurcation. Where SHA1/process attribution is missing, it is unassessable. Optional process creation, module load, C01 intelligence and approval context cannot gate the primary result.
+
+**Challenge and disconfirmation.**
+
+| Candidate explanation | What C11 sees | What separates the decision |
+|---|---|---|
+| Conditional embedded relay, authorized or hidden | Same-hash minority plus possible self-transition | Controlled forwarding/task evidence for participation; authorization and install provenance for consent/compromise |
+| Approved forward proxy/security agent on selected devices | Potentially identical role split | Device role/configuration and approved service ownership; this is the strongest benign twin |
+| Browser/WebView or user-driven P2P | Broad audiences on many or behaviorally varied peers | Peer distribution, application role and user/configuration context; no automatic exclusion |
+| Feature rollout, geography or server/client role | Same-hash subset divergence | Dated rollout/config/device-role evidence |
+| Trojanized sibling process | Proxyware process may remain ordinary while sibling is malicious | Independent process/lineage evidence; C11 cannot transfer behavior between processes |
+| Quiet/intermittent relay | Few exceptional destinations, possibly no broad fan-out | Exact raw events and controlled ground truth; absence of divergence is not proof of no relay |
+
+The decisive test uses one controlled binary build across matched isolated nodes, enabling a local synthetic forwarding feature on a subset, plus the benign controls above. Compare fixed-budget decisions against plain destination count, peer-only contrast and contact-only C01. Reject C11's claimed contribution if the two-control intersection merely ranks legitimate roles/configuration or adds no analyst value. This test is designed only; it was not executed. It requires no public proxy node or commercial purchase.
+
+**Candidate/hypothesis changes.** C11 and H17 are created. C11 becomes the leading creative endpoint experiment; C05 remains the practical known-file/policy baseline and C01 remains the intelligence-led association path. H16/C10 are strengthened at the mechanism layer by S55 but weakened operationally: the normal Sentinel dependency is missing, so the branch is parked absent an existing attributable TLS sensor. C07/C08 remain governance reserves. No existing candidate is promoted to a detection or production rule.
+
+**Prior-art and novelty boundary.** S59 already describes unusual process/network behavior and process lineage for external proxies. S55 and earlier C10 sources already use TLS fingerprints and destination context. C11's potentially useful contribution is only the same-image, cross-device-plus-self role contrast applied to conditional relay activation. This pass found no inspected source implementing that exact operational comparison, but the search was bounded and that is not a novelty proof. Operational usefulness must survive the controlled comparison and later L10 review.
+
+**Handoff to L06.** Take C09 first: test whether outcome-conditioned target omission supplies value beyond repeated target order and ordinary directory/job changes. Preserve its independent opportunity denominator and hidden-state caveats. C04-G is the more precise workload alternative if MicrosoftGraphActivityLogs and token mapping are actually available; absence remains a blocker for that branch. Carry C11's lesson into identity work: seek a conserved actor/state contrast, not another pile of IP anomalies. Execute L06 only next.
+
+
 ## Current handoff
 
-**Next pending numbered pass: L05 / T04 — Develop endpoint and process hunts.**
+**Next pending numbered pass: L06 / T05 — Develop identity and session hunts.**
 
-L01–L04 plus manual L04.5 and L04.5(2) are complete: **4 of 15 numbered passes**. Read the latest short journal first. No query, fixture evaluator, packet experiment or tenant investigation has run.
+L01–L05 plus manual L04.5 and L04.5(2) are complete: **5 of 15 numbered passes**. L05 created C11, “same binary, different job”: an exact-hash peer split plus same-device transition intended to expose conditional network-role activation. It is a hunt idea with unconfirmed ingestion and no execution. C05 remains the practical endpoint baseline. C10's relay/TLS-authorship mechanism gained primary support from S55, but the Sentinel path is parked unless an existing pre-NAT/on-host TLS source has a unique process/socket mapping; DNE and standard ASIM alone do not provide it.
 
-For L05, challenge C10's endpoint/socket attribution and realistic TLS collection path; preserve the approved-forwarder and multi-stack controls. If that dependency is unavailable, park the branch explicitly and retain C05 as the practical baseline. C07/C08 are governance reserves, no longer the primary creative bets. Do not relabel established process fingerprinting as novel.
+For L06, lead with C09. Ask whether a repeated target stream changes *after* a consequential outcome while neighboring activity continues across addresses. Freeze patterns before examining outcomes, count every independent recurrence opportunity, preserve B's activity elsewhere, and compare against order-only, shuffled-outcome, approved-job, directory-state and input-exhaustion controls. Result codes do not prove attacker receipt or causal knowledge. A hit is adaptive-scheduling evidence at most, not proxy transport or account compromise.
 
-Carry C09 to L06 as the first identity research question: does outcome-conditioned omission improve on repeated target order alone? Define recurrence opportunities independently of omissions; preserve complete denominators and B's activity elsewhere. Tool-level pruning is evidenced; its visibility and value in tenant logs are not. C04-G remains a conditional workload pivot.
+Also assess C04-G only if its documented MicrosoftGraphActivityLogs/token dependency produces a materially stronger session/workload decision. Do not substitute approximate user/IP/time joins for absent token linkage. C06 remains a descriptive baseline with its benign observational twin.
 
-Save one material candidate change or rejection per next numbered pass. Keep outputs compact, reuse the shared contract, and do not add candidates to fill a quota. Fetch main and its SHA before writing, preserve concurrency and stop if the selected pass is already complete. Scope remains research-file-only; deployment and collection changes require separate authorization.
+Actual customer ingestion, directory/activity-ID coverage, token/Graph collection, comparable history, approvals and proxy intelligence remain unknown. No runnable module, collection change, public-node interaction or deployment is authorized. Re-fetch current main and SHA before saving; preserve concurrent changes and stop if L06 is already complete. Execute exactly one next pass.
+
 
 ## Reusable invocation
 
