@@ -6,7 +6,7 @@
 **Canonical file:** threat-work/research/resprox-research-loops.md  
 **Original sources:** [ResProx](./ResProx)  
 **Created:** 2026-09-08  
-**Readiness:** L14 independently challenged the L13 portfolio. C11 remains the nearest implemented field-value experiment only after case bundling and denominator correction; an adverse synthetic panel cut useful K=20 cases from 20 to 10, while a hostname-row budget collapsed 20 rows to one benign high-fanout case. C05 is an input-gated governance baseline, not the first practical run until a reviewed compatible-hash catalogue and effective approval register exist. C01+C13 leaves the active field shortlist pending instrumented task mapping: a repeated benign timer defeats its shifted-placebo check. C10 is rejected for ordinary Sentinel telemetry and retained only as a gated instrumentation study. The breakthrough slate remains empty. A13 ran 20 deterministic accounting/intervention assertions twice; no KQL, Kusto-engine, sensor, lab, customer or tenant execution occurred.
+**Readiness:** Programme complete. L15 concludes that the practical-hunt objective produced a defensible conditional portfolio, but the requested distinctive “lightning bolt” did not survive falsification. C11 is the first feasible experiment only where DeviceNetworkEvents has sufficient SHA1/name/history coverage and only after hostname evidence is bundled into investigation cases; C05 is an input-gated software-governance baseline; C04-G is a conditional identity investigation. C01+C13 and C12 require new or verified instrumentation, C06 is a generic credential-failure hunt rather than residential-proxy attribution, and C02/C03/C09/C10 are rejected or parked under their recorded dependencies. No candidate is production-ready. Static checks and deterministic constructions are engineering evidence only; no KQL/Kusto-engine, sensor/lab, customer/tenant or field-efficacy validation occurred.
 
 ## Run accounting and scheduling
 
@@ -268,12 +268,12 @@ Lead with the ranked detection/hunt portfolio. For each shortlisted candidate st
 
 ## State — update after each saved pass
 
-**Programme status:** in progress; L01–L13 plus additional L04.5 and L04.5(2) completed (13 of 15 numbered passes)  
-**Next pass:** L14 / T13 — Independent challenge of the hunt portfolio  
-**Last completed pass:** L13  
-**Last result journal entry:** [L13 — Exact-build value lives in the displaced review slots](#l13--exact-build-value-lives-in-the-displaced-review-slots)  
-**Unresolved execution blocker:** none; L13 ranked three survivors, reused the merged C11 module, verified its comparison algebra with A12 and froze decisive field/sensor protocols. No KQL, Kusto-engine, sensor, lab or tenant test ran.  
-**Research-data blockers:** The breakthrough slate remains empty. C11 field value needs authorized execution of the merged coverage/back-test queries plus blinded adjudication; absent SHA1, new/upgraded builds, sparse named history and missing candidate hostnames must be counted outside matched results. A12 proves only set relations and expected null paths. C05 still requires a reviewed catalogue and event-time approval register. C01+C13 requires current role-valid control and proxy-readiness tuples, repeated event mapping and an authorized timer/intervention test; persistent sockets or unrecoverable mappings park it. Actual table/category ingestion, retention, field population, runtime and review yield are unconfirmed. C12/C03 retain client-answer/topology/receiver blockers; C02 requires flow counters/mapping; C10 lacks attributable TLS; C04-G/C06 retain their recorded dependencies.
+**Programme status:** complete; L01–L15 plus additional L04.5 and L04.5(2) completed (15 of 15 numbered passes)  
+**Next pass:** none — programme complete  
+**Last completed pass:** L15  
+**Last result journal entry:** [L15 — Useful hunts, no defensible lightning bolt](#l15--useful-hunts-no-defensible-lightning-bolt)  
+**Unresolved execution blocker:** none for programme completion; every surviving candidate has an explicit external input or validation gate. No production promotion is authorized.  
+**Research-data blockers:** C11 lacks verified tenant DNE/hash/name/history coverage, a case-bundled evaluator, Kusto runtime evidence and independent adjudication. C05 lacks a reviewed compatible-hash catalogue and event-time approval register. C04-G lacks confirmed Graph ingestion/linkage population and labelled multi-egress/misuse cases. C01+C13 lacks current controller intelligence plus independent task/readiness/target mapping; C12 lacks client-attributed DNS/receiver truth. No field precision, recall, review-cost or prevalence estimate exists.  
 
 | Loop | Task | Status | Last updated UTC | Result / blocker |
 |---|---|---|---|---|
@@ -293,7 +293,7 @@ Lead with the ranked detection/hunt portfolio. For each shortlisted candidate st
 | L12 | T11 Unconventional hunt opportunities | completed | 2026-09-09 | C13 control-to-work pulse added as a provisional C01-ranking experiment; shared/disjoint audiences survived A11, but updater/approved-forwarder twins and persistent-socket visibility prevent a relay verdict. 15 assertions; no KQL/tenant run. |
 | L13 | T12 Portfolio and experiments | completed | 2026-09-09 | Three survivors selected: C05 practical, C11 field experiment, C01+C13 conditional. A12 proved matched-support subset semantics and exclusions across 91 checks; decisive fixed-budget and sensor protocols frozen. No KQL/tenant run. |
 | L14 | T13 Independent hunt review | completed | 2026-09-09T10:49:43Z | Independent model critique plus A13 adverse controls: C11 rebundled to cases and denominator-corrected; C05 demoted to input-gated governance; C01+C13 removed from active field ranking; C10 rejected for ordinary Sentinel. 20 assertions twice; no KQL/tenant execution. See L14 journal. |
-| L15 | T14 Final hunt brief | pending | — | — |
+| L15 | T14 Final hunt brief | completed | 2026-09-09T11:34:24Z | Final ranked field brief and decision path saved. Useful conditional hunts survived; no distinctive breakthrough survived. C11 first feasible experiment after case bundling; C05/C04-G input-gated; C01+C13/C12 instrumentation-gated; no production candidate or field validation. |
 
 Allowed pass statuses: pending, completed, blocked. An inconclusive research result may still complete a task if its question was investigated and its limits documented.
 
@@ -302,6 +302,8 @@ Allowed pass statuses: pending, completed, blocked. An inconclusive research res
 **L02 decision:** Six candidates retained; C05, C01 and C06 are the first specification shortlist, in that order. This is an implementation-effort ranking, not a measured precision ranking. **L03 update:** C05/C01/C06 are **specified with unconfirmed ingestion**; C04/C03/C02 remain **idea**. No tenant ingestion, runtime, synthetic execution, efficacy or deployment is established. L02 revises the L01 seeds; the L01 findings below remain historical. **L04 update:** The three specifications now have synthetic expected-result/triage sheets and explicit corrections in the L04 journal; no fixture evaluator ran. C01 loses automatic sequence-first ranking; C05 gains evidence-conflict/history safeguards; C06 gains all-outcome baseline and distinct-later-activity handling. All remain specified with unconfirmed ingestion.
 
 **L14 current override:** The historical L02/L04 ranking below is retained for provenance. Current order is by verified input availability, not raw hit volume: C11 is the first implemented feasibility experiment only after case-level bundling and denominator correction; C05 is a conditional governance baseline once its catalogue and effective-approval inputs exist; C04-G is the identity reserve where Graph linkage exists. C01+C13 is sensor/lab-gated, C10 is rejected for ordinary Sentinel telemetry, and no candidate is field-validated or production-ready.
+
+**L15 final disposition:** The final standalone portfolio is in the L15 journal. C11, C05 and C04-G are the three practical choices conditional on their verified inputs. C01 contact remains useful only with current role-valid intelligence; C13 and C12 require instrumentation. C06 may be pursued as a generic identity hunt but is not evidence of residential-proxy transport. No candidate is promoted to detection or production readiness, and the breakthrough slate closes empty.
 
 | Rank | ID / problem | Why spend effort here | Principal limitation | Current disposition (L04) |
 |---|---|---|---|---|
@@ -488,7 +490,7 @@ L04 adds on-paper controls and triage to C05/C01/C06. L04.5 adds lifecycle/owner
 
 | ID | Precise claim and mechanism | Status | Supporting evidence | Counterevidence / assumptions | Next discriminating observation |
 |---|---|---|---|---|---|
-| H00 | The ingredients yield no useful contribution beyond existing knowledge. | unresolved; useful adaptation survives, distinctive contribution unproved | L10 finds established ingredients in S79–S83 and a narrower exact-build destination-membership residual. | A bounded search cannot certify uniqueness; A08 found no clear K=3 ranking win and approved twins remain. | L11 tests whether peer normalization erases the residual as participation spreads; independent field benefit is still required. |
+| H00 | The ingredients yield no useful contribution beyond existing knowledge. | rejected for practical utility; supported for the stronger breakthrough claim | C11 supplies a bounded exact-build-versus-application measurement experiment; C05 and C04-G supply useful integration/governance paths. L09–L14 repeatedly rejected claimed discrimination, ranking and causality increments. | Utility remains unmeasured in a tenant, and a bounded prior-art search cannot certify global uniqueness. No candidate proved relay participation or a distinctive detection mechanism. | Run the input-gated field experiments. Reopen a novelty claim only if independent evidence shows a decision improvement that simpler baselines cannot reproduce. |
 | H01 | Residential-proxy-related activity increased in measured datasets, and proxy-derived malicious infrastructure also expanded; these are distinct observations. | supported within source scope | S06 reports growth of DDoS-active botnet endpoints; S07 reports growing proxy-related DNS volume over its stated interval. | Neither establishes one global abuse-growth rate. Coverage, legitimate demand, address churn and measurement units differ. | Obtain a stable cohort/denominator before interpreting any local hunt trend as rising abuse. |
 | H02 | Role-valid same-process control association can seed a relay hunt; ordering might add investigative context. | proposed; ranking claim weakened in L04 | S04/S09/S10/S28/S29 plus N01–N12 on-paper controls. | Identical approved/other client observations can yield the same tuple; conflicting intel, route and block associations prevent stronger conclusions. | L05: seek discriminating endpoint evidence; later compare adjudicated contact-only versus enrichment. Sequence-first ranking suspended meanwhile. |
 | H03 | Source-aware flow changes can prioritize unmanaged devices only where one real source supplies event-time identity, intervals and directional counters. | proposed but input-gated; C02 parked | S03 supports the proxy-supply mechanism; S12/S70 document possible fields and distinct observation types. | Generic Sentinel availability is false; NAT/DHCP ambiguity, cumulative counters and mixed Flow/Session events can invalidate measurement. Traffic change is nonspecific. | Validate one customer/vendor record contract with counter-reset, aggregation, NAT and benign role controls before KQL. |
@@ -748,6 +750,7 @@ Accessed **2026-09-09 UTC**. Repository artifacts were fetched from current main
 | S95 | [Suricata EVE JSON format](https://docs.suricata.io/en/latest/output/eve/eve-json-format.html) | Accessed 2026-09-09 | flow_id correlates Suricata protocol, flow, alert, file and anomaly events for one session/flow. | The documented record does not provide a Defender endpoint process-start key; a reliable sensor-to-process join remains an external prerequisite for C10. |
 | R01 | Independent L14 model review of the latest research file and merged C11 module | Executed 2026-09-09 before reading the planned response | Separately identified the C11 row-budget/denominator defects, C05 missing decision inputs, C13 causal/sensor limits and C10 process-join gap. | Independent model critique, not human peer review, public PR review, new empirical evidence or tenant execution. |
 | A13 | [L14 adverse accounting and timer construction](#l14--one-application-is-one-investigation-the-timer-survives-the-placebo), executed 2026-09-09 | Twenty assertions passed twice byte-identically. Script SHA-256 `73bb9adfed90424ad28f153666a9097ccf4a7897f4d6d459d4de8601a5ec10e5`; output SHA-256 `dea076496c8f9675947b31370b25999e54fe09f70d23fd8c8f39d23da46dd6fc`. | Constructed accounting/intervention counterexamples only; no KQL, Kusto, sensor, customer, analyst or tenant test. |
+| A14 | [L15 final evidence/readiness audit](#l15--useful-hunts-no-defensible-lightning-bolt), completed 2026-09-09 | Reconciles the complete candidate, hypothesis, source, validation and rejection record into a field decision path. No new empirical evidence was generated. | Synthesis only. Static/parser checks, A12 algebra and A13 counterexamples remain engineering evidence; none is Kusto, sensor, tenant or field-efficacy validation. |
 
 ### Starting research leads
 
@@ -2648,20 +2651,150 @@ State separately whether the programme produced useful work and whether it produ
 Q06 was current and its next checkpoint was not due when L14 began. No direction-review write occurred. No KQL, Kusto-engine, sensor, lab, customer, analyst or tenant execution occurred in L14.
 
 
+
+## L15 — Useful hunts, no defensible lightning bolt
+
+### Executive verdict
+
+The programme produced **useful detection-engineering work**, but it did **not** produce the requested distinctive lightning-bolt idea. By that stricter novelty standard, the programme failed. The honest value is narrower: one implemented-but-not-yet-correctly-accounted endpoint back-test, one straightforward software-governance hunt, one precise token-linked identity investigation, and several well-defined reasons not to deploy attractive but unsupported ideas.
+
+No result proves residential-proxy participation, unauthorized use, surrounding-network exposure, endpoint compromise or session compromise by itself. No candidate is a production detection. No KQL/Kusto-engine, sensor/lab, customer/tenant or field-efficacy test occurred.
+
+### Choose by verified input, not by hit count
+
+| Order | If this input genuinely exists | Do this next | Type / readiness | Stop or kill condition |
+|---|---|---|---|---|
+| 1 | DeviceNetworkEvents with usable process SHA1, target names, action semantics and 21 days of comparable history | Run C11 coverage, correct the evaluator to bundle hostname evidence into cases, then compare K=20 independently adjudicated cases against ordinary application history | Hunt experiment; implementation exists but evaluation correction and field validation remain | Retire exact-build conditioning if exclusions dominate, C11-only cases are mostly version/missingness artefacts, or decisions/review time do not improve |
+| 2 | DeviceProcessEvents plus a reviewed compatible-hash software catalogue and event-time effective approvals | Run C05 at one deployment/install episode per device/product/hash/path | Governance hunt; possible future policy analytic after validation | Do not run if catalogue hashes are not populated or approval semantics cannot support a decision; drop enrichment if it beats no exact-hash baseline |
+| 3 | MicrosoftGraphActivityLogs with populated token linkage and appropriate licensing | Run C04-G around an analyst-selected Graph action and compare with request/rule-only triage | Conditional identity investigation; not residential-proxy detection | Remove the recurrence/egress facet if approved multi-egress workers reproduce it or it changes no decision |
+| 4 | Current role-valid controller tuples and independently mapped task/readiness/target events | Retain C01 contact-only; test C13 only in an authorized instrumented intervention | C01 conditional hunt; C13 research/lab only | Park on persistent sockets/missing mapping; reject C13 if a fixed timer or unchanged C01 decision explains it |
+| 5 | Client-attributed DNS answers plus same-process transport and receiving-service truth | Test C12's local-reach interpretation | Instrumentation-gated exposure investigation | Keep only weaker name/special-peer context when client-answer or receiver mapping is absent; never infer compromise |
+
+If none of those inputs exists, do not force a residential-proxy hunt from SigninLogs, generic connection counts, familiar IPs or historical domains. C06 may still be useful as an ordinary sparse credential-failure hunt, but it cannot attribute residential-proxy transport.
+
+### 1. C11 — observed-build audience change
+
+**Behaviour and mechanism.** Find an already-networking application whose current observed SHA1 contacts target names not seen for that same device/path/name/SHA1 in the prior baseline. Conditional SDK activation could create that audience change, but upgrades, reversions, configuration, feature flags, geography, CDN behaviour and missing hashes are direct alternatives.
+
+**Required telemetry and window.** DeviceNetworkEvents; one customer/workspace at a time; one verified action lane; 14-day baseline plus 7-day candidate window. Require DeviceId, time, action, process path/name, initiating-process SHA1, RemoteUrl and process-instance fields where populated. First verify action, SHA1, name and active-day coverage with the merged [coverage query](../hunts/endpoint/resprox-c11/coverage.kql). Use a bounded materialized projection when the same DNE slice is reused.
+
+**Optional telemetry.** DeviceProcessEvents for lineage/version/size, created-image certificate evidence through the documented hash join, approval/configuration records, and role-valid controller evidence. SHA256 can corroborate identity where populated but Microsoft documents that it is usually absent in DeviceProcessEvents.
+
+**Concrete logic.** The existing [back-test module](../hunts/endpoint/resprox-c11/README.md) compares application and current-build history, but its hostname rows are evidence items. Before field evaluation, group them into one case keyed by scope + DeviceId + AppPath + AppName + current observed SHA1. Preserve application-new, C11-only, shared and unchanged hostname sets plus witnesses inside the case. Count separate application/build populations and all missing-name/hash/history exclusions. Give each method K=20 cases under the same method-independent order; review the union once.
+
+**Expected output and triage.** One application/build case with coverage state, prior/current host sets, first/last witnesses, action/port context, exclusion status, optional version/configuration/approval context, reviewer disposition, decision change and review minutes. Triage application ownership, rollout/version/configuration and raw target semantics before proxy hypotheses.
+
+**What a hit establishes.** An observed destination-audience change under one recorded SHA1 and the inspected coverage. It does not establish exact byte identity, relay participation, consent, exposure, malware or account/session compromise.
+
+**Readiness and validation.** First feasible hunt experiment, not a detection candidate. Static parser/schema binding and A12's 91 algebra checks do not validate Kusto execution or utility. A13 showed the accounting failure: K=20 hostname rows can be one benign case. A separate reviewed change must implement case bundling or an equivalent controlled post-processing step before the tenant back-test.
+
+### 2. C05 — identified proxyware execution and provenance
+
+**Behaviour and mechanism.** Find execution of a reviewed proxy-capable artifact, then decide whether its installation was authorized and whether an independently malicious installation chain exists. This is direct software governance, not behavioural relay detection.
+
+**Required telemetry and window.** DeviceProcessEvents, preferably a 7-day candidate window; created-image exact hash populated for the catalogue's algorithm; catalogue source/review metadata; and event-time effective approval/policy. The saved catalogue has only one historical SHA256 seed, so it is not operationally complete.
+
+**Optional telemetry.** Twenty-one days of execution history, DeviceNetworkEvents, DeviceFileCertificateInfo joined on the created image's SHA1, installation/persistence evidence and independently identified sibling payloads. Initiating-process signature fields describe the initiator, not automatically the created image.
+
+**Concrete logic.** Match exact created-image hashes; keep metadata-only leads separate and never use filename alone. Deduplicate starts into one scope/device/product/hash/path deployment episode. Label first-seen/history, approval and malicious-chain evidence independently.
+
+**Expected output and triage.** Device, episode time, artifact/hash/match source, path, parent/install context, event-time approval state, optional network evidence and next owner/action. Approved authentic software is benign for the policy question but does not prove no forwarding; absent approval is unknown, not prohibited; a malicious sibling escalates its own chain.
+
+**What a hit establishes.** Sensor-observed execution of the catalogued artifact, plus only the separate authorization or malicious-chain facts actually joined. It does not establish current proxy participation, lack of consent, bundling, endpoint compromise or session compromise.
+
+**Readiness and validation.** Input-gated governance specification; possible policy analytic only after catalogue and approval validation. Compare the enriched episode decision with an exact-hash execution baseline across P01–P11 controls. If the inputs cannot resolve ownership/action, do not operationalize it.
+
+### 3. C04-G — exact-token Graph workload timeline
+
+**Behaviour and mechanism.** Start from an interesting Graph request, such as inbox-rule creation, and follow the same token identifier through nearby workload requests while retaining origin changes. This avoids using IP familiarity as a proxy for session continuity.
+
+**Required telemetry and window.** MicrosoftGraphActivityLogs with AadTenantId, account/app, TimeGenerated, RequestId, method, URI, status and nonempty SignInActivityId. Use a 24-hour seed horizon and reconstruct the same token within ±30 minutes. Collection/licensing and field population are unconfirmed.
+
+**Optional telemetry.** SigninLogs over a declared 14-day authentication lookback, joined case-sensitively where documented SignInActivityId equals UniqueTokenIdentifier and tenant/account/app scope agrees. Preserve missing or conflicting matches rather than suppressing the Graph timeline.
+
+**Concrete logic.** Seed on an analyst-selected operation, deduplicate identical RequestId observations without hiding conflicts, order the token's request families, and expose A→B→A→B or other egress recurrence as context. Do not coalesce similarly named token/session fields without verified semantics.
+
+**Expected output and triage.** One token-linked timeline with seed operation, request outcomes/locators, exact authentication matches, egress sequence, join conflicts and coverage. Check approved application architecture, pooled workers and gateway routing before misuse.
+
+**What a hit establishes.** Recorded requests linked by the documented token identifier. It does not establish token theft, multiple physical clients, residential-proxy use or successful malicious impact.
+
+**Readiness and validation.** Conditional investigation refinement, not detection. Compare an approved multi-egress worker and an independently confirmed misuse case against simpler request/rule-only triage. Remove the origin-recurrence facet if it changes no decision.
+
+### 4. C01 with C13 — controller contact; timing remains laboratory-only
+
+**Behaviour and mechanism.** C01 finds a managed process contacting infrastructure independently verified as proxy bootstrap/control. C13 hypothesizes that repeated task polling is followed by non-control work on the same process instance.
+
+**Required telemetry and window.** C01 needs current role-valid controller tuples with source, role and validity plus DeviceNetworkEvents over 24 hours. C13 additionally needs independently instrumented control contact, task receipt, proxy readiness and target connection; DNE alone does not expose task receipt.
+
+**Optional telemetry.** DeviceProcessEvents, software approval, raw protocol/service evidence and a 14-day application baseline. For non-Edge network-protection enrichment, use DeviceEvents.AdditionalFields; do not assume Edge-specific fields. Materialize only bounded reused expressions.
+
+**Concrete logic.** Preserve every valid contact as contact-only. Join subsequent events only on the exact device/process-start key and exclude all controller/readiness tuples from work. C13's delivered/withheld/delayed task experiment must hold polling, process, network and local work fixed and deduplicate overlapping epochs.
+
+**Expected output and triage.** Process/contact provenance, tuple/time/action evidence, optional ordered non-control activity, coverage and software ownership. Approved SDKs, updaters, conferencing/P2P and shared infrastructure are alternatives.
+
+**What a hit establishes.** C01 establishes process-associated contact to currently validated infrastructure. Even an observed pulse does not establish a task, remote authorship, forwarding, authorization or compromise.
+
+**Readiness and validation.** C01 is conditional on current intelligence; none is supplied. C13 is removed from field ranking: A13's benign common timer produced every focal pulse while every shifted placebo remained negative. Reopen only after intervention mapping and only if it changes the C01 decision or review cost.
+
+### 5. C12 — proxy-associated local-reach investigation
+
+**Behaviour and mechanism.** Investigate a proxy-associated or role-divergent process contacting loopback/private/special-use space beside a nonlocal name. A remote proxy task can theoretically collapse a supplied name into the relay's local network, but an internal forward proxy, sinkhole or legitimate helper can produce the same observation.
+
+**Required telemetry and window.** C01/C05 association or a clearly labelled C11 lead plus DeviceNetworkEvents for the same device/process, 24-hour candidate window and 14-day first-seen context. Same-row RemoteUrl plus special-use RemoteIP is only co-observed context.
+
+**Optional telemetry.** Exact client-attributed DNS query/answer, receiving-service/application audit, topology/interface data, WFP events and approved internal zones. Shared resolver logs cannot prove the client answer.
+
+**Concrete logic.** Separate 0.0.0.0, loopback, RFC1918 and other special-use classes. Only the stronger branch joins the same verified client and exact answer to transport within 0–5 minutes; receiving-service evidence requires its own verified identity/connection contract.
+
+**Expected output and triage.** Process/association basis, name, address class/port/action, DNS source and answer where proven, intermediary topology, receiving-service evidence and decision stage. Check ad-blocking, split DNS, local development, security software, management agents and forward proxies.
+
+**What a hit establishes.** Initially, only name/special-peer co-occurrence for an associated process. Stronger evidence may support a local-answer/transport-consistent path; it still does not prove remote task authorship, service acceptance, exploitation or compromise.
+
+**Readiness and validation.** Instrumentation-gated hunt idea. Test in an isolated authorized fixture against sinkhole, split-DNS, helper, forwarder and instrumented receiver controls. Retain the weaker same-row lead if DNS/receiver identity is unavailable.
+
+### Worthwhile alternative and rejected approaches
+
+- **C06 remains worthwhile only as a generic identity hunt:** multi-day sparse invalid-credential cohorts across sources may expose activity missed by per-IP thresholds. Its benign typo/broken-client twin and lack of proxy attribution keep it outside this portfolio's top three.
+- **C02 volume/throughput inference rejected without real flow counters, intervals and device/NAT identity.** DNE event counts or billed log bytes are not substitutes.
+- **Universal C03 “proxy process + local port” rejected.** Topology, receiving-service and implementation applicability are mandatory.
+- **C09 ordered target omission demoted/rejected as a stable signature.** Concurrency, randomized target/application selection and missing events defeat adjacency.
+- **C10 process/TLS mismatch rejected for ordinary Sentinel.** Defender connection telemetry has no TLS fingerprint and an external sensor's flow identifier does not supply the endpoint process key.
+- **C11 peer rarity rejected as a participation gate.** It measures target allocation and coverage, not how many peers relay.
+- **C13 shifted placebo rejected as a causal control.** A fixed common timer can pass the focal test and fail the placebo.
+- **Historical domains, ports, residential-IP reputation and “familiar IP” are enrichment only.** They do not identify a device, household, relay, session or compromise.
+
+### Validation ledger and contribution
+
+**Performed:** source/schema review; static parser/schema binding for merged PR #39; deterministic synthetic reducers and controls, including A12's 91 set/null assertions and A13's 20 review-accounting/intervention assertions, each rerun identically.
+
+**Not performed:** KQL/Kusto-engine execution; table/action/field coverage measurement; sensor or lab experiment; customer/tenant back-test; independent human adjudication; runtime/cost measurement; precision, recall, prevalence or analyst-value estimation.
+
+**Contribution relative to existing work:** C05 and C04-G are useful integrations of established evidence. C11's same-observed-build audience measurement is a narrow integration adaptation absent from the closest inspected implementations, not a proven detector or breakthrough. The strongest general result is methodological: generate evidence at hostname/event level, investigate at application/device/build case level, and judge value only by independently changed decisions and review cost.
+
+### Exact next actions
+
+1. In one authorized workspace, verify whether DeviceNetworkEvents supplies the required action, SHA1, RemoteUrl, process-key and 21-day history coverage. If yes, run coverage.kql only.
+2. Through a separate reviewed hunt change, bundle the C11 evaluator to cases and expose app/build populations plus exclusions. Then run the frozen K=20 comparison and record query cost, analyst minutes and displaced cases.
+3. If C11 inputs fail but C05 inputs exist, validate the catalogue/approval contract and run C05 at deployment-episode level.
+4. If Graph inputs exist, validate C04-G linkage with one approved multi-egress case before using origin recurrence.
+5. Do not implement C13 or C12 as field detections. Do not promote any candidate into threat-work/detections without separate scenario, tenant and analyst validation.
+
+### Completion
+
+All 15 numbered passes and the two user-authorized interstitials have recorded dispositions. The programme is complete. Further implementation, tenant testing or production promotion is a new reviewed task.
+
+
 ## Current handoff
 
-**Next pending numbered pass: L15 / T14 — Final hunt/detection brief and synthesis.**
+**Programme complete — no next numbered pass.**
 
-L01–L14 plus two authorized interstitials are complete: **14 of 15 numbered passes**. Read the latest direction supplement and check whether its hourly review is due before L15.
+All 15 numbered passes plus L04.5 and L04.5(2) are complete. The final field brief is [L15 — Useful hunts, no defensible lightning bolt](#l15--useful-hunts-no-defensible-lightning-bolt).
 
-L14's current portfolio is ordered by verified input availability, not hit totals: (1) C11 is the nearest implemented feasibility experiment but requires scope/device/application/current-SHA1 case bundling, separate app/build denominators and K=20 adjudicated decisions/time; (2) C05 is an input-gated governance baseline requiring a reviewed compatible-hash catalogue and effective event-time approvals, deduplicated to deployment episodes; (3) C04-G is the identity reserve only where Graph linkage exists. C01+C13 is sensor/lab-gated and removed from active field ranking. C10 is rejected for ordinary Sentinel telemetry. The breakthrough slate is empty.
+The immediate implementation choice is input-driven: verify DNE coverage for C11 and correct case bundling before back-testing; otherwise use C05 only with a reviewed compatible-hash catalogue and event-time approvals, or C04-G only with Graph linkage. C01+C13 and C12 remain instrumentation-gated. C06 is generic identity hunting, not residential-proxy attribution. No production detection or distinctive breakthrough emerged.
 
-A13's adverse constructed panel gave application history 20/20 useful cases versus C11 10/20 at the same case budget; a row budget selected 20 hosts from one benign high-fanout case. Its common-timer twin also passed every focal C13 epoch while every shifted placebo stayed negative. Twenty assertions passed twice identically. These are logic counterexamples, not prevalence, precision, KQL or sensor validation.
+No further pass may run under this programme. Any query change, tenant test, catalogue build, instrumentation or production promotion requires a separate reviewed task. Existing non-Edge DeviceEvents.AdditionalFields and bounded materialize() guidance remains in force.
 
-L15 must deliver the final ranked brief with behaviour, mechanism, required/optional telemetry, concrete logic, output, benign alternatives, positive meaning, readiness and exact next validation. Separate proxy participation, surrounding-network exposure, endpoint compromise and session compromise. Lead with a practical “which input do you have?” decision path, retain explicit kill criteria, and state separately whether useful hunt work and a distinctive contribution were achieved.
-
-No production detection, deployment, customer-data write or unrelated repository change is authorized. Existing non-Edge DeviceEvents.AdditionalFields and bounded materialize() guidance remains. Re-fetch main and its SHA immediately before saving; stop if L15 is already complete.
-
+Q06 was current when L15 began; its next checkpoint was not yet due. No duplicate direction review occurred.
 ## Reusable invocation
 
 Read https://github.com/louisgiles/KQL/blob/main/threat-work/research/resprox-research-loops.md from the latest main branch. Follow its runner instructions and execute the next pending pass, strongly prioritizing actionable detection and hunt ideas and incorporating its saved candidates, evidence, rejected hypotheses, and handoff. Verify consequential technical claims with primary sources. Update the same file with the result, state, sources, and next handoff using a current blob SHA, preserving other changes. Report the strongest new finding and what changed. Execute one pass only; if the programme is complete, report that and stop.
