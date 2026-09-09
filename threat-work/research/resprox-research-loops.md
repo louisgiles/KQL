@@ -220,6 +220,8 @@ Revisit the two original sources independently of the leading candidate. Explore
 
 **Q03 direction refinement:** The active breakthrough slate is empty after L10; C11 is an engineering adaptation and C12 conditional integration. Start from the shared failure: destination rarity measures observed audience distribution, not remote authorship. Derive one materially different observable whose proposed decision survives both high-overlap and disjoint-audience relay worlds, using realistically obtainable Sentinel / Log Analytics telemetry. Compare it with its simplest known method and strongest benign twin, then state the minimum test and kill condition. Do not rename C11, add another entropy/rarity score, or revive C10/C07/C08 without resolving their recorded telemetry or ownership blocker. An honest finding that ordinary endpoint logs cannot expose authorship is preferable to padding.
 
+**Q04 direction refinement:** Choose the analyst decision before choosing another signal. Remote task authorship is not a mandatory hunt endpoint: a candidate may earn investigation by distinguishing an actionable role, policy or exposure question, provided it states what remains unknown. A benign twin rejects a sufficiency claim; reject investigative value only when the closest simpler method yields the same decision with equivalent evidence. Preserve Q03's audience-overlap and telemetry constraints. No new candidate is required if none survives.
+
 **Deliverable:** An independent set of wildcard candidate cards, a comparison with the current leaders, and explicit reasons to pursue or reject them.
 
 **Completion test:** Give a materially different detection/hunt frame a serious test; acknowledge when attempted reframings fail.
@@ -229,6 +231,8 @@ Revisit the two original sources independently of the leading candidate. Explore
 **Question:** Which candidates deserve the next implementation effort, and what would demonstrate their value?
 
 Rank the survivors by investigative value, evidence quality, false-positive risk, data accessibility, query cost, contribution beyond existing work, and expected information gain. Select a small primary portfolio and preserve a credible alternative. Specify ground truth, controls, required inputs, expected outputs, confounders, and rejection criteria for the next experiment. Separate lab feasibility, field prevalence, and operational effectiveness. Use synthetic or explicitly authorized data in the design.
+
+**Q04 direction refinement:** For C11, isolate the value of exact-build conditioning: compare self-new typed destinations with an ordinary per-device process/application destination-history delta using the same windows, visibility and review budget; predeclare the baseline identity key. Keep first-network-use as a secondary comparator. Report both matched-eligible results and population exclusions from absent hashes, upgrades or insufficient history, so narrower eligibility cannot masquerade as better performance. Predeclare independent role/task/approval truth and the decision or review-effort outcome. Retire exact-build complexity if it adds no decision value; missing sensor data leaves that outcome untested. Synthetic examples test logic only.
 
 **Deliverable:** A reasoned portfolio decision plus reproducible experiment protocols and positive/negative/inconclusive interpretations. Identify the exact remaining step to implement or validate each selected hunt.
 
@@ -2198,6 +2202,8 @@ L01–L11 plus two authorized interstitials are complete: **11 of 15 numbered pa
 The breakthrough slate is empty. C11 is an established adaptation with unproved field utility; C12 is conditional integration. C05/C04-G/C01/C06 remain practical candidates under their recorded dependencies. C02/C10 remain parked.
 
 L12 must seek one materially different observable whose decision survives both high-overlap and disjoint-audience relay worlds. Do not rename C11, add destination entropy/rarity, or revive C10/C07/C08 without resolving its telemetry or ownership blocker. Compare the simplest known method and strongest benign twin; state the minimum telemetry, concrete logic, what a hit establishes, and a kill condition. If ordinary Sentinel telemetry cannot expose remote authorship, preserve that negative rather than inventing a proxy classifier.
+
+**Q04 planning checkpoint:** L12 should seek a new observable for a stated analyst decision, without making proof of remote authorship a prerequisite for a useful hunt. L13 must test C11's exact-build value against ordinary process/application destination-history change under matched conditions and report excluded population separately. These are designed comparisons, not executed validation; the breakthrough slate remains empty.
 
 A10 used 100 synthetic peers, a 6×5 participation/overlap grid, separate coverage regimes, the inherited 10% cutoff and K=3 budget. Nineteen assertions passed twice unchanged. It did not run KQL or model DNE/provider scheduling. No source adapter, sensor/lab or tenant execution occurred. Existing non-Edge DeviceEvents/AdditionalFields and bounded materialize guidance remains unchanged.
 
