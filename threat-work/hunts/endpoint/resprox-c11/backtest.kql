@@ -1,0 +1,120 @@
+// name:              C11 exact-build destination-history back-test
+// purpose:           Compare hash-specific and application-wide observed hostname changes.
+// starting_entities: Optional Windows DeviceIds and process filenames; one workspace/customer.
+// required_tables:   DeviceNetworkEvents
+// optional_tables:   None; investigate returned process witnesses separately.
+// variables:         EndTime, CandidateWindow, BaselineWindow, DeviceIds, ProcessNames, SelectedAction, MinBaselineNamedDays, IncludeUnchanged
+// time_window:       Fixed UTC end; preceding 7 candidate days and 14 baseline days; half-open intervals.
+// done_criteria:     Review differences between methods, verify coverage/configuration, and adjudicate role, participation and approval separately.
+// artifact_type:     hunt
+// output_type:       analysis
+// Readiness: parser/semantic validation is recorded in README; no tenant or engine execution.
+let EndTime = datetime(2026-09-09T00:00:00Z);
+let CandidateWindow = 7d;
+let BaselineWindow = 14d;
+let DeviceIds = dynamic([]);             // Start with a small, known Windows cohort.
+let ProcessNames = dynamic([]);          // Optional lower-case names, e.g. ["example.exe"].
+let SelectedAction = "ConnectionSuccess"; // One observed action per run; not proof of allowed application traffic.
+let MinBaselineNamedDays = 3;            // Named-observation heuristic, NOT verified sensor uptime.
+let IncludeUnchanged = false;           // true: export stable destination controls too.
+let CandidateStart = EndTime - CandidateWindow;
+let BaselineStart = CandidateStart - BaselineWindow;
+let Events = materialize(
+    DeviceNetworkEvents
+    | where TimeGenerated >= BaselineStart and TimeGenerated < EndTime
+    | where ActionType == SelectedAction
+    | where array_length(DeviceIds) == 0 or DeviceId in (DeviceIds)
+    | where array_length(ProcessNames) == 0 or tolower(InitiatingProcessFileName) in (ProcessNames)
+    | project TimeGenerated, Scope = TenantId, DeviceId, DeviceName,
+        AppName = tolower(InitiatingProcessFileName), AppPath = tolower(InitiatingProcessFolderPath),
+        ImageSHA1 = tolower(InitiatingProcessSHA1), RemoteUrl, RemoteIP, RemotePort,
+        ProcessUniqueId = InitiatingProcessUniqueId, ProcessId = InitiatingProcessId,
+        ProcessStart = InitiatingProcessCreationTime, ReportId
+    | extend ImageSHA1 = iff(ImageSHA1 matches regex @"^[0-9a-f]{40}$", ImageSHA1, ""),
+        RawName = trim(@"\s+", RemoteUrl), IsBaseline = TimeGenerated < CandidateStart
+    | extend ParsedHost = trim_end(@"\.$", tolower(tostring(parse_url(
+        iff(RawName matches regex @"^[a-zA-Z][a-zA-Z0-9+.-]*://", RawName, strcat("https://", RawName))).Host)))
+    // Hostname observations only: do not silently replace missing names with RemoteIP.
+    | extend ObservedHost = iff(ParsedHost matches regex @"^[a-z0-9_-]+(\.[a-z0-9_-]+)+$"
+        and isnull(parse_ipv4(ParsedHost)) and not(RawName matches regex @"\s"), ParsedHost, "")
+    | project-away ParsedHost, RawName
+);
+let AppHistory = Events
+    | summarize AppBaselineRows = countif(IsBaseline), AppCandidateRows = countif(not(IsBaseline)),
+        AppBaselineDays = make_set_if(startofday(TimeGenerated), IsBaseline, 366),
+        AppBaselineNameDays = make_set_if(startofday(TimeGenerated), IsBaseline and isnotempty(ObservedHost), 366),
+        AppCandidateDays = make_set_if(startofday(TimeGenerated), not(IsBaseline), 366),
+        AppBaselineNamedRows = countif(IsBaseline and isnotempty(ObservedHost)),
+        AppCandidateNamedRows = countif(not(IsBaseline) and isnotempty(ObservedHost)),
+        AppBaselineMissingHashRows = countif(IsBaseline and isempty(ImageSHA1)),
+        AppCandidateMissingHashRows = countif(not(IsBaseline) and isempty(ImageSHA1)),
+        ObservedHashExamples = make_set_if(ImageSHA1, isnotempty(ImageSHA1), 8)
+        by Scope, DeviceId, AppPath, AppName
+    | extend AppBaselineActiveDays = array_length(AppBaselineDays),
+        AppBaselineNamedDays = array_length(AppBaselineNameDays),
+        AppCandidateActiveDays = array_length(AppCandidateDays),
+        MultipleHashesObserved = array_length(ObservedHashExamples) > 1
+    | project-away AppBaselineDays, AppBaselineNameDays, AppCandidateDays;
+let BuildHistory = Events
+    | where isnotempty(ImageSHA1)
+    | summarize BuildBaselineRows = countif(IsBaseline), BuildCandidateRows = countif(not(IsBaseline)),
+        BuildBaselineDays = make_set_if(startofday(TimeGenerated), IsBaseline, 366),
+        BuildBaselineNameDays = make_set_if(startofday(TimeGenerated), IsBaseline and isnotempty(ObservedHost), 366),
+        BuildCandidateDays = make_set_if(startofday(TimeGenerated), not(IsBaseline), 366),
+        BuildBaselineNamedRows = countif(IsBaseline and isnotempty(ObservedHost)),
+        BuildCandidateNamedRows = countif(not(IsBaseline) and isnotempty(ObservedHost))
+        by Scope, DeviceId, AppPath, AppName, ImageSHA1
+    | extend BuildBaselineActiveDays = array_length(BuildBaselineDays),
+        BuildBaselineNamedDays = array_length(BuildBaselineNameDays),
+        BuildCandidateActiveDays = array_length(BuildCandidateDays)
+    | project-away BuildBaselineDays, BuildBaselineNameDays, BuildCandidateDays;
+let AppDestinations = Events
+    | where IsBaseline and isnotempty(ObservedHost)
+    | summarize PriorAppDestinationRows = count(),
+        PriorDestinationMissingHashRows = countif(isempty(ImageSHA1))
+        by Scope, DeviceId, AppPath, AppName, ObservedHost;
+let BuildDestinations = Events
+    | where IsBaseline and isnotempty(ImageSHA1) and isnotempty(ObservedHost)
+    | distinct Scope, DeviceId, AppPath, AppName, ImageSHA1, ObservedHost
+    | extend SeenForBuild = true;
+Events
+| where not(IsBaseline) and isnotempty(ObservedHost)
+| summarize CandidateEventRows = count(), FirstObserved = min(TimeGenerated),
+    LastObserved = max(TimeGenerated),
+    arg_max(TimeGenerated, DeviceName, RemoteUrl, RemoteIP, RemotePort, ProcessUniqueId, ProcessId, ProcessStart, ReportId)
+    by Scope, DeviceId, AppPath, AppName, ImageSHA1, ObservedHost
+| join kind=leftouter AppHistory on Scope, DeviceId, AppPath, AppName
+| join kind=leftouter BuildHistory on Scope, DeviceId, AppPath, AppName, ImageSHA1
+| join kind=leftouter AppDestinations on Scope, DeviceId, AppPath, AppName, ObservedHost
+| join kind=leftouter BuildDestinations on Scope, DeviceId, AppPath, AppName, ImageSHA1, ObservedHost
+| extend IdentityPresent = isnotempty(Scope) and isnotempty(DeviceId) and isnotempty(AppPath) and isnotempty(AppName)
+| extend AppAssessment = case(not(IdentityPresent), "missing application identity",
+    AppBaselineRows == 0, "no application history",
+    AppBaselineNamedRows == 0, "no baseline hostname observations",
+    AppBaselineNamedDays < MinBaselineNamedDays, "sparse application history", "assessable with coverage caveats"),
+    C11Assessment = case(not(IdentityPresent), "missing application identity", isempty(ImageSHA1), "missing or invalid SHA1",
+    coalesce(BuildBaselineRows, 0) == 0, "no history for this build at this path",
+    BuildBaselineNamedRows == 0, "no baseline hostname observations for this build",
+    BuildBaselineNamedDays < MinBaselineNamedDays, "sparse build history", "assessable with coverage caveats")
+| extend AppNewDestination = iff(AppAssessment == "assessable with coverage caveats", isnull(PriorAppDestinationRows), bool(null)),
+    C11NewDestination = iff(C11Assessment == "assessable with coverage caveats", not(coalesce(SeenForBuild, false)), bool(null))
+| extend Comparison = case(isnull(AppNewDestination) or isnull(C11NewDestination), "unassessable for matched comparison",
+    C11NewDestination and AppNewDestination, "both methods",
+    C11NewDestination and not(AppNewDestination), "C11 only: application saw host under other or unknown hash",
+    not(C11NewDestination) and AppNewDestination, "unexpected comparator inconsistency", "neither method"),
+    PriorOtherOrUnknownHash = isnotnull(PriorAppDestinationRows) and not(coalesce(SeenForBuild, false)),
+    BaselineHostFraction = iff(BuildBaselineRows > 0, round(todouble(BuildBaselineNamedRows) / BuildBaselineRows, 3), real(null)),
+    CandidateHostFraction = iff(BuildCandidateRows > 0, round(todouble(BuildCandidateNamedRows) / BuildCandidateRows, 3), real(null))
+// Keep coverage exceptions visible. For a complete labelled panel, set IncludeUnchanged=true.
+| where IncludeUnchanged or C11NewDestination == true or AppNewDestination == true
+    or isnull(C11NewDestination) or isnull(AppNewDestination)
+| project EndTime, CandidateStart, BaselineStart, SelectedAction, Scope, DeviceId, DeviceName, AppName, AppPath,
+    ImageSHA1, ObservedHost, Comparison, C11NewDestination, AppNewDestination, C11Assessment, AppAssessment,
+    FirstObserved, LastObserved, CandidateEventRows, MultipleHashesObserved, ObservedHashExamples,
+    PriorOtherOrUnknownHash, PriorDestinationMissingHashRows,
+    BuildBaselineActiveDays, BuildBaselineNamedDays, BuildCandidateActiveDays, BuildBaselineRows, BuildCandidateRows,
+    BaselineHostFraction, CandidateHostFraction, AppBaselineActiveDays, AppBaselineNamedDays, AppCandidateActiveDays,
+    AppBaselineRows, AppCandidateRows, AppBaselineNamedRows, AppCandidateNamedRows,
+    AppBaselineMissingHashRows, AppCandidateMissingHashRows,
+    WitnessTime = TimeGenerated, RemoteUrl, RemoteIP, RemotePort, ProcessUniqueId, ProcessId, ProcessStart, ReportId
+| order by DeviceName asc, AppPath asc, AppName asc, ImageSHA1 asc, ObservedHost asc

@@ -1,0 +1,53 @@
+// name:              C11 back-test observation and exclusion inventory
+// purpose:           Count the full observed device/application/hash population, including unusable hostname/history rows.
+// starting_entities: Optional Windows DeviceIds and process filenames; one workspace/customer.
+// required_tables:   DeviceNetworkEvents
+// optional_tables:   None
+// variables:         EndTime, CandidateWindow, BaselineWindow, DeviceIds, ProcessNames, MinBaselineNamedDays
+// time_window:       Fixed UTC end; preceding 7 candidate days and 14 baseline days; half-open intervals.
+// done_criteria:     Confirm selected action and field/history availability; record exclusions before interpreting back-test leads.
+// artifact_type:     hunt
+// output_type:       analysis
+// Match parameters to backtest.kql. All actions are inventoried separately; filter its SelectedAction in the results.
+let EndTime = datetime(2026-09-09T00:00:00Z);
+let CandidateWindow = 7d;
+let BaselineWindow = 14d;
+let DeviceIds = dynamic([]);
+let ProcessNames = dynamic([]);
+let MinBaselineNamedDays = 3;
+let CandidateStart = EndTime - CandidateWindow;
+let BaselineStart = CandidateStart - BaselineWindow;
+DeviceNetworkEvents
+| where TimeGenerated >= BaselineStart and TimeGenerated < EndTime
+| where array_length(DeviceIds) == 0 or DeviceId in (DeviceIds)
+| where array_length(ProcessNames) == 0 or tolower(InitiatingProcessFileName) in (ProcessNames)
+| project TimeGenerated, Scope = TenantId, DeviceId, DeviceName, ActionType,
+    AppName = tolower(InitiatingProcessFileName), AppPath = tolower(InitiatingProcessFolderPath),
+    ImageSHA1 = tolower(InitiatingProcessSHA1), RemoteUrl
+| extend ImageSHA1 = iff(ImageSHA1 matches regex @"^[0-9a-f]{40}$", ImageSHA1, ""),
+    RawName = trim(@"\s+", RemoteUrl), IsBaseline = TimeGenerated < CandidateStart
+| extend ParsedHost = trim_end(@"\.$", tolower(tostring(parse_url(
+    iff(RawName matches regex @"^[a-zA-Z][a-zA-Z0-9+.-]*://", RawName, strcat("https://", RawName))).Host)))
+| extend ObservedHost = iff(ParsedHost matches regex @"^[a-z0-9_-]+(\.[a-z0-9_-]+)+$"
+    and isnull(parse_ipv4(ParsedHost)) and not(RawName matches regex @"\s"), ParsedHost, "")
+| summarize BaselineRows = countif(IsBaseline), CandidateRows = countif(not(IsBaseline)),
+    BaselineDays = make_set_if(startofday(TimeGenerated), IsBaseline, 366),
+    BaselineNameDays = make_set_if(startofday(TimeGenerated), IsBaseline and isnotempty(ObservedHost), 366),
+    CandidateDays = make_set_if(startofday(TimeGenerated), not(IsBaseline), 366),
+    BaselineNamedRows = countif(IsBaseline and isnotempty(ObservedHost)),
+    CandidateNamedRows = countif(not(IsBaseline) and isnotempty(ObservedHost)),
+    arg_max(TimeGenerated, DeviceName)
+    by Scope, DeviceId, AppPath, AppName, ImageSHA1, ActionType
+| where CandidateRows > 0
+| extend BaselineActiveDays = array_length(BaselineDays), BaselineNamedDays = array_length(BaselineNameDays), CandidateActiveDays = array_length(CandidateDays),
+    MissingIdentity = isempty(Scope) or isempty(DeviceId) or isempty(AppPath) or isempty(AppName),
+    MissingHash = isempty(ImageSHA1), NoBuildHistory = BaselineRows == 0,
+    NoBaselineNames = BaselineNamedRows == 0, NoCandidateNames = CandidateNamedRows == 0
+| extend SparseBuildHistory = BaselineNamedDays < MinBaselineNamedDays,
+    BaselineHostFraction = iff(BaselineRows > 0, round(todouble(BaselineNamedRows) / BaselineRows, 3), real(null)),
+    CandidateHostFraction = iff(CandidateRows > 0, round(todouble(CandidateNamedRows) / CandidateRows, 3), real(null))
+| project EndTime, CandidateStart, BaselineStart, Scope, DeviceId, DeviceName, AppPath, AppName, ImageSHA1, ActionType,
+    BaselineRows, CandidateRows, BaselineActiveDays, BaselineNamedDays, CandidateActiveDays, BaselineNamedRows, CandidateNamedRows,
+    BaselineHostFraction, CandidateHostFraction, MissingIdentity, MissingHash, NoBuildHistory,
+    NoBaselineNames, NoCandidateNames, SparseBuildHistory
+| order by DeviceName asc, AppPath asc, AppName asc, ImageSHA1 asc, ActionType asc
