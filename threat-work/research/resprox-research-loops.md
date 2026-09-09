@@ -6,7 +6,7 @@
 **Canonical file:** threat-work/research/resprox-research-loops.md  
 **Original sources:** [ResProx](./ResProx)  
 **Created:** 2026-09-08  
-**Readiness:** L10 narrows C11 to an exact-build destination-membership measurement candidate: the closest inspected implementations detect a new or rare network-using process, or a destination delta between selected hosts, but do not score self-plus-peer audience change for an already-networking identical build. This is a bounded source-code comparison, not global novelty or efficacy. C11 remains descriptive and hunt-only with ranking suspended; it supports role-change review, not relay-participation or unauthorized-use conclusions. C12/C03 remain conditional local-reach investigations; C04-G/C05/C01/C06 remain practical specifications/baselines; C02/C10 stay parked. All tenant ingestion remains unconfirmed; no production change.
+**Readiness:** L11 rejects C11 peer rarity as a relay-participation proxy. A fixed focal participant can be peer-rare or peer-common solely because of target-assignment overlap and comparable coverage; correlated missingness can reverse the classification. Keep exact-build self-history as a descriptive role-change hunt and peer support only as labelled audience-commonness context. Do not gate or rank on the intersection. The breakthrough slate is empty. C12/C03 remain conditional local-reach investigations; C04-G/C05/C01/C06 remain practical specifications/baselines; C02/C10 stay parked. A10 is deterministic synthetic arithmetic, not KQL, sensor, field or production validation.
 
 ## Run accounting and scheduling
 
@@ -256,12 +256,12 @@ Lead with the ranked detection/hunt portfolio. For each shortlisted candidate st
 
 ## State — update after each saved pass
 
-**Programme status:** in progress; L01–L10 plus additional L04.5 and L04.5(2) completed (10 of 15 numbered passes)  
-**Next pass:** L11 / T10 — Activation prevalence and peer-normalization failure  
-**Last completed pass:** L10  
-**Last result journal entry:** [L10 — Exact-build audience is the residual, not a detector claim](#l10--exact-build-audience-is-the-residual-not-a-detector-claim)  
-**Unresolved execution blocker:** none; L10 completed a bounded primary-source implementation comparison and narrowed C11's claim. No detector, KQL, sensor or tenant test ran.  
-**Research-data blockers:** L10 found no independent relay-participation or authorization truth and no field evidence that C11's residual measurement changes review outcomes. Exact bytes do not hold configuration, modules, user purpose or routing constant. L11 must test the peer-normalization failure as participation spreads while keeping focal workload/build/coverage fixed and separating participation from approval. Actual table/category ingestion, population/field coverage, directory mapping, retention and runtime remain unconfirmed. A08's synthetic benchmark does not prove sensor comparability or operational value. C11 additionally needs repeated exact hashes, comparable covered device-days, stable typed destination visibility and independently known role/configuration. C12/C03 require process-attributed special-use peer events and, for stronger interpretation, client-attributed DNS answers, intermediary-role mapping or receiving-service evidence. C02 still requires attributable flow counters, intervals and NAT/DHCP mapping. C05 lacks a complete catalogue/approval register; C01 lacks current control pairs; C10 lacks an attributable TLS sensor. C09 and C04-G retain their saved blockers.
+**Programme status:** in progress; L01–L11 plus additional L04.5 and L04.5(2) completed (11 of 15 numbered passes)  
+**Next pass:** L12 / T11 — Unconventional observable that survives audience assignment  
+**Last completed pass:** L11  
+**Last result journal entry:** [L11 — Peer rarity measures target assignment, not participation](#l11--peer-rarity-measures-target-assignment-not-participation)  
+**Unresolved execution blocker:** none; L11 completed the predeclared prevalence-by-overlap stress test and revised C11. No KQL, source adapter, sensor, lab or tenant test ran.  
+**Research-data blockers:** The breakthrough slate is empty. A10 establishes only that participation fraction is not identifiable from destination support without audience-assignment and coverage assumptions; actual provider schedulers, same-build enterprise prevalence and operational review value remain unknown. C11 self-history still needs repeated exact hashes, comparable covered installation-days, stable typed destination visibility and independently known role/configuration to test field value. Relay participation requires task/feature/receiver truth; unauthorized use additionally requires event-time approval or consent. Actual table/category ingestion, population/field coverage, directory mapping, retention and runtime remain unconfirmed. C12/C03 retain client-answer/topology/receiving-service blockers. C02 still requires attributable flow counters, intervals and NAT/DHCP mapping. C05 lacks a complete catalogue/approval register; C01 lacks current control pairs; C10 lacks an attributable TLS sensor. C09 and C04-G retain their saved blockers.
 
 | Loop | Task | Status | Last updated UTC | Result / blocker |
 |---|---|---|---|---|
@@ -277,7 +277,7 @@ Lead with the ranked detection/hunt portfolio. For each shortlisted candidate st
 | L08 | T07 Cross-source correlations | completed | 2026-09-09 | C11 held-out audience and same-instance C01 join; C12 DNS-binding claim withdrawn; non-Edge AdditionalFields/materialize path; 13 narrow JS assertions passed. No KQL/tenant execution. |
 | L09 | T08 Tuning and cost | completed | 2026-09-09 | A08: 1,613 synthetic records / 24 entities, 21 assertions; no clear K=3 ranking win; C11 conjunction-first priority suspended, descriptive facets retained; no KQL/tenant run. |
 | L10 | T09 Prior-art gap | completed | 2026-09-09 | Closest primary implementations inspected; exact-build destination membership is a residual measurement, not demonstrated novelty or relay attribution. C11 remains descriptive/rank-suspended. No KQL/tenant execution. |
-| L11 | T10 Ecosystem and measurement | pending | — | — |
+| L11 | T10 Ecosystem and measurement | completed | 2026-09-09 | A10 crossed peer participation and target overlap with coverage controls; 19 assertions, deterministic rerun. Peer rarity rejected as participation proxy/ranking gate; self-history retained for role review only. No KQL/tenant execution. |
 | L12 | T11 Unconventional hunt opportunities | pending | — | — |
 | L13 | T12 Portfolio and experiments | pending | — | — |
 | L14 | T13 Independent hunt review | pending | — | — |
@@ -344,6 +344,8 @@ Allowed pass statuses: pending, completed, blocked. An inconclusive research res
 
 **L10 current decision:** C11's generic ingredients are established: host history, peer comparison, process-conditioned network anomaly and destination delta all exist in inspected primary implementations. The residual is narrower: **typed, non-control destination-set change for an already-networking exact executable build, measured against both its own earlier set and leave-one-device-out same-build peers.** This can turn “not a first-time network process” into a role-change review. It cannot decide whether the process forwarded third-party traffic or whether any forwarding was unauthorized. Classify C11 as a **potentially useful measurement/integration adaptation**, not a breakthrough; keep ranking suspended and stop elaborating rank logic until independent data changes that decision. [Implementation comparison](#l10--exact-build-audience-is-the-residual-not-a-detector-claim).
 
+**L11 current decision:** Reject peer rarity and the self-plus-peer intersection as participation proxies or ranking gates. Under fixed focal behavior, peer support is jointly determined by participating-peer fraction, conditional overlap with the focal target, and coverage. A10 produced opposite rarity labels at 100% participation solely by changing overlap, and a coverage bias flipped a 13% observed-support case below the 10% cutoff. Retain **self-new exact-build audience change** as the primary descriptive role-review output; expose peer support, eligible covered peers and raw supporter counts only as audience-commonness context. This is not a novel proxy detector. [Stress test](#l11--peer-rarity-measures-target-assignment-not-participation).
+
 ### C11 — Same binary, different job
 
 - **Behaviour / question:** Does an unchanged executable image behave as a narrow application/service on most comparable devices, but acquire a materially different destination audience on a minority—and did the same device transition without an image change?
@@ -358,6 +360,8 @@ Allowed pass statuses: pending, completed, blocked. An inconclusive research res
 **L08 correction to C11/C01:** Keep the original IOC-free C11 lane. For the experimental C01 combination, remove role-valid controller destinations from candidate/self/peer scoring, preserve their raw evidence separately, and require a disjoint audience witness on the exact process instance. Never transfer a seven-day device/hash aggregate's contact to every instance. Keep target-host and peer-IP lanes separate; changed visibility is unassessable. The [L08 specification](#c11--c01-hold-the-controller-out-of-the-audience) defines the bounded join and next comparison. A07 checks only simplified set/identity operations, not the full candidate.
 
 **L10 correction to C11:** Freeze three endpoints. (1) **Role change** requires stable exact-build and destination-visibility evidence; C11 can describe this. (2) **Relay participation** requires independent controlled feature/task or receiver truth; C11 cannot establish it. (3) **Unauthorized use** additionally requires event-time approval/consent or policy truth; C11 cannot establish it. The residual observable is self-new destination membership with low leave-one-device-out support among covered same-build peers after controller holdout. Its changed decision is only to surface an already-networking common process for role/configuration review when first-network-use and rare-process methods remain silent. An approved forwarder/configuration change is an exact observational twin. Readiness is **descriptive hunt design; unconfirmed ingestion; ranking suspended; potentially distinct measurement within this bounded comparison only**.
+
+**L11 correction to C11:** The candidate logic now leads with self-history. Report every assessable self-new typed destination for an exact build, including common-audience cases. Attach PeerSupport = ObservedSupportingPeers / EligibleCoveredPeers with numerator, denominator, coverage lane and controller-held-out/raw status; never translate it into participation prevalence, cleanliness or authorization. Do not require PeerSupport at or below a cutoff and do not rank on the self-plus-peer intersection. When target-lane visibility changes, emit unassessable. A hit establishes only observed role/audience change. Next validation is an authorized labelled comparison of self-history against simpler first-network-use/process-delta review; retire the exact-build complexity if it changes no decision.
 
 **Common contract.** Windows and cutoffs below are proposed design values, not measured thresholds. Use non-overlapping baseline and candidate periods; never turn absent required data into a negative result. Optional evidence must not suppress a primary lead. Each workspace/customer remains a separate scope; do not join different tenants by UPN or IP. An empty name, client field or process key is unknown, not an anomalous value. Readiness labels remain: idea; specified with unconfirmed ingestion; specified with confirmed ingestion; tested in a labelled lab/synthetic setting; runtime-tested in a named authorized environment; rejected. Any future alert additionally needs calibration, cost/runtime checks, adjudicated controls and a separate deployment review.
 
@@ -466,14 +470,16 @@ L04 adds on-paper controls and triage to C05/C01/C06. L04.5 adds lifecycle/owner
 
 | H15 | Outcome-conditioned omission within repeated target workloads may expose adaptive scheduling despite changing IPs. | weakened in L06; C09 restricted experiment | S50/S60–S62 establish mode-dependent removal, including non-success responses. | Random app/resource selection and concurrent dispatch undermine the frozen ordered stream; 50057 reappears in continued paired rounds; input exhaustion also removes targets. | Establish actual recurrence/category coverage, inspect B across app/resource values, and compare cessation with plain target timelines. No source-backed universal success/pruning signature. |
 | H16 | A TLS fingerprint observed on a socket attributed to a relay process may belong to an upstream client, exposing application-role mismatch. | mechanism strengthened, operational branch conditional/parked in L05; C10 | S55 directly observes target-facing customer TLS fingerprints through Windows proxy nodes; S52/S53 support forwarding/sensor fields; S54 establishes prior art. | S55 required dedicated packet capture; shared TLS engines collide. DNE has no JA4 and standard ASIM supplies no causal process/TLS key. Approved forwarders and multi-stack apps remain twins. | Reopen operationally only with an existing pre-NAT/on-host TLS source and unique tuple/process attribution; then run controlled relay/direct/multi-stack comparison. |
-| H17 | Self-new/peer-divergent audiences of an unchanged binary can describe role change; superiority as a hunt ranking is a separate claim. | established adaptation with a residual measurement candidate; default ranking remains suspended after L10 | S04/S55/S56 support mechanism/fields; S79–S83 show the closest inspected baselines; A07/A08 show selected accounting and nuisance removal. | Existing methods already cover new/rare network processes and host/destination deltas. Exact bytes do not hold configuration or purpose constant; C11 cannot establish participation or authorization. | L11: hold focal workload/build/coverage fixed while varying independently known participation fraction; measure where peer rarity disappears and keep self-only output. |
+| H17 | Self-new audiences of an unchanged binary can describe role change; peer support describes audience commonness but not participation. | narrowed after L11; self-history retained, peer/intersection ranking rejected | S04/S55/S56 support mechanism/fields; S79–S83 establish prior art; A07/A08/A10 test constructed accounting and failure modes. | Exact bytes do not hold configuration or purpose constant. At fixed focal participation, A10 rarity changes with target overlap and coverage; no independent equal-budget field benefit exists. | Compare self-history with first-network-use/process-delta baselines using independent role/task/approval truth; retire complexity without decision change. |
 
 | H18 | Exact-token recurrent origin use can add investigation context beyond one observed network handoff around an interesting workload action. | proposed in L06; standalone theft inference rejected | S44–S46/S64–S67 ground fields and outcomes; A06 distinguishes constructed AABB from ABAB while the authorized twin matches. | One client with alternating routes or approved shared-token workers is a twin. The small reducer does not validate adapters, batch coverage, joins or analyst benefit. | Compare identical seeded cases with/without the facet; remove it if it adds no useful decision context. |
 | H19 | Independently client-attributed local answers, associated-process transport and receiver evidence can improve local-target triage. | weakened/narrowed in L08; C12 integration | S05/S68/S69/S71; S29 requires separating logical target and intermediary peer; S75 establishes local-answer prior art. | Same-row name/private-IP is not a DNS binding; forward proxies/helpers, sinkholes and approved forwarders defeat the universal interpretation. | First test internal intermediary versus direct local target under identical displayed name/peer context; verify exact client-answer/receiver contracts before stronger claims. |
 | H20 | A rare new control destination can circularly create the C11 anomaly used to corroborate C01. | supported constructed mechanism; field prevalence unknown | A07 and A08 remove control-only novelty while preserving the C01 lead and disjoint audience. | A08's K=5 yield advantage is fixture/budget-dependent; no general ranking or field-frequency result. | Retain held-out accounting; test incremental review benefit on independent data without selecting favourable budgets. |
 | H21 | A DNE row containing a nonlocal name and special-use IP universally proves that name resolved to a local target. | rejected in L08 | S29 separates forward-proxy peer and target-name visibility; S68 does not declare a DNS-answer/consumption relation. | Some direct-path sensor observations may support it after verification; the universal implication is false. | Preserve co-observation, and require independent client-answer/topology/service evidence for stronger interpretation. |
 
-| H22 | A peer-rarity gate can suppress unauthorized workload that shares destinations with ordinary peers; commonness does not establish legitimacy. | supported logical counterexample in L09; prevalence unknown | A08 D24 equals ordinary rollout features; zero-peer sensitivity also drops the D01/D02 shared audience. | Constructed latent labels do not show real prevalence, attacker behaviour or detector-wide coverage; rarity may still prioritize useful leads. | Preserve common-audience/self-change visibility and compare with independent task truth; do not use rarity absence as a benign verdict. |
+| H22 | A peer-rarity gate can suppress participating or unauthorized workload that shares destinations with peers; commonness does not establish legitimacy. | strengthened logically in L11; field prevalence unknown | A08 D24 and zero-rarity sensitivity; A10 makes the same fixed focal participant common at higher target overlap while self-history remains unchanged. | Synthetic allocation does not estimate real provider overlap or efficacy; common destinations can also be benign rollout. | Preserve common-audience/self-change output and obtain independent task/approval truth; never use peer commonness as a benign verdict. |
+
+| H23 | Peer support for one focal destination is jointly determined by participating-peer fraction, conditional target overlap and comparable coverage; participation is not identifiable from support alone. | supported analytically and by A10's constructed grid; field distribution unknown | S04 assigns a task FQDN to an exit; S55 observes each node receiving only a portion of distributed campaigns; A10 crosses the two axes and coverage. | Real scheduling can be nonrandom and depend on geography, capacity, customer or provider. The 10% cutoff and deterministic allocation are not estimates. | Obtain task-ground-truth lab/provider data with stable build/coverage; measure participation and conditional audience overlap separately. |
 
 Use proposed, supported, weakened, rejected, merged, or unresolved. Record reasons for transitions; repeated mention does not increase confidence.
 
@@ -659,6 +665,17 @@ All accessed **2026-09-09 UTC**. This was a bounded primary-source code/document
 | A09 | L10 source-shape audit, executed 2026-09-09 | Sixteen deterministic assertions checked the cited baseline/join/detector keys: S79 name+signer baseline and destination-output separation; S80 entity-only peer delta; S81 process-name detector/destination influencer; S82 host partition/no destination detector. | Transcription guard over four fetched source files only. It did not execute their KQL/ML, validate schema population, or test C11. |
 
 **Bounded search:** GitHub default-branch code searches covered Azure/Azure-Sentinel combinations of DeviceNetworkEvents, InitiatingProcess, RemoteUrl, SHA1, baseline and left-anti; Elastic organization searches covered the named Windows anomalous-network job, rare process, detector keys, process.name and destination.ip. S79 was the closest runnable process-network history implementation found; S80–S83 bracket peer, destination and process-history primitives. This does not establish that no other implementation exists.
+
+
+### L11 targeted source rechecks and executed evidence
+
+Accessed **2026-09-09 UTC**. No proxy node, provider, customer environment or tenant was queried.
+
+| ID | Source / evidence | Contribution and limit |
+|---|---|---|
+| S04 recheck | [Google Threat Intelligence: IPIDEA disruption](https://cloud.google.com/blog/topics/threat-intelligence/disrupting-largest-residential-proxy-network), published 2026-01-28 | The documented Tier Two path assigns an FQDN task to an exit, which then opens the target socket. This supports target assignment as a causal variable distinct from whether the process participates. Google does not publish the per-build distribution of task overlap needed to calibrate peer support. |
+| S55 recheck | [Khan et al., user-installed residential proxies](https://opendl.ifip-tc6.org/db/conf/cnsm/cnsm2024/1571050912.pdf), CNSM 2024 | The testbed saw only a portion of customer traffic. In one travel case each measured proxy emitted one or two direct requests while the same signatures appeared across thousands of IPs; other cases were sporadic. This supports sparse/distributed per-node audiences and the need not to equate pool participation with one shared target. It does not measure same-build peer overlap in an enterprise. |
+| A10 | [L11 prevalence-by-overlap stress test](#l11--peer-rarity-measures-target-assignment-not-participation), executed 2026-09-09 | Deterministic grid: 100 peers; six participation levels; five conditional-overlap levels; three assessable coverage regimes plus one unassessable lane; fixed 10% rarity cutoff and K=3 review budget. Nineteen assertions passed; two runs were byte-identical. Script SHA-256 \`f4477f02415a98d1fa4eedfecf3760dbbba15031fdcd8f45fd2db38a302fe37a\`; output SHA-256 \`a1dde1609058ee463b9873e284b185a5c1f668251f708d8aac814346a3abdb13\`. | Normalized arithmetic and a constructed review panel only. It is not DNE/KQL, a provider scheduler, sensor emulation, prevalence estimate, precision/recall result or field validation. |
 
 ### Starting research leads
 
@@ -1994,23 +2011,197 @@ Test the source-backed prediction that peer rarity erodes as the same imported w
 
 Q02 refinements were current and applied. Its next direction checkpoint was not due at invocation start, so no direction-review pass or second file write occurred.
 
+
+## L11 — Peer rarity measures target assignment, not participation
+
+**Question.** When the focal device, exact build, relay workload and visibility are fixed, does peer rarity track how many same-build peers participate—or does target-assignment overlap and coverage dominate it?
+
+**Result.** Peer rarity does not identify participation. If \`p\` is the participating-peer fraction and \`o\` is the conditional fraction of participants assigned the focal destination, full-coverage support is approximately \`p × o\`. The same fully participating population can therefore be rare when audiences are disjoint and common when they overlap. Coverage that disproportionately misses supporters can manufacture rarity. Reject peer rarity and the self-plus-peer intersection as participation proxies or ranking gates. Self-new exact-build destinations survive only as a role-change hunt; peer support remains labelled audience-commonness context.
+
+### Mechanism and source-backed prediction
+
+S04's inspected architecture sends a specific FQDN in tasking and the exit opens that target connection. Participation and assignment to one target are separate events. S55 independently observed that each measured proxy could receive only one or two requests from a campaign distributed across thousands of IPs and explicitly limits inference from one node's slice. The operational prediction is therefore two-dimensional: raising participation need not raise support for the focal destination unless task audiences overlap. Neither source supplies the distribution needed to infer real \`p\` from observed support.
+
+### A10 frozen experiment
+
+Before execution:
+
+- 100 eligible same-build peers; focal exact build H1 and workload T0 fixed in every assessable cell.
+- Focal participation = true and authorization = false were independent truth fields and never scoring inputs.
+- Participation levels: 0%, 10%, 25%, 50%, 75%, 100%.
+- Conditional focal-target overlap: 0%, 10%, 25%, 50%, 100%.
+- Peer rarity cutoff: support at or below 10%; one review budget: K=3.
+- Scores: self-new count, peer-rare count, and their intersection. Fixed controls were an approved forwarding twin, ordinary rare role change, common rollout, stable specialist, quiet unauthorized participant and missing coverage.
+- Coverage was reported separately: full, uniform 50%, supporter-correlated 50% loss, and focal lane change/unassessable. No truth label changed scoring.
+
+Nineteen assertions passed. Two executions were byte-identical.
+
+| Fixed focal; peer scenario | Observed support | Peer-rare at 10%? | Interpretation |
+|---|---:|---|---|
+| 10% participate; 100% target overlap | 10% | yes | Low participation can sit exactly inside rarity. |
+| 25% participate; 100% overlap | 25% | no | More participants make the unchanged focal disappear from the gate. |
+| 100% participate; 0% overlap | 0% | yes | Universal participation with disjoint audiences still looks maximally rare. |
+| 100% participate; 100% overlap | 100% | no | Same participation truth, opposite rarity label. |
+| 50% participate; 10% overlap | 5% | yes | Sparse assignment, not sparse participation, drives the label. |
+| 50% participate; 25% overlap | 13% | no | Crossing the product threshold changes the label. |
+
+Nineteen of 30 full-coverage grid cells were rare and 11 common. That count is not a prevalence result; it only describes the frozen grid.
+
+### Coverage and fixed-budget result
+
+At 25% participation and 50% overlap, full support was 13% and uniform 50% coverage gave 14%; both were common. Dropping half of supporters but retaining non-supporters produced 6/93 = 6.45% and flipped the same underlying population to rare. A focal typed-lane change was correctly unassessable, not anomalous.
+
+At K=3, the focal's self-only selection range across ties stayed 0–1 when support moved from 10% to 25%. Peer-only and intersection ranges fell from 0–1 to 0–0. The focal behavior and truth did not change. The intersection therefore removed a participating focal because peers shared its target; it did not add a demonstrated decision beyond self-history. The approved forwarder remained an observational twin, the benign rare role change ranked above it, and the quiet relay remained indistinguishable at equal features.
+
+### Candidate change and strongest challenge
+
+- **C11 peer gate rejected:** no rarity cutoff, intersection-first ranking or absence-as-benign interpretation survives.
+- **C11 self-history retained:** report assessable self-new typed destinations for the exact build, including common-audience cases. This establishes role/audience change only.
+- **Peer context retained descriptively:** numerator, eligible covered denominator, support, raw/held-out state and visibility lane may help triage rollout/commonness; never call it participation prevalence.
+- **Breakthrough status:** none. C11 is an established role-change adaptation; C12 remains conditional integration.
+- **Practical candidates unchanged:** C05/C04-G/C01/C06 remain available under their saved dependencies; C02/C10 stay parked.
+
+The strongest limitation is that A10 is deterministic constructed arithmetic. Real proxy schedulers may assign work by geography, capacity, provider, customer, reputation or time, and real sensor loss may be structured differently. The experiment does not estimate those distributions or field utility. It does, however, disprove the logical shortcut from one destination's peer support to participation prevalence.
+
+### L12 handoff
+
+Start from the failure mode: destination rarity describes observed target distribution, not remote authorship. Seek one obtainable observation whose decision survives both high-overlap and disjoint-audience relay worlds. It must not be another entropy, rarity or IP-anomaly score, and it must beat its simplest known method and strongest benign twin. Prefer a conserved causal boundary—task receipt, permission/ownership transition, process-to-receiver evidence or another invariant—only if ordinary Sentinel telemetry can observe it. An honest missing-telemetry result is acceptable.
+
+Q03 was current and applied; its next checkpoint was not due at invocation start. No separate direction-review write occurred.
+
+<details>
+<summary>Exact A10 JavaScript</summary>
+
+\`\`\`javascript
+const assert = require('node:assert/strict');
+
+// Frozen before execution. This is normalized arithmetic, not a sensor simulator.
+const peers = 100;
+const participationLevels = [0, 0.10, 0.25, 0.50, 0.75, 1.00];
+const overlapLevels = [0, 0.10, 0.25, 0.50, 1.00];
+const rarityCutoff = 0.10;
+const reviewBudget = 3;
+
+function scenario(participation, overlap, coverage = 'full') {
+  const participatingPeers = Math.round(peers * participation);
+  const targetSharingPeers = Math.round(participatingPeers * overlap);
+  let eligiblePeers = peers;
+  let observedSupporters = targetSharingPeers;
+  let assessable = true;
+
+  if (coverage === 'uniform50') {
+    eligiblePeers = 50;
+    observedSupporters = Math.round(targetSharingPeers / 2);
+  } else if (coverage === 'supporterDrop50') {
+    const missingSupporters = Math.ceil(targetSharingPeers / 2);
+    eligiblePeers = peers - missingSupporters;
+    observedSupporters = targetSharingPeers - missingSupporters;
+  } else if (coverage === 'focalLaneChange') {
+    assessable = false;
+  }
+
+  const peerSupport = assessable ? observedSupporters / eligiblePeers : null;
+  return {
+    focal: { build: 'H1', workload: 'T0', participates: true, authorized: false },
+    participation, overlap, coverage, participatingPeers, targetSharingPeers,
+    eligiblePeers: assessable ? eligiblePeers : null,
+    observedSupporters: assessable ? observedSupporters : null,
+    peerSupport,
+    selfNew: assessable ? 1 : null,
+    peerRare: assessable ? peerSupport <= rarityCutoff : null,
+    intersection: assessable ? Number(peerSupport <= rarityCutoff) : null
+  };
+}
+
+function rankPanel(focal) {
+  const rows = [
+    { id: 'F', truth: 'unauthorized-participant', self: 1, peer: focal.peerRare ? 1 : 0, both: focal.intersection },
+    { id: 'A', truth: 'approved-forwarder', self: 1, peer: 1, both: 1 },
+    { id: 'R', truth: 'ordinary-role-change', self: 3, peer: 3, both: 3 },
+    { id: 'O', truth: 'ordinary-rollout', self: 4, peer: 0, both: 0 },
+    { id: 'S', truth: 'stable-specialist', self: 0, peer: 2, both: 0 },
+    { id: 'Q', truth: 'quiet-unauthorized-participant', self: 1, peer: 1, both: 1 },
+    { id: 'M', truth: 'missing-coverage', self: null, peer: null, both: null }
+  ];
+  function review(method) {
+    const eligible = rows.filter(r => r[method] !== null).sort((a, b) => b[method] - a[method] || a.id.localeCompare(b.id));
+    const boundaryScore = eligible[Math.min(reviewBudget, eligible.length) - 1][method];
+    const above = eligible.filter(r => r[method] > boundaryScore);
+    const boundary = eligible.filter(r => r[method] === boundaryScore);
+    const slots = Math.max(0, reviewBudget - above.length);
+    return {
+      above: above.map(r => r.id), boundary: boundary.map(r => r.id), slots,
+      focalSelectionRange: [Number(above.some(r => r.id === 'F')), Number(above.some(r => r.id === 'F') || (slots > 0 && boundary.some(r => r.id === 'F')))]
+    };
+  }
+  return { self: review('self'), peer: review('peer'), both: review('both') };
+}
+
+const full = participationLevels.flatMap(p => overlapLevels.map(o => scenario(p, o)));
+const coverage = [
+  scenario(0.25, 0.50, 'full'),
+  scenario(0.25, 0.50, 'uniform50'),
+  scenario(0.25, 0.50, 'supporterDrop50'),
+  scenario(0.25, 0.50, 'focalLaneChange')
+];
+
+let checks = 0;
+function eq(actual, expected) { assert.deepEqual(actual, expected); checks++; }
+eq(new Set(full.map(x => JSON.stringify(x.focal))).size, 1);
+eq(new Set(full.map(x => x.selfNew)).size, 1);
+eq(scenario(1.00, 0).peerRare, true);
+eq(scenario(1.00, 0.25).peerRare, false);
+eq(scenario(0.10, 1.00).peerRare, true);
+eq(scenario(0.25, 1.00).peerRare, false);
+eq(scenario(0.50, 0.25).peerSupport, 0.13);
+eq(scenario(0.50, 0.10).peerSupport, 0.05);
+eq(coverage[0].peerSupport, 0.13);
+eq(coverage[1].peerSupport, 0.14);
+eq(coverage[2].peerSupport, 6 / 93);
+eq(coverage[2].peerRare, true);
+eq(coverage[3].peerSupport, null);
+eq(rankPanel(scenario(0.10, 1.00)).both.focalSelectionRange, [0, 1]);
+eq(rankPanel(scenario(0.25, 1.00)).both.focalSelectionRange, [0, 0]);
+eq(rankPanel(scenario(0.10, 1.00)).self.focalSelectionRange, [0, 1]);
+eq(rankPanel(scenario(0.25, 1.00)).self.focalSelectionRange, [0, 1]);
+eq(rankPanel(scenario(1.00, 0)).both.focalSelectionRange, [0, 1]);
+eq(rankPanel(scenario(1.00, 1.00)).both.focalSelectionRange, [0, 0]);
+
+const matrix = participationLevels.map(p => ({
+  participation: p,
+  overlap: Object.fromEntries(overlapLevels.map(o => {
+    const s = scenario(p, o);
+    return [o, { support: s.peerSupport, peerRare: s.peerRare, both: s.intersection }];
+  }))
+}));
+
+console.log(JSON.stringify({
+  protocol: { peers, participationLevels, overlapLevels, rarityCutoff, reviewBudget },
+  checks,
+  matrix,
+  coverage,
+  reviewAtLowSupport: rankPanel(scenario(0.10, 1.00)),
+  reviewAtHighSupport: rankPanel(scenario(0.25, 1.00))
+}, null, 2));
+\`\`\`
+
+</details>
+
 ## Current handoff
 
-**Next pending numbered pass: L11 / T10 — Activation prevalence and peer-normalization failure.**
+**Next pending numbered pass: L12 / T11 — Unconventional observable that survives audience assignment.**
 
-L01–L10 plus two authorized interstitials are complete: **10 of 15 numbered passes**. Read the latest direction supplement and check whether its hourly review is due before L11.
+L01–L11 plus two authorized interstitials are complete: **11 of 15 numbered passes**. Read the latest direction supplement and check whether its hourly review is due before L12.
 
-**Q03 direction review:** C11 is removed from the breakthrough slate and retained only as an exact-build role-change measurement experiment; C12 remains conditional integration. L11 must vary participating-peer fraction and audience overlap independently, with coverage separate. L12 must seek an observable that survives both shared- and disjoint-audience relay worlds rather than another destination-rarity variant. [Review rationale and kill conditions](./resprox-direction-reviews.md#q03--peer-support-is-not-participation-prevalence).
+**Q03 verdict is now borne out by A10:** participant fraction and target overlap are independent axes. With the focal device/build/workload fixed, 100% participating peers can be rare under disjoint audiences or common under shared audiences. Correlated coverage can also flip the label. C11 peer rarity/intersection is rejected as a participation proxy or ranking gate. Keep self-new exact-build destinations as role-change output and peer support only as explicit audience-commonness context.
 
-L10 inspected the closest primary implementations found under comparable endpoint telemetry. New/rare network-process detection, per-host process rarity and good-versus-suspect destination deltas are established. C11's remaining candidate contribution is only the exact-build destination-membership measurement across self history and leave-one-device-out peers. It can surface role change for an already-networking common process; it cannot establish relay participation, unauthorized use, endpoint compromise or session compromise. Ranking remains suspended.
+The breakthrough slate is empty. C11 is an established adaptation with unproved field utility; C12 is conditional integration. C05/C04-G/C01/C06 remain practical candidates under their recorded dependencies. C02/C10 remain parked.
 
-**L11 decisive prediction:** as independently confirmed participation spreads through a same-build population, the peer-rarity facet should weaken even though the focal device's workload is unchanged. Build a frozen synthetic or authorized-lab protocol with stable focal device/build/workload and stable target/peer visibility; vary participating-peer fraction across predeclared levels. Record covered installation-days, not raw device counts. Truth fields must separately encode participation, approval and ordinary configuration/rollout.
+L12 must seek one materially different observable whose decision survives both high-overlap and disjoint-audience relay worlds. Do not rename C11, add destination entropy/rarity, or revive C10/C07/C08 without resolving its telemetry or ownership blocker. Compare the simplest known method and strongest benign twin; state the minimum telemetry, concrete logic, what a hit establishes, and a kill condition. If ordinary Sentinel telemetry cannot expose remote authorship, preserve that negative rather than inventing a proxy classifier.
 
-Compare self-new, peer-prevalence and their intersection against: ordinary rollout, a shared-destination workload, a quiet relay and missing/changed coverage. Preserve common-audience, self-only, contact-only and unassessable lanes. Do not use known-clean peer assumptions, fit thresholds to A08, or reinterpret disappearing rarity as benign. Reject the peer facet as a durable participation prioritizer if it collapses primarily with activation prevalence at a realistic review budget; retain self-history only if it independently changes the decision.
+A10 used 100 synthetic peers, a 6×5 participation/overlap grid, separate coverage regimes, the inherited 10% cutoff and K=3 budget. Nineteen assertions passed twice unchanged. It did not run KQL or model DNE/provider scheduling. No source adapter, sensor/lab or tenant execution occurred. Existing non-Edge DeviceEvents/AdditionalFields and bounded materialize guidance remains unchanged.
 
-No KQL, source adapter, sensor/lab or tenant execution occurred in L10. A09's 16 assertions checked only source-code feature transcription. Existing non-Edge DeviceEvents/AdditionalFields and bounded materialize guidance remains unchanged.
-
-Re-fetch main and blob SHA immediately before saving, preserve concurrent work, and stop if L11 is already complete. Research-file changes only; no new collection, deployment, schedule or unrelated repository write.
+Re-fetch main and blob SHA immediately before saving, preserve concurrent work, and stop if L12 is already complete. Research-file changes only; no new collection, deployment, schedule or unrelated repository write.
 
 ## Reusable invocation
 
