@@ -6,7 +6,7 @@
 **Canonical file:** threat-work/research/resprox-research-loops.md  
 **Original sources:** [ResProx](./ResProx)  
 **Created:** 2026-09-08  
-**Readiness:** L11 rejects C11 peer rarity as a relay-participation proxy. A fixed focal participant can be peer-rare or peer-common solely because of target-assignment overlap and comparable coverage; correlated missingness can reverse the classification. Keep exact-build self-history as a descriptive role-change hunt and peer support only as labelled audience-commonness context. Do not gate or rank on the intersection. The breakthrough slate is empty. C12/C03 remain conditional local-reach investigations; C04-G/C05/C01/C06 remain practical specifications/baselines; C02/C10 stay parked. A10 is deterministic synthetic arithmetic, not KQL, sensor, field or production validation.
+**Readiness:** L12 adds C13, a provisional control-to-work pulse hunt: repeated role-valid control epochs followed by excess non-control connection events on the same process instance. Its measurement is independent of destination rarity and survives constructed shared/disjoint audience assignment, but approved forwarders and polling updaters are exact twins. Persistent control sockets or suppressed repeated connection events are unassessable. C13 may rank C01 leads for role/configuration review; it cannot establish relay participation, remote authorship, unauthorized use or compromise. The breakthrough slate remains empty. C05/C04-G/C01/C06 remain practical specifications/baselines; C11 remains descriptive; C12/C03 conditional; C02/C10 parked. A11 is deterministic synthetic reducer testing, not KQL, sensor, field or production validation.
 
 ## Run accounting and scheduling
 
@@ -260,12 +260,12 @@ Lead with the ranked detection/hunt portfolio. For each shortlisted candidate st
 
 ## State — update after each saved pass
 
-**Programme status:** in progress; L01–L11 plus additional L04.5 and L04.5(2) completed (11 of 15 numbered passes)  
-**Next pass:** L12 / T11 — Unconventional observable that survives audience assignment  
-**Last completed pass:** L11  
-**Last result journal entry:** [L11 — Peer rarity measures target assignment, not participation](#l11--peer-rarity-measures-target-assignment-not-participation)  
-**Unresolved execution blocker:** none; L11 completed the predeclared prevalence-by-overlap stress test and revised C11. No KQL, source adapter, sensor, lab or tenant test ran.  
-**Research-data blockers:** The breakthrough slate is empty. A10 establishes only that participation fraction is not identifiable from destination support without audience-assignment and coverage assumptions; actual provider schedulers, same-build enterprise prevalence and operational review value remain unknown. C11 self-history still needs repeated exact hashes, comparable covered installation-days, stable typed destination visibility and independently known role/configuration to test field value. Relay participation requires task/feature/receiver truth; unauthorized use additionally requires event-time approval or consent. Actual table/category ingestion, population/field coverage, directory mapping, retention and runtime remain unconfirmed. C12/C03 retain client-answer/topology/receiving-service blockers. C02 still requires attributable flow counters, intervals and NAT/DHCP mapping. C05 lacks a complete catalogue/approval register; C01 lacks current control pairs; C10 lacks an attributable TLS sensor. C09 and C04-G retain their saved blockers.
+**Programme status:** in progress; L01–L12 plus additional L04.5 and L04.5(2) completed (12 of 15 numbered passes)  
+**Next pass:** L13 / T12 — Portfolio and decisive experiments  
+**Last completed pass:** L12  
+**Last result journal entry:** [L12 — Control-to-work pulse survives audience assignment](#l12--control-to-work-pulse-survives-audience-assignment)  
+**Unresolved execution blocker:** none; L12 tested a predeclared temporal reducer and added C13 as a provisional hunt-ranking experiment. No KQL, source adapter, sensor, lab or tenant test ran.  
+**Research-data blockers:** The breakthrough slate remains empty. C13 requires current role-valid controller pairs, repeated independently logged control connections, stable same-process-instance keys and validated action lanes; persistent sockets, event suppression or missing control intelligence make it unassessable. Its updater and approved-forwarder twins require configuration/approval truth, and remote authorship still needs payload/task/receiver evidence. A11 establishes only reducer behaviour on constructed timestamps. Actual DNE ingestion, ActionType population, process-key coverage, retention, connection-event fidelity and runtime remain unconfirmed. C11 still needs exact-hash/history field comparison; C12/C03 retain client-answer/topology/receiving-service blockers. C02 requires flow counters and mapping; C05 lacks a complete catalogue/approval register; C01 lacks current control pairs; C10 lacks an attributable TLS sensor; C09 and C04-G retain their saved blockers.
 
 | Loop | Task | Status | Last updated UTC | Result / blocker |
 |---|---|---|---|---|
@@ -282,7 +282,7 @@ Lead with the ranked detection/hunt portfolio. For each shortlisted candidate st
 | L09 | T08 Tuning and cost | completed | 2026-09-09 | A08: 1,613 synthetic records / 24 entities, 21 assertions; no clear K=3 ranking win; C11 conjunction-first priority suspended, descriptive facets retained; no KQL/tenant run. |
 | L10 | T09 Prior-art gap | completed | 2026-09-09 | Closest primary implementations inspected; exact-build destination membership is a residual measurement, not demonstrated novelty or relay attribution. C11 remains descriptive/rank-suspended. No KQL/tenant execution. |
 | L11 | T10 Ecosystem and measurement | completed | 2026-09-09 | A10 crossed peer participation and target overlap with coverage controls; 19 assertions, deterministic rerun. Peer rarity rejected as participation proxy/ranking gate; self-history retained for role review only. No KQL/tenant execution. |
-| L12 | T11 Unconventional hunt opportunities | pending | — | — |
+| L12 | T11 Unconventional hunt opportunities | completed | 2026-09-09 | C13 control-to-work pulse added as a provisional C01-ranking experiment; shared/disjoint audiences survived A11, but updater/approved-forwarder twins and persistent-socket visibility prevent a relay verdict. 15 assertions; no KQL/tenant run. |
 | L13 | T12 Portfolio and experiments | pending | — | — |
 | L14 | T13 Independent hunt review | pending | — | — |
 | L15 | T14 Final hunt brief | pending | — | — |
@@ -366,6 +366,18 @@ Allowed pass statuses: pending, completed, blocked. An inconclusive research res
 **L10 correction to C11:** Freeze three endpoints. (1) **Role change** requires stable exact-build and destination-visibility evidence; C11 can describe this. (2) **Relay participation** requires independent controlled feature/task or receiver truth; C11 cannot establish it. (3) **Unauthorized use** additionally requires event-time approval/consent or policy truth; C11 cannot establish it. The residual observable is self-new destination membership with low leave-one-device-out support among covered same-build peers after controller holdout. Its changed decision is only to surface an already-networking common process for role/configuration review when first-network-use and rare-process methods remain silent. An approved forwarder/configuration change is an exact observational twin. Readiness is **descriptive hunt design; unconfirmed ingestion; ranking suspended; potentially distinct measurement within this bounded comparison only**.
 
 **L11 correction to C11:** The candidate logic now leads with self-history. Report every assessable self-new typed destination for an exact build, including common-audience cases. Attach PeerSupport = ObservedSupportingPeers / EligibleCoveredPeers with numerator, denominator, coverage lane and controller-held-out/raw status; never translate it into participation prevalence, cleanliness or authorization. Do not require PeerSupport at or below a cutoff and do not rank on the self-plus-peer intersection. When target-lane visibility changes, emit unassessable. A hit establishes only observed role/audience change. Next validation is an authorized labelled comparison of self-history against simpler first-network-use/process-delta review; retire the exact-build complexity if it changes no decision.
+
+
+### C13 — The controller's pulse appears in the work
+
+- **Behaviour / analyst decision:** Among processes already producing a C01 role-valid control lead, which ones repeatedly show a short-lag increase in separate non-control connection events on the same process instance? Use the result to prioritize raw protocol, software-role, configuration and approval review; do not classify residential-proxy participation.
+- **Mechanism / evidence:** H24. S04/S85 documents a Tier Two connect channel that polls for tasks, a separate proxy connection that becomes ready for payloads, and a new socket to the supplied FQDN. If polling/task delivery creates separately logged connections, repeated control epochs may be followed by a work pulse regardless of whether peers receive the same or different destinations. DNE records connection-related events and a process start key (S84), but not the task payload or remote authorship.
+- **Required telemetry:** C01's dated, role-valid controller IP/port pairs; `DeviceNetworkEvents` in the target workspace; `TimeGenerated`, `DeviceId`, `InitiatingProcessUniqueId`, action lane, `RemoteIP`, `RemotePort`, `RemoteUrl`, protocol and event identity. Validate successful/attempted ActionType semantics in the tenant and keep lanes separate. Require repeated independently observed control connection epochs for one process instance; a persistent socket or suppressed repeats is **unassessable**, not negative.
+- **Optional telemetry:** `DeviceProcessEvents` for process lifetime/lineage; C05 software identity and event-time approval; packet/task or receiving-service truth in an authorized lab; C11 self-history as separate context. For non-Edge network-protection enrichment, preserve the existing `DeviceEvents.AdditionalFields` route and `materialize()` bounded reused expressions; it is not a C13 requirement.
+- **Concrete logic:** Use a bounded 24-hour candidate window. Materialize one filtered/projected DNE slice because it is reused. Match C01 controller tuples with validity and role intact, exclude every control tuple from work events, and collapse duplicate/nearby control records into non-overlapping epochs per `DeviceId + InitiatingProcessUniqueId`. For each epoch count non-control events in a matched ten-second pre-window and ten-second post-window. Report `PulseRatio = countif(PostCount > PreCount and PostCount > 0) / ControlEpochs`, the count/median distribution, and identical calculations at predeclared shifted or permuted placebo epochs. The A11 values—six epochs and 75%—are design values only, not thresholds. Preserve event rows, ties, failed-action lane and insufficient-epoch output. Do not use destination rarity, entropy, geography or peer support.
+- **Expected output:** Scope/device/process and controller-evidence provenance; process lifetime; covered control epochs; pre/post event counts and deltas; pulse and placebo ratios; target examples without rarity scoring; action/visibility lane; approval/configuration context; assessable/unassessable reason and next pivot.
+- **Benign alternatives / what a hit establishes:** An updater, orchestration client, pull-based sync product, security agent or approved forwarder can poll and then open other connections with the same timing. A hit establishes repeated same-process temporal coupling under observed connection events, consistent with externally triggered work. It does **not** establish that a control response caused the work, that bytes were forwarded, residential transport, remote authorship, unauthorized use, endpoint compromise or session compromise.
+- **Readiness / next validation:** **Idea with a schema-grounded reducer; hunt-only; unconfirmed ingestion.** A11's constructed timestamps show the measure is unchanged by shared versus disjoint audiences and can remove contact-only/startup/independent cases, but the updater and approved-forwarder twins score identically. Run an authorized sensor test with a known relay, pull updater, approved forwarder, idle controller and persistent-socket variant. Compare C13 against C01 contact-only/one-sequence review at one budget. Kill ranking value if repeated polls are not separately emitted, negative/shifted lags perform similarly, process start explains the uplift, or C13 changes no analyst decision beyond C01. Keep the breakthrough slate empty unless an independent field comparison demonstrates benefit.
 
 **Common contract.** Windows and cutoffs below are proposed design values, not measured thresholds. Use non-overlapping baseline and candidate periods; never turn absent required data into a negative result. Optional evidence must not suppress a primary lead. Each workspace/customer remains a separate scope; do not join different tenants by UPN or IP. An empty name, client field or process key is unknown, not an anomalous value. Readiness labels remain: idea; specified with unconfirmed ingestion; specified with confirmed ingestion; tested in a labelled lab/synthetic setting; runtime-tested in a named authorized environment; rejected. Any future alert additionally needs calibration, cost/runtime checks, adjudicated controls and a separate deployment review.
 
@@ -484,6 +496,8 @@ L04 adds on-paper controls and triage to C05/C01/C06. L04.5 adds lifecycle/owner
 | H22 | A peer-rarity gate can suppress participating or unauthorized workload that shares destinations with peers; commonness does not establish legitimacy. | strengthened logically in L11; field prevalence unknown | A08 D24 and zero-rarity sensitivity; A10 makes the same fixed focal participant common at higher target overlap while self-history remains unchanged. | Synthetic allocation does not estimate real provider overlap or efficacy; common destinations can also be benign rollout. | Preserve common-audience/self-change output and obtain independent task/approval truth; never use peer commonness as a benign verdict. |
 
 | H23 | Peer support for one focal destination is jointly determined by participating-peer fraction, conditional target overlap and comparable coverage; participation is not identifiable from support alone. | supported analytically and by A10's constructed grid; field distribution unknown | S04 assigns a task FQDN to an exit; S55 observes each node receiving only a portion of distributed campaigns; A10 crosses the two axes and coverage. | Real scheduling can be nonrandom and depend on geography, capacity, customer or provider. The 10% cutoff and deterministic allocation are not estimates. | Obtain task-ground-truth lab/provider data with stable build/coverage; measure participation and conditional audience overlap separately. |
+
+| H24 | Repeated short-lag control-to-noncontrol connection uplift on one process instance can prioritize externally triggered network-role review without destination rarity. | proposed in L12; C13 provisional challenger, not breakthrough | S85 supplies a concrete poll/task/proxy/target sequence; S84 exposes process-instance/time/peer fields; A11 survives constructed shared/disjoint audiences and rejects several weaker patterns. | DNE may log socket creation rather than each poll; persistent channels are unassessable. Updaters and approved forwarders are exact positive twins; no causality, forwarding or authorization follows. | Sensor-test repeated-connection visibility and compare with C01 at one review budget. Reject if placebo lags match, startup explains uplift or no decision changes. |
 
 Use proposed, supported, weakened, rejected, merged, or unresolved. Record reasons for transitions; repeated mention does not increase confidence.
 
@@ -680,6 +694,19 @@ Accessed **2026-09-09 UTC**. No proxy node, provider, customer environment or te
 | S04 recheck | [Google Threat Intelligence: IPIDEA disruption](https://cloud.google.com/blog/topics/threat-intelligence/disrupting-largest-residential-proxy-network), published 2026-01-28 | The documented Tier Two path assigns an FQDN task to an exit, which then opens the target socket. This supports target assignment as a causal variable distinct from whether the process participates. Google does not publish the per-build distribution of task overlap needed to calibrate peer support. |
 | S55 recheck | [Khan et al., user-installed residential proxies](https://opendl.ifip-tc6.org/db/conf/cnsm/cnsm2024/1571050912.pdf), CNSM 2024 | The testbed saw only a portion of customer traffic. In one travel case each measured proxy emitted one or two direct requests while the same signatures appeared across thousands of IPs; other cases were sporadic. This supports sparse/distributed per-node audiences and the need not to equate pool participation with one shared target. It does not measure same-build peer overlap in an enterprise. |
 | A10 | [L11 prevalence-by-overlap stress test](#l11--peer-rarity-measures-target-assignment-not-participation), executed 2026-09-09 | Deterministic grid: 100 peers; six participation levels; five conditional-overlap levels; three assessable coverage regimes plus one unassessable lane; fixed 10% rarity cutoff and K=3 review budget. Nineteen assertions passed; two runs were byte-identical. Script SHA-256 \`f4477f02415a98d1fa4eedfecf3760dbbba15031fdcd8f45fd2db38a302fe37a\`; output SHA-256 \`a1dde1609058ee463b9873e284b185a5c1f668251f708d8aac814346a3abdb13\`. | Normalized arithmetic and a constructed review panel only. It is not DNE/KQL, a provider scheduler, sensor emulation, prevalence estimate, precision/recall result or field validation. |
+
+
+### L12 source additions and executed evidence
+
+Accessed **2026-09-09 UTC**. The source screen was bounded to the documented mechanism, public Microsoft schema and two closest Microsoft Sentinel code patterns; it cannot establish global novelty.
+
+| ID | Primary source / evidence | Contribution and limit |
+|---|---|---|
+| S84 | [Microsoft: DeviceNetworkEvents in Azure Monitor](https://learn.microsoft.com/en-us/azure/azure-monitor/reference/tables/devicenetworkevents), revised 2026-07-27 | Documents connection-related endpoint records, `TimeGenerated`, peers, process hashes and `InitiatingProcessUniqueId` as the Windows Process Start Key. It does not enumerate public ActionType values, promise every poll/packet is emitted, expose payload bytes or prove this workspace ingests the table. |
+| S85 | [Google Threat Intelligence: IPIDEA disruption](https://cloud.google.com/blog/topics/threat-intelligence/disrupting-largest-residential-proxy-network), published 2026-01-28 | Concrete Tier Two mechanism: periodic connect-port polling, FQDN plus connection-ID tasking, separate proxy-port readiness, payload receipt and target socket. This supports testing a repeated temporal response independent of target identity. It is one family and does not specify Defender event output or a universal timing distribution. |
+| S86 | [Azure-Sentinel: DCOM Lateral Movement](https://github.com/Azure/Azure-Sentinel/blob/5bd081d1f69cbffc007b4c531a0d2d0a30a081d1/Solutions/FalconFriday/Analytic%20Rules/DCOMLateralMovement.yaml), v1.0.0, blob `ae4b668a036514ca56a5761ab17bdb570b62253d` | Existing Sentinel code correlates DNE and process events by close temporal proximity and uses `materialize()`. This establishes temporal-join implementation prior art, not C13's repeated pre/post response or efficacy. |
+| S87 | [Azure-Sentinel: Potential beaconing activity](https://github.com/Azure/Azure-Sentinel/blob/5bd081d1f69cbffc007b4c531a0d2d0a30a081d1/Solutions/Network%20Session%20Essentials/Analytic%20Rules/PossibleBeaconingActivity.yaml), v1.1.6, blob `b723485281c63f6bfd791a41869da16850af6498` | Existing ASIM rule measures recurrence/frequency of one source-destination flow. C13's residual is event-conditioned post-versus-pre work on the same process instance, not beacon regularity. Different schemas and absent evaluation prevent performance comparison. |
+| A11 | [L12 control-to-work pulse construction](#l12--control-to-work-pulse-survives-audience-assignment), executed 2026-09-09 | Eight constructed control epochs; matched ten-second pre/post windows; minimum six epochs; 75% design cutoff; 30-second shifted placebo; eight entities. Fifteen assertions passed twice byte-identically. Script SHA-256 `9d4e1057afbc92fab42562691766da1b2903ed4e30bdb022e8c0cf8a495f42c7`; output SHA-256 `799bf6d33f7ffe3a54d0baa2f37df23f9869c75c17ff164e0e66cbf1b44dfe1b`. | Tests a small reducer on designer-chosen timestamps. It is not KQL, sensor simulation, a prevalence/precision estimate, a task-causality test or field validation. The benign twins were intentionally identical. |
 
 ### Starting research leads
 
@@ -2191,23 +2218,180 @@ console.log(JSON.stringify({
 
 </details>
 
+
+## L12 — Control-to-work pulse survives audience assignment
+
+**Question.** Can an actionable Sentinel observation survive both shared and disjoint relay audiences without claiming remote authorship?
+
+**Result.** Add C13 as a provisional ranking experiment for existing C01 leads: repeated control epochs followed by excess non-control connection events on the same process instance. It measures a temporal response, not destination identity. A11 gives shared- and disjoint-audience relays the same result and removes constructed contact-only, startup-only and independent-traffic cases. It also gives a polling updater and approved forwarder the exact same positive result. C13 can justify role/configuration review only; it cannot identify relaying, consent, compromise or a breakthrough.
+
+### Chosen analyst decision and residual
+
+The decision is deliberately modest: **which role-valid controller-contact lead should receive scarce raw protocol/configuration review first?** C01 contact-only is the simplest baseline. A single ordered control-to-destination sequence was already judged insufficient in L04. C13 asks a different question: is there a repeated within-instance response where post-control non-control activity exceeds a matched pre-control window, and does that response disappear at placebo lags?
+
+This survives L11's assignment problem because destination membership, peer support and entropy are absent. Shared target `shared.example` and eight disjoint targets produce identical pulse values. The comparison is not globally novel: S86 already shows close-time event correlation in Sentinel and S87 measures recurrence. The bounded residual is the conjunction of a role-valid control epoch, same-process repeated pre/post response and placebo comparison for analyst prioritization. No independent source or field result proves its value.
+
+### Minimum observable and KQL-shaped design
+
+Required columns are those in C13. The public DNE schema supplies timestamps, peers and `InitiatingProcessUniqueId`, but directs users to the in-portal schema for ActionType details. Therefore a future implementation must first verify the workspace's action population and separately preserve attempted/success lanes. It must not hard-code an assumed universal success event.
+
+The reducer is:
+
+1. Materialize one bounded, projected DNE slice.
+2. Match current role-valid controller tuples and retain their source/validity.
+3. Collapse close duplicate controller observations into non-overlapping epochs per exact process instance.
+4. Exclude controller tuples from candidate work events.
+5. For each epoch compute non-control counts in `[-10s,0)` and `(0,+10s]`.
+6. Report positive-episode ratio, deltas and event examples beside shifted/permuted placebo epochs.
+7. Emit insufficient epochs, persistent-socket possibility or missing process key as **unassessable**.
+
+The ten-second windows, six-epoch minimum and 75% ratio are frozen A11 construction values, not recommended alert thresholds. Runtime/cardinality is unmeasured. Reuse justifies `materialize()`; non-Edge protection enrichment remains the separate optional `DeviceEvents.AdditionalFields` path saved in L08.
+
+### A11 deterministic construction
+
+| Entity | Contact-only | Pulse result | Placebo | Decision limit |
+|---|---|---:|---:|---|
+| Relay, one shared target | yes | 8/8 | 0/8 | Survives high audience overlap. |
+| Relay, eight disjoint targets | yes | 8/8 | 0/8 | Survives disjoint assignment. |
+| Approved forwarder | yes | 8/8 | 0/8 | Exact authorization twin. |
+| Polling updater | yes | 8/8 | 0/8 | Exact benign mechanism twin. |
+| Controller only | yes | 0/8 | 0/8 | C13 removes this constructed C01 lead. |
+| Startup common cause | yes | 2/8 | 0/8 | Repetition suppresses a one-off burst. |
+| Independent busy process | yes | 0/8 | 0/8 | Matched timing rejects this construction. |
+| Persistent control socket | yes | unassessable | unassessable | Connection events cannot reveal each poll. |
+
+Fifteen assertions passed twice with byte-identical output. This is reducer verification only. It does not establish sensor fidelity, thresholds, separation in real data or causal direction.
+
+### Wildcard decisions
+
+- **Pursue C13 provisionally:** it changes the proposed analyst decision relative to contact-only in the construction and is independent of target distribution. The next test is sensor-first, not more scoring.
+- **Reject same-process listener-plus-egress as a universal relay observable:** S85's concrete exit design is outbound control/proxy/target connections and need not listen locally. A listener gate would miss the documented architecture and still match approved services/P2P.
+- **Park payload-transfer/remote-authorship inference in ordinary DNE:** S84 exposes connection metadata, not the task response, connection ID or bytes that Google used to describe the mechanism. Without packet/task/receiver truth, a temporal association remains an association.
+- **Do not revive rarity/entropy:** A11 deliberately ignores destination identity, so L11's overlap failure is not relabelled.
+
+### Candidate and portfolio change
+
+C13 enters as a **provisional C01-ranking experiment**, outside the breakthrough slate. C01 remains the input lead and contact-only fallback. C05 remains the smallest policy/provenance decision; C04-G and C06 remain practical hunts under their dependencies. C11 remains a descriptive role-change experiment and must face L13's exact-build-versus-ordinary-history comparison. C12 remains conditional integration; C02/C10 remain parked.
+
+Remote task authorship is still unobservable in ordinary DNE. This negative is preserved. A C13 hit establishes repeated temporal coupling consistent with triggered work, not proxy participation, network exposure, endpoint compromise or session compromise.
+
+### L13 handoff
+
+At most three survivors. Run Q04's matched comparison of C11 exact-build self-history against ordinary process/application destination-history change, separately reporting hash/history exclusions. Include C13 only as a provisional sensor experiment: do not tune its windows unless repeated control connections are shown observable. Compare analyst decision/review effort at one budget, preserve approved-forwarder/updater twins and reject any feature that changes no decision.
+
+Q04 was current and its 2026-09-09T08:55:32Z checkpoint was not due at invocation start. No direction-review write occurred.
+
+<details>
+<summary>Exact A11 JavaScript</summary>
+
+```javascript
+const assert = require('node:assert/strict');
+
+// Frozen L12 construction. This tests reducer logic, not MDE sensor behavior.
+const controller = 'tier2:connect';
+const controlTimes = [100, 200, 300, 400, 500, 600, 700, 800];
+const preSeconds = 10;
+const postSeconds = 10;
+const minimumEpochs = 6;
+const pulseCutoff = 0.75;
+
+function make(name, audienceMode, options = {}) {
+  const controls = (options.controlTimes || controlTimes).map((time, index) => ({
+    time, kind: 'control', destination: controller, index
+  }));
+  const audience = [];
+  const coupled = options.coupledEpochs ?? controlTimes.length;
+  for (let i = 0; i < coupled; i++) {
+    const time = controlTimes[i] + 2;
+    const destination = audienceMode === 'shared' ? 'shared.example:443' : `target-${i}.example:443`;
+    audience.push({ time, kind: 'audience', destination, index: i });
+  }
+  for (const time of options.independentAudienceTimes || []) {
+    audience.push({ time, kind: 'audience', destination: `independent-${time}:443` });
+  }
+  return { name, controls, audience, truth: options.truth || 'unknown' };
+}
+
+function pulse(entity, controlShift = 0) {
+  const epochs = entity.controls.map(e => e.time + controlShift);
+  if (epochs.length < minimumEpochs) return { assessable: false, reason: 'insufficient-control-epochs' };
+  const rows = epochs.map(time => {
+    const pre = entity.audience.filter(e => e.time >= time - preSeconds && e.time < time).length;
+    const post = entity.audience.filter(e => e.time > time && e.time <= time + postSeconds).length;
+    return { time, pre, post, positive: post > pre && post > 0 };
+  });
+  const positive = rows.filter(x => x.positive).length;
+  const ratio = positive / rows.length;
+  return { assessable: true, epochs: rows.length, positive, ratio, passes: ratio >= pulseCutoff, rows };
+}
+
+const entities = [
+  make('relay-shared-audience', 'shared', { truth: 'unauthorized-participant' }),
+  make('relay-disjoint-audience', 'disjoint', { truth: 'unauthorized-participant' }),
+  make('approved-forwarder', 'disjoint', { truth: 'approved-participant' }),
+  make('polling-updater', 'shared', { truth: 'benign-pull-worker' }),
+  make('controller-only', 'shared', { coupledEpochs: 0, truth: 'contact-only' }),
+  make('startup-common-cause', 'shared', { coupledEpochs: 2, truth: 'benign-startup' }),
+  make('independent-busy-process', 'shared', {
+    coupledEpochs: 0,
+    independentAudienceTimes: [50, 150, 250, 350, 450, 550, 650, 750],
+    truth: 'benign-independent'
+  }),
+  make('persistent-control-socket', 'shared', {
+    controlTimes: [100], coupledEpochs: 1, truth: 'relay-unobservable'
+  })
+];
+
+const results = Object.fromEntries(entities.map(e => [e.name, {
+  truth: e.truth,
+  contactOnly: e.controls.length > 0,
+  pulse: pulse(e),
+  shiftedPlacebo: pulse(e, 30)
+}]));
+
+let checks = 0;
+function eq(actual, expected) { assert.deepEqual(actual, expected); checks++; }
+
+eq(results['relay-shared-audience'].pulse.ratio, 1);
+eq(results['relay-disjoint-audience'].pulse.ratio, 1);
+eq(results['relay-shared-audience'].pulse.passes, true);
+eq(results['relay-disjoint-audience'].pulse.passes, true);
+eq(results['approved-forwarder'].pulse.ratio, 1);
+eq(results['polling-updater'].pulse.ratio, 1);
+eq(results['controller-only'].pulse.passes, false);
+eq(results['startup-common-cause'].pulse.passes, false);
+eq(results['independent-busy-process'].pulse.passes, false);
+eq(results['persistent-control-socket'].pulse.assessable, false);
+eq(results['relay-shared-audience'].shiftedPlacebo.passes, false);
+eq(results['relay-disjoint-audience'].shiftedPlacebo.passes, false);
+eq(results['approved-forwarder'].pulse.ratio, results['relay-disjoint-audience'].pulse.ratio);
+eq(results['polling-updater'].pulse.ratio, results['relay-shared-audience'].pulse.ratio);
+eq(new Set(entities.map(e => results[e.name].contactOnly)).size, 1);
+
+console.log(JSON.stringify({
+  protocol: { controlTimes, preSeconds, postSeconds, minimumEpochs, pulseCutoff },
+  checks,
+  results
+}, null, 2));
+```
+
+</details>
+
 ## Current handoff
 
-**Next pending numbered pass: L12 / T11 — Unconventional observable that survives audience assignment.**
+**Next pending numbered pass: L13 / T12 — Select the portfolio and design decisive tests.**
 
-L01–L11 plus two authorized interstitials are complete: **11 of 15 numbered passes**. Read the latest direction supplement and check whether its hourly review is due before L12.
+L01–L12 plus two authorized interstitials are complete: **12 of 15 numbered passes**. Read the latest direction supplement and check whether its hourly review is due before L13.
 
-**Q03 verdict is now borne out by A10:** participant fraction and target overlap are independent axes. With the focal device/build/workload fixed, 100% participating peers can be rare under disjoint audiences or common under shared audiences. Correlated coverage can also flip the label. C11 peer rarity/intersection is rejected as a participation proxy or ranking gate. Keep self-new exact-build destinations as role-change output and peer support only as explicit audience-commonness context.
+**L12 verdict:** C13's control-to-work pulse is independent of destination assignment and may prioritize role-valid C01 leads for raw role/configuration review. In A11, shared and disjoint audiences both produced 8/8 positive epochs; contact-only, startup-only and independent-traffic constructions did not. An approved forwarder and polling updater also produced 8/8, and a persistent control socket was unassessable. Therefore C13 is a provisional hunt-ranking experiment, not a relay detector, attribution claim or breakthrough.
 
-The breakthrough slate is empty. C11 is an established adaptation with unproved field utility; C12 is conditional integration. C05/C04-G/C01/C06 remain practical candidates under their recorded dependencies. C02/C10 remain parked.
+The breakthrough slate remains empty. C05/C04-G/C01/C06 are practical under recorded dependencies; C11 is descriptive with ranking suspended; C13 is provisional and controller/sensor-gated; C12 is conditional integration; C02/C10 remain parked.
 
-L12 must seek one materially different observable whose decision survives both high-overlap and disjoint-audience relay worlds. Do not rename C11, add destination entropy/rarity, or revive C10/C07/C08 without resolving its telemetry or ownership blocker. Compare the simplest known method and strongest benign twin; state the minimum telemetry, concrete logic, what a hit establishes, and a kill condition. If ordinary Sentinel telemetry cannot expose remote authorship, preserve that negative rather than inventing a proxy classifier.
+L13 must obey Q04: at most two or three survivors and a matched comparison of C11 exact-build self-history against ordinary process/application destination-history change at the same visibility, windows and review budget. Report matched-eligible outcomes separately from whole-population exact-hash/history exclusions. Freeze truth and rejection before execution. Include C13 only if its role-valid controller input and repeated-connection observability are explicit; do not tune around missing sensor truth. Preserve contact-only and unassessable outputs.
 
-**Q04 planning checkpoint:** L12 should seek a new observable for a stated analyst decision, without making proof of remote authorship a prerequisite for a useful hunt. L13 must test C11's exact-build value against ordinary process/application destination-history change under matched conditions and report excluded population separately. These are designed comparisons, not executed validation; the breakthrough slate remains empty.
+A11 used constructed timestamps only: eight control epochs, ten-second matched windows, six-epoch minimum, 75% design cutoff and a shifted placebo. Fifteen assertions passed twice unchanged. No KQL, source adapter, sensor, packet, lab or tenant test occurred. Existing non-Edge `DeviceEvents.AdditionalFields` and bounded `materialize()` guidance remains unchanged.
 
-A10 used 100 synthetic peers, a 6×5 participation/overlap grid, separate coverage regimes, the inherited 10% cutoff and K=3 budget. Nineteen assertions passed twice unchanged. It did not run KQL or model DNE/provider scheduling. No source adapter, sensor/lab or tenant execution occurred. Existing non-Edge DeviceEvents/AdditionalFields and bounded materialize guidance remains unchanged.
-
-Re-fetch main and blob SHA immediately before saving, preserve concurrent work, and stop if L12 is already complete. Research-file changes only; no new collection, deployment, schedule or unrelated repository write.
+Re-fetch main and blob SHA immediately before saving, preserve concurrent work, and stop if L13 is already complete. Research-file changes only; no new collection, deployment, schedule or unrelated repository write.
 
 ## Reusable invocation
 
