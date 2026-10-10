@@ -20,6 +20,11 @@ threat research, and detection engineering in Microsoft Sentinel and Defender.
 | [`threat-work/research/`](threat-work/research/) | Source-backed research and hunt or detection candidates. |
 | [`threat-work/detections/`](threat-work/detections/) | Reusable detection-engineering logic and production rule packages. |
 
+## Applications
+
+- [Blacklist](apps/blacklist/) — source code and a Claude rebuild handover for
+  the shared threat-intelligence and Sentinel hunting index.
+
 ## Archived investigation workbenches
 
 The [`archive launcher`](archive/) provides direct access to all preserved
