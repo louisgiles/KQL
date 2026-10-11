@@ -1,0 +1,79 @@
+BLACKLIST — NEXT PROPOSAL FEEDBACK
+For the work Claude conversation that has already received the original handover and proposal v1 feedback.
+Prepared: 11 October 2026
+
+PURPOSE AND HANDOFF
+
+Louis manually transfers files between this review and the work Claude conversation. GitHub is only Louis's transfer mechanism. You do not need GitHub access, and this document does not ask you to fetch anything from it.
+
+Use the attachments and conversation already supplied to you, including the original source handover, screenshots, rules and v1 feedback. Apply the additional amendments below to your revised plan. This is still a planning task: do not implement or deploy yet.
+
+The reviewed revision retains the intended architecture and substantially addresses the v1 findings. Keep that work. These amendments do not call for a new architecture, a UI redesign, another service or a broader feature set.
+
+0. MAKE THE IMPLEMENTATION HANDOFF INDEPENDENT OF GITHUB
+
+The implementation plan must work from the supplied source bundle in a local project folder. Replace instructions requiring repository access, a new branch, a fresh clone, commits, pushes or reads from GitHub with the equivalent local-folder workflow.
+
+Paths such as app/workspace.tsx and docs/operations.md can remain as project-relative paths. Repository names and URLs in the original material are provenance only, not required inputs. Do not assume that files held by the external reviewer exist in the work Claude conversation.
+
+Include all necessary requirements in the final plan. The implementer should not need this reviewer conversation or links to previous feedback.
+
+1. PRESERVE PLANNING AND FEEDBACK MATERIAL
+
+The reviewed plan's final-file allowlist omits its own revised proposal and the v1 feedback, while instructing the implementer to delete other tracked paths.
+
+Explicitly preserve the supplied proposals, feedback and rules. If the transferred files are named prop2 or proposal-v1-feedback.txt, preserve them; if they arrived under different names or as attachments, preserve their local equivalents.
+
+Limit cleanup to identified obsolete application files after the source bundle has been extracted and checked. Do not use blanket deletion that could remove unrelated local files, planning documents or feedback.
+
+Acceptance:
+The implementer can complete cleanup without deleting the material defining the build.
+
+2. REJECT THE WHOLE BRIEFING WHEN FACTUAL EVIDENCE CHECKS FAIL
+
+The reviewed plan removes a fact with a failed source/quote check and can still accept the remaining briefing. That leaves a gap: the same unsupported claim may remain in the unchanged summary.
+
+For a submitted briefing, reject the entire entry when a submitted fact fails a required citation, successful-fetch or quote-presence check. Record a useful rejection reason and leave the existing article unchanged.
+
+Keep this distinct from a hunt pack lacking fetched table documentation: a supported briefing may still be accepted with that pack omitted and the visibility gap explained.
+
+Update the unsupported-quote test accordingly. Include a case where one fact passes and another fails, with the failed claim also appearing in the summary; the entry must be rejected.
+
+These checks establish provenance. A quote appearing on a retrieved page does not itself prove that the quote supports the claim or that the claim is true.
+
+3. TEST READ-BACK EXCEPTIONS AFTER A SUCCESSFUL COMMIT
+
+Keep the chosen atomic-write policy and the existing read-back mismatch test. Add a case in which the article batch commits successfully, but the subsequent read-back query throws.
+
+For both mismatch and read-back exception:
+- updated remains N, the number of committed briefings.
+- ok is false.
+- The error states that saving succeeded but verification failed.
+- lastResearch remains unchanged.
+- Best-effort status persistence must not replace the committed count with zero.
+- runResearch resolves with truthful status even if persisting that status also fails.
+
+A failure before or inside the atomic batch remains a separate case: no article changes committed, updated is zero.
+
+Acceptance:
+Tests distinguish rollback, committed-but-mismatched and committed-but-unreadable outcomes. None reports zero saved changes after a confirmed successful commit.
+
+4. LIMIT THE METHODOLOGY CLAIM TO BRIEFINGS THAT UNDERGO THE CHECKS
+
+The revised UI wording says that automated checks confirm each briefing's primary report was fetched and each fact's quotation appears on its cited page. Historical seeds and legacy research have not necessarily passed the new process.
+
+Use wording equivalent to:
+
+"For briefings produced by this application's scheduled research process, automated checks confirm that the primary report was fetched and that each fact's quoted text appears on its cited page. Historical and seed briefings may not have undergone these checks. The checks do not prove the claims."
+
+Apply the same qualification in the operating documentation. Do not retroactively claim stronger evidence for older content. No new migration or record-history subsystem is required.
+
+HANDBACK
+
+Return one complete revised implementation plan, followed by a short mapping of these amendments and the earlier v1 feedback to the sections changed.
+
+Preserve the agreed scope: one Cloudflare Worker, the existing React interface, D1 shared state, verified Access/Entra identity, scheduled research, the seven-day Actioned semantics, retained team records, and Sentinel / Log Analytics hunts labelled UNTESTED.
+
+Retain the existing simplicity rules and acceptance checks. Clearly separate locally verifiable work from deployment steps that need Louis's credentials or administrator action. State unresolved API assumptions without claiming they have been tested.
+
+Do not implement yet. The next handoff is a self-contained plan for Sonnet to implement using the supplied files and a local project folder.
