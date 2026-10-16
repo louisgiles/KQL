@@ -7,7 +7,17 @@ from pathlib import Path
 import sys
 
 
-ACTIVE_ROOTS = ("investigation", "threat-work")
+ACTIVE_ROOTS = (
+    "01-sign-in",
+    "02-auth-changes",
+    "03-office-ops",
+    "04-azure-activity",
+    "05-endpoint",
+    "06-email",
+    "lookups",
+    "playbooks",
+    "threat-work",
+)
 FORMAT_FUNCTION = "format_datetime"
 SUPPORTED_DELIMITERS = set(" /-:,. _[]")
 SUPPORTED_RUNS = {

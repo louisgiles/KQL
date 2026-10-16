@@ -1,0 +1,19 @@
+// name:              Remote logons to one device
+// purpose:           Who remotely authenticated to this device, and from where?
+// starting_entities: DeviceName
+// required_tables:   DeviceLogonEvents
+// optional_tables:   none
+// variables:         TargetDevice, Lookback
+// done_criteria:     Every remote logon is tied to an expected admin path or flagged as lateral movement.
+// output_type:       analysis
+//
+// Surface: Sentinel Log Analytics (TimeGenerated).
+
+let TargetDevice = "host.contoso.com";
+let Lookback = 7d;
+DeviceLogonEvents
+| where TimeGenerated >= ago(Lookback)
+| where DeviceName =~ TargetDevice
+| where isnotempty(RemoteIP)
+| project TimeGenerated, AccountDomain, AccountName, ActionType, LogonType, RemoteIP, RemoteDeviceName, Protocol, IsLocalAdmin
+| order by TimeGenerated desc

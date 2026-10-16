@@ -1,0 +1,20 @@
+// name:              Sign-in timeline for one user
+// purpose:           What does this user's recent sign-in activity look like, in order?
+// starting_entities: UPN
+// required_tables:   SigninLogs
+// optional_tables:   none
+// variables:         TargetUser, Lookback
+// done_criteria:     The suspicious sign-in is placed in sequence with what came before and after, and any change in IP, client or device is explained.
+// output_type:       analysis
+//
+// Surface: Sentinel Log Analytics (TimeGenerated).
+
+let TargetUser = "user@contoso.com";
+let Lookback = 7d;
+SigninLogs
+| where TimeGenerated >= ago(Lookback)
+| where UserPrincipalName =~ TargetUser
+| extend Result = iff(ResultType == "0", "Success", ResultDescription)
+| extend DeviceId = tostring(DeviceDetail.deviceId)
+| project TimeGenerated, IPAddress, Location, AppDisplayName, ResourceDisplayName, AuthenticationProtocol, ClientAppUsed, AuthenticationMethodsUsed, Result, DeviceId
+| order by TimeGenerated desc

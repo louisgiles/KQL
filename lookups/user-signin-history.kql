@@ -1,0 +1,20 @@
+// name:              Sign-in familiarity for one user
+// purpose:           Has this user normally used this IP, location, app, client and device?
+// starting_entities: UPN
+// required_tables:   SigninLogs
+// optional_tables:   none
+// variables:         TargetUser, Lookback
+// done_criteria:     The suspicious sign-in's IP, location, app, client and device are each marked familiar or novel against the user's own history.
+// output_type:       analysis
+//
+// Surface: Sentinel Log Analytics (TimeGenerated).
+
+let TargetUser = "user@contoso.com";
+let Lookback = 30d;
+SigninLogs
+| where TimeGenerated >= ago(Lookback)
+| where UserPrincipalName =~ TargetUser
+| where ResultType == "0"
+| extend DeviceId = tostring(DeviceDetail.deviceId)
+| summarize SignIns=count(), FirstSeen=min(TimeGenerated), LastSeen=max(TimeGenerated) by IPAddress, Location, AppDisplayName, ClientAppUsed, DeviceId
+| order by SignIns desc

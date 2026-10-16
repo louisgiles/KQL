@@ -1,28 +1,123 @@
-# Repository contract
+# Repo Contract
 
-This is the authoritative contract for new and changed content in the active
-v2 query base. `README.md` is the front door; a module README may strengthen
-these requirements but must not weaken them.
+The rules every `.kql` file and family folder in this repo is expected to follow.
+This document is the authoritative reference; `README.md` remains the front door.
 
-## Scope
+## Query standard
 
-This contract applies to:
+Every `.kql` file must declare these fields in a comment block at the top:
 
-- `investigation/**`
-- `threat-work/**`
+```
+// name:              Short descriptive name
+// purpose:           One sentence — what this query answers
+// starting_entities: What the analyst provides (e.g. UPN, IP, SessionId)
+// required_tables:   Tables the query breaks without
+// optional_tables:   Enrichment tables — graceful failure if absent
+// variables:         let-block variables the analyst populates
+// done_criteria:     What "finished investigating" looks like
+// output_type:       analysis | narrative | quick-triage
+```
 
-The former numbered investigation families plus legacy `cross-family/` and
-`scratchpad/` are preserved under the top-level archive and are not active
-sources. The remaining `threathunting/` content is a temporary Babbler/one-shot
-holding area only and must not receive new threat-hunt work. The retired
-`detectionlogic/` and `threathunting-research/` roots remain recoverable from
-the named legacy archive, not as active v2 locations.
+## Parameterisation
 
-## Canonical layout
+All analyst-supplied inputs go in a `let` block at the top of every query.
+No inline filters for investigation-scoped values.
 
-```text
-KQL/
-├── investigation/
+```kql
+let targetUser = "";
+let lookback = 14d;
+let targetIP = "";
+```
+
+## Family structure
+
+Every investigation family contains:
+
+| File | Status | Purpose |
+|---|---|---|
+| `deep-dive.kql` | Required | Evidence engine — structured analytical output |
+| `narrative-gen.kql` | Required | Closure-ready note generation |
+| `notes.md` | Required | Use case, starting entities, done criteria, data dependencies |
+| `quick-dive.kql` | Optional | Fast decision-gate triage — one-row-ish output that tells the analyst whether the deep-dive is worth running |
+
+Endpoint is the exception — it uses three deep dives (process, file, network)
+instead of one. Each endpoint sub-family follows the same file contract:
+required `deep-dive.kql` + `narrative-gen.kql` + `notes.md`, optional
+`quick-dive.kql`.
+
+### `quick-dive.kql` (optional)
+
+A family or sub-family may ship zero or one `quick-dive.kql`. Its job is fast
+prevalence-first triage: enough signal to decide whether to escalate to the
+deep-dive, not a full investigation. It must carry the full contract header
+block with `output_type: quick-triage`. Absence of a `quick-dive.kql` is not
+drift — it just means the family hasn't needed one.
+
+## Scratchpad
+
+`scratchpad/` is a top-level folder for precise one-off tool queries that
+do not recur often enough to belong to a family. Examples: a single
+investigation's bespoke join, an ad-hoc check tied to a specific alert
+shape, a query written for one ticket and kept for reference.
+
+Scratchpad queries are **explicitly exempt from the family contract**:
+
+- No mandatory header block.
+- No companion `narrative-gen.kql`.
+- No `notes.md`.
+- No `.kql` extension policing (recommended but not required).
+- They are never counted as a family and never re-flagged as drift or as
+  an incomplete family in audits.
+
+If a scratchpad query starts being reached for repeatedly, promote it
+into a family (or a sub-family under an existing family) and apply the
+full contract at that point.
+
+## Data dependency tags
+
+Every table referenced in a query gets one of three tags in the family's
+`notes.md`:
+
+- **Required** — query breaks without it.
+- **Optional enrichment** — left-outer joined or coalesced; sparse results
+  are fine.
+- **Avoid as hard dependency** — known coverage or freshness issues; never
+  use in `where` clauses.
+
+## Closure language
+
+Four determination buckets. Match the pattern, not the exact wording:
+
+- **Benign** — expected behaviour, no action required.
+- **Precautionary benign** — likely fine, worth noting or monitoring.
+- **Review required** — ambiguous, needs senior eyes or additional context.
+- **Suspicious / escalate** — indicators of compromise or policy violation.
+
+## Validation
+
+Each family maintains three test cases in `notes.md`:
+
+- Known benign.
+- Ambiguous.
+- Known bad or clearly suspicious.
+
+New query versions run against all three before merge.
+
+## Folder layout
+
+```
+kql/
+├── README.md
+├── repo-contract.md
+├── 01-sign-in/
+├── 02-auth-changes/
+├── 03-office-ops/
+├── 04-azure-activity/
+├── 05-endpoint/
+├── 06-email/
+├── scratchpad/
+├── playbooks/
+├── lookups/
 ├── threat-work/
 │   ├── hunts/
 │   ├── research/
@@ -32,128 +127,33 @@ KQL/
 └── tests/
 ```
 
-| Area | Owns | Does not own |
-|---|---|---|
-| `investigation/` | Reusable queries that answer questions during a live incident. | Population-wide hunts, research notes, deployable detections, or agentic one-shots. |
-| `threat-work/hunts/` | Reusable, hypothesis-led searches across a population or time range. | Single-incident triage or production alert packages. |
-| `threat-work/research/` | Source-backed technical research and explicit hunt or detection candidates. | Content represented as deployment-ready without validation. |
-| `threat-work/detections/` | Repeatable detection logic and its deployment, tuning, and validation material. | Unvalidated research hypotheses or one-off incident queries. |
+## Supporting folders
 
-## Executable KQL standard
+These sit outside the family contract but follow the query standard above:
+every `.kql` file carries the header block and keeps analyst inputs in a
+top `let` block with a bounded time window. Hunts and detections may add
+`time_window` and `artifact_type` lines to the header.
 
-Every runnable query must use the `.kql` extension and begin with a comment
-header declaring:
+| Folder | Rules |
+|---|---|
+| `playbooks/` | One folder per incident class, each with a `README.md` giving run order, inputs and stop conditions. Steps run independently. |
+| `lookups/` | One entity, one question, raw rows. No scoring or verdict. Indexed in `lookups/README.md`. |
+| `threat-work/hunts/` | Each hunt states its hypothesis, population, window, expected benign noise and coverage limits. |
+| `threat-work/research/` | Sourced notes separating fact, inference and hypothesis. No executable claim. |
+| `threat-work/detections/` | Candidate or production alert logic with a local `README.md` covering dependencies, tuning and validation. |
 
-```text
-// name:              Short descriptive name
-// purpose:           The question this query answers
-// starting_entities: Analyst-supplied entities, or none for a population hunt
-// required_tables:   Tables without which the query cannot answer its question
-// optional_tables:   Enrichment tables whose absence is tolerated
-// variables:         Analyst-populated let variables
-// time_window:       Default and permitted investigation or hunt bounds
-// done_criteria:     Evidence required to stop, contain, close, or progress
-// artifact_type:     investigation | hunt | detection
-// output_type:       analysis | narrative | quick-triage
-```
+Promotion from research to hunt to detection is an explicit, reviewed change.
 
-Research Markdown and other non-executable support files do not use the KQL
-header.
+## Execution surface
 
-## Parameters and time bounds
+Identity, Office and Azure queries target Sentinel Log Analytics and use
+`TimeGenerated`. Endpoint and email family queries are written for Defender
+Advanced Hunting and use `Timestamp`, as noted in the README. A query that
+mixes Sentinel-only tables with Defender tables must use `TimeGenerated`
+throughout, or state that it needs the unified Defender portal.
 
-- Put analyst inputs and tunable thresholds in a `let` block at the top.
-- Do not bury investigation-scoped values in inline filters.
-- Use an explicit, bounded time window. A query must not default to an unbounded table scan.
-- Explain any deliberately wide baseline separately from the scoring or event window.
-- Keep a runnable file paste-ready; do not require hidden fragments or manual edits outside its declared parameters.
-
-## Module documentation
-
-Any directory containing runnable KQL must contain a local `README.md` that
-states:
-
-- analyst purpose and when to use the module;
-- required starting entities and variables;
-- required, optional, and avoided data dependencies;
-- time-window behaviour;
-- output schema and how it changes the decision;
-- done criteria and unresolved coverage limits;
-- validation evidence or fixture references.
-
-The old mandatory `deep-dive.kql` plus `narrative-gen.kql` family pairing is
-retired. Modules should contain only the artifacts their operational purpose
-requires.
-
-## Dependency behaviour
-
-Classify every referenced table in the local README:
-
-- **Required** — absence prevents a valid answer.
-- **Optional enrichment** — sparse or absent coverage is tolerated and must not suppress the primary result.
-- **Avoid as hard dependency** — known freshness or coverage risk; never use it as a silent gate.
-
-When required evidence is missing, the query or its documentation must make
-that limitation visible. Do not turn missing telemetry into benign evidence.
-
-## Decision-oriented output
-
-Executable queries should return the smallest useful result set for their
-purpose. Prefer affected entities, decisive evidence, timestamps, scope, and
-next action over large raw event dumps.
-
-Where a determination is appropriate, use one of these meanings consistently:
-
-- **Benign** — expected behaviour; no action required.
-- **Precautionary benign** — likely expected; record or monitor as specified.
-- **Review required** — unresolved evidence or coverage requires another check.
-- **Suspicious / escalate** — evidence supports containment, escalation, or policy action.
-
-## Area-specific readiness
-
-### Investigation
-
-Organise modules by investigative objective, not by arbitrary numbering or by
-the first table queried. The active base begins with entity pivots and a
-bounded correlated timeline. Future playbooks may compose these objectives,
-but each runnable query must remain independently usable.
-
-### Hunts
-
-A hunt must state its hypothesis, population, window, expected benign noise,
-coverage limits, and the output that warrants deeper investigation. A hunt is
-not automatically a detection candidate.
-
-### Research
-
-Research must distinguish sourced fact, analyst inference, and proposed
-hypothesis. Record source and observation dates where they affect validity.
-Promotion into `hunts/` or `detections/` is an explicit reviewed change.
-
-### Detections
-
-A production-ready detection package must keep its KQL with a local README,
-analytic-rule YAML where applicable, tuning guidance, and a validation or test
-fixture reference. Detailed naming and packaging conventions may strengthen
-this baseline in the queued folder-contract task.
-
-Migrated legacy detection logic may remain explicitly marked as a candidate
-while its semantics, dependencies, and tuning are revalidated; migration into
-`threat-work/detections/` is not by itself a production-readiness claim.
-
-## One-shot boundary
-
-Agentic one-shots, Babbler stages, caller contracts, and their validation
-lineage belong in `louisgiles/oneshots`. Do not create a second active
-implementation under `investigation/` or `threat-work/`.
-
-Legacy Babbler and one-shot source must remain recoverable in KQL until the
-destination implementation has been verified. Migration must preserve useful
-history before removing a source copy.
-
-## Validation
-
-- Run `pwsh ./scripts/test-kql.ps1` for syntax-level validation of `.kql` files.
-- Validate new or changed executable queries against known-benign, ambiguous, and known-suspicious scenarios before production use.
-- Record schema, table-coverage, and runtime limitations; the parser cannot validate them.
-- A passing parser check is necessary, not sufficient, evidence of readiness.
+Cross-family pivots (multi-family investigation paths like Email → SignIn,
+SignIn → AuthChanges, Endpoint → Network → SignIn) are deliberately out of
+scope for v1 and parked for a future addition. A skeleton lives at
+`cross-family/pivot-patterns.md` but is not part of the contract — it is
+not validated, not required, and not counted as drift.

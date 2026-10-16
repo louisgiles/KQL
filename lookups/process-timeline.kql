@@ -1,0 +1,18 @@
+// name:              Process timeline for one device
+// purpose:           What ran on this device in the window, and who ran it?
+// starting_entities: DeviceName
+// required_tables:   DeviceProcessEvents
+// optional_tables:   none
+// variables:         TargetDevice, Lookback
+// done_criteria:     The process behind the alert and its surrounding activity are identified, with a next pivot chosen.
+// output_type:       analysis
+//
+// Surface: Sentinel Log Analytics (TimeGenerated).
+
+let TargetDevice = "host.contoso.com";
+let Lookback = 24h;
+DeviceProcessEvents
+| where TimeGenerated >= ago(Lookback)
+| where DeviceName =~ TargetDevice
+| project TimeGenerated, AccountName, FileName, ProcessCommandLine, ProcessId, InitiatingProcessFileName, InitiatingProcessCommandLine, InitiatingProcessId, SHA1
+| order by TimeGenerated desc
