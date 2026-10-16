@@ -1,0 +1,18 @@
+// name:              File hash origin
+// purpose:           Where has this file hash appeared, and where did it come from?
+// starting_entities: SHA256, SHA1 or MD5
+// required_tables:   DeviceFileEvents
+// optional_tables:   none
+// variables:         TargetHash, Lookback
+// done_criteria:     Every device holding the hash is listed with its origin URL or IP and the writing process. File events only; a hash seen only at execution needs DeviceProcessEvents.
+// output_type:       analysis
+//
+// Surface: Sentinel Log Analytics (TimeGenerated).
+
+let TargetHash = "SHA1-or-SHA256-or-MD5";
+let Lookback = 30d;
+DeviceFileEvents
+| where TimeGenerated >= ago(Lookback)
+| where SHA256 =~ TargetHash or SHA1 =~ TargetHash or MD5 =~ TargetHash
+| project TimeGenerated, DeviceName, FileName, FolderPath, SHA1, SHA256, FileOriginIP, FileOriginUrl, InitiatingProcessFileName, InitiatingProcessAccountName
+| order by TimeGenerated desc

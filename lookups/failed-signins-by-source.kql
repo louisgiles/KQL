@@ -1,0 +1,19 @@
+// name:              Failed sign-ins by source
+// purpose:           Where are this user's failed sign-ins coming from, and why are they failing?
+// starting_entities: UPN
+// required_tables:   SigninLogs
+// optional_tables:   none
+// variables:         TargetUser, Lookback
+// done_criteria:     Failure sources are grouped into expected (user error, stale device) or hostile (spray, brute force), with a decision on the hostile ones.
+// output_type:       analysis
+//
+// Surface: Sentinel Log Analytics (TimeGenerated).
+
+let TargetUser = "user@contoso.com";
+let Lookback = 7d;
+SigninLogs
+| where TimeGenerated >= ago(Lookback)
+| where UserPrincipalName =~ TargetUser
+| where ResultType != "0"
+| summarize Attempts=count(), FirstSeen=min(TimeGenerated), LastSeen=max(TimeGenerated) by IPAddress, AppDisplayName, ResultType, ResultDescription
+| order by Attempts desc

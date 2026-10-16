@@ -1,0 +1,20 @@
+// name:              Office activity for one user
+// purpose:           What did this user do across Exchange, SharePoint and OneDrive?
+// starting_entities: UPN
+// required_tables:   OfficeActivity
+// optional_tables:   none
+// variables:         TargetUser, Lookback
+// done_criteria:     Operations after the suspected compromise time are reviewed and any rule, permission or data-access change is explained or escalated.
+// output_type:       analysis
+//
+// Surface: Sentinel Log Analytics (TimeGenerated).
+
+let TargetUser = "user@contoso.com";
+let Lookback = 14d;
+OfficeActivity
+| where TimeGenerated >= ago(Lookback)
+| where UserId =~ TargetUser or MailboxOwnerUPN =~ TargetUser
+| extend SourceIP = iff(isnotempty(ClientIP), ClientIP, ActorIpAddress)
+| extend Object = case(isnotempty(SourceFileName), SourceFileName, isnotempty(Item), Item, OfficeObjectId)
+| project TimeGenerated, OfficeWorkload, Operation, UserId, MailboxOwnerUPN, SourceIP, Object, ResultStatus
+| order by TimeGenerated desc

@@ -1,0 +1,18 @@
+// name:              Mail trace for one address
+// purpose:           What mail was sent to or from this address, and where did it land?
+// starting_entities: Email address
+// required_tables:   EmailEvents
+// optional_tables:   none
+// variables:         TargetAddress, Lookback
+// done_criteria:     The message in question is found, its delivery location confirmed, and any wider delivery identified.
+// output_type:       analysis
+//
+// Surface: Sentinel Log Analytics (TimeGenerated).
+
+let TargetAddress = "user@contoso.com";
+let Lookback = 14d;
+EmailEvents
+| where TimeGenerated >= ago(Lookback)
+| where RecipientEmailAddress =~ TargetAddress or SenderFromAddress =~ TargetAddress or SenderMailFromAddress =~ TargetAddress
+| project TimeGenerated, NetworkMessageId, SenderFromAddress, SenderMailFromAddress, SenderIPv4, RecipientEmailAddress, Subject, DeliveryAction, DeliveryLocation, ThreatTypes
+| order by TimeGenerated desc

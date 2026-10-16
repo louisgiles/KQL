@@ -8,7 +8,7 @@ Sentinel Log Analytics.
 Occam's razor governs this module: the simplest sequence that answers the
 triage question is the right one. The repository already holds a maximal
 single-query engine for this alert class
-([`../../identity/device-code/`](../../identity/device-code/)); this playbook
+([`../device-code-scope/`](../device-code-scope/)); this playbook
 is its deliberate counterpart — four small queries an analyst pastes in run
 order, each answering exactly one question, each independently runnable.
 
@@ -72,7 +72,7 @@ Design choices that follow from the razor:
    `AnchorTime` to the device-code sign-in time and `Lookforward` to `24h`.
 5. Stop when the evidence supports a decision. Escalate confirmed or
    unresolved suspicion into the deep queries in
-   [`../../identity/device-code/`](../../identity/device-code/)
+   [`../device-code-scope/`](../device-code-scope/)
    (`post-auth-scope.kql`, `campaign-scope.kql`) using the `SignInId` and
    `CorrelationId` carried in step 1 output.
 
@@ -152,7 +152,7 @@ The playbook is complete when:
 3. The 24-hour audit sweep has been run, or explicitly skipped because
    steps 1–3 supported closure.
 4. The outcome is containment, verified closure, or a named escalation into
-   `../../identity/device-code/`.
+   `../device-code-scope/`.
 
 ## Coverage limits
 

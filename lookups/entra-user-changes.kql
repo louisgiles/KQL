@@ -1,7 +1,13 @@
-// Question: What directory changes did this user initiate or receive?
-// Table: AuditLogs
-// Dependency: Entra audit logs ingested into Sentinel
-// Surface: Sentinel Logs / Log Analytics
+// name:              Directory changes by or to one user
+// purpose:           What Entra changes did this user make, and what changes were made to them?
+// starting_entities: UPN
+// required_tables:   AuditLogs
+// optional_tables:   none
+// variables:         TargetUser, Lookback
+// done_criteria:     Each change is attributed to an expected admin, app or self-service action, or escalated.
+// output_type:       analysis
+//
+// Surface: Sentinel Log Analytics (TimeGenerated).
 
 let TargetUser = "user@contoso.com";
 let Lookback = 14d;

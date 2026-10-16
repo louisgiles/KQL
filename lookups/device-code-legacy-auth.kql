@@ -1,0 +1,29 @@
+// name:              Device-code and legacy auth paths for one user
+// purpose:           Did this account sign in with device code, ROPC or a legacy mail protocol?
+// starting_entities: UPN
+// required_tables:   SigninLogs
+// optional_tables:   none
+// variables:         TargetUser, Lookback
+// done_criteria:     Every device-code, ROPC or legacy-protocol sign-in is tied to an expected client or escalated. Interactive sign-ins only; an empty result is not proof of no legacy use in non-interactive logs.
+// output_type:       analysis
+//
+// Surface: Sentinel Log Analytics (TimeGenerated).
+
+let TargetUser = "user@contoso.com";
+let Lookback = 14d;
+// Exact ClientAppUsed strings as Entra writes them ("IMAP4", not "IMAP").
+let LegacyClients = dynamic([
+    "Exchange ActiveSync", "IMAP4", "POP3", "Authenticated SMTP",
+    "MAPI Over HTTP", "Exchange Web Services", "Offline Address Book",
+    "Other clients"
+]);
+SigninLogs
+| where TimeGenerated >= ago(Lookback)
+| where UserPrincipalName =~ TargetUser
+| where AuthenticationProtocol in ("deviceCode", "ropc")
+    or ClientAppUsed in (LegacyClients)
+    or ClientAppUsed startswith "Outlook Anywhere"
+| extend AuthPath = case(AuthenticationProtocol == "deviceCode", "Device code", AuthenticationProtocol == "ropc", "ROPC", "Legacy client")
+| extend Result = iff(ResultType == "0", "Success", ResultDescription)
+| project TimeGenerated, IPAddress, AppDisplayName, ResourceDisplayName, AuthPath, AuthenticationProtocol, ClientAppUsed, AuthenticationMethodsUsed, Result
+| order by TimeGenerated desc

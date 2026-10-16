@@ -1,0 +1,18 @@
+// name:              URL clicks for one user
+// purpose:           Which links did this user click, and were any blocked or clicked through?
+// starting_entities: UPN
+// required_tables:   UrlClickEvents
+// optional_tables:   none
+// variables:         TargetUser, Lookback
+// done_criteria:     The click in question is confirmed or ruled out, with click-through status known.
+// output_type:       analysis
+//
+// Surface: Sentinel Log Analytics (TimeGenerated).
+
+let TargetUser = "user@contoso.com";
+let Lookback = 14d;
+UrlClickEvents
+| where TimeGenerated >= ago(Lookback)
+| where AccountUpn =~ TargetUser
+| project TimeGenerated, AccountUpn, IPAddress, Workload, ActionType, IsClickedThrough, Url, ThreatTypes, NetworkMessageId
+| order by TimeGenerated desc

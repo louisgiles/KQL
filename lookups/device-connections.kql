@@ -1,0 +1,18 @@
+// name:              Network connections from one device
+// purpose:           Which remote IPs, ports and URLs did this device connect to?
+// starting_entities: DeviceName
+// required_tables:   DeviceNetworkEvents
+// optional_tables:   none
+// variables:         TargetDevice, Lookback
+// done_criteria:     Unexpected destinations are tied to an initiating process and account, or ruled expected.
+// output_type:       analysis
+//
+// Surface: Sentinel Log Analytics (TimeGenerated).
+
+let TargetDevice = "host.contoso.com";
+let Lookback = 24h;
+DeviceNetworkEvents
+| where TimeGenerated >= ago(Lookback)
+| where DeviceName =~ TargetDevice
+| project TimeGenerated, InitiatingProcessAccountName, InitiatingProcessFileName, LocalIP, RemoteIP, RemotePort, RemoteUrl, Protocol
+| order by TimeGenerated desc
