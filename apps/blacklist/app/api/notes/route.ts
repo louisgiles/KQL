@@ -1,3 +1,0 @@
-import {getDb,notes,hunts,actor,eq,json,sameOrigin} from '../../lib/server';
-import {z} from 'zod';
-export async function POST(req:Request){if(!sameOrigin(req))return json({error:'Origin rejected'},403);const user=await actor();if(!user)return json({error:'Sign in to record findings.'},401);let b;try{b=z.object({huntId:z.string(),body:z.string().trim().min(1).max(6000)}).parse(await req.json());}catch{return json({error:'Add a finding of 1–6000 characters.'},400);}if(!(await getDb().select().from(hunts).where(eq(hunts.id,b.huntId))).length)return json({error:'Hunt not found'},404);await getDb().insert(notes).values({id:crypto.randomUUID(),huntId:b.huntId,body:b.body,actor:user.displayName,createdAt:new Date().toISOString()});return json({ok:true});}
