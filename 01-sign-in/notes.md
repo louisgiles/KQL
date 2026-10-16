@@ -10,12 +10,11 @@ family should grow into.
 | `deep-dive.kql` | analysis | Deep-dive triage of a specific user, IP, or device with a weighted risk score across nine sign-in signals. |
 | `narrative-gen.kql` | narrative | Produces a single-row closure-ready narrative summarising a user's sign-in posture, IP reputation, device posture, MFA method and audit trail. |
 
-Supporting queries also live in this folder
-(`sign-in-baseline-behaviour`, `failed-auth-pattern`,
-`mfa-authentication-finder`, `anomalous-token-replay`,
-`privileged-account-activity-monitor`, `service-principal-auth-tracker`).
-They are not on the contract's `deep-dive.kql` / `narrative-gen.kql` path
-but are called from the same triage flow.
+Also in this folder: `Babbl33r.kql`, the probabilistic identity-posture
+section described below, and `babbler-lineage/`, its earlier builds. They
+are not on the contract's `deep-dive.kql` / `narrative-gen.kql` path. The
+tenant-wide Babbler hunt lives in
+`../threat-work/hunts/identity/babbler-novelty/`.
 
 ## Starting entities
 

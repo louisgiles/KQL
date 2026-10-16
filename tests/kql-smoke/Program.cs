@@ -1,6 +1,6 @@
 // KQL smoke-test harness.
 //
-// Parses every .kql file in the repo (excluding scratchpad/) and reports any
+// Parses every .kql file in the repo (excluding scratchpad/ and babbler-lineage/) and reports any
 // syntax-level diagnostics emitted by Microsoft.Azure.Kusto.Language. Does NOT
 // run semantic analysis — unknown tables / columns / unbound variables are
 // expected because these queries are runtime-templated with analyst-supplied
@@ -20,6 +20,7 @@ internal static class Program
     private static readonly string[] ExcludedDirSegments =
     {
         "/scratchpad/",
+        "/babbler-lineage/", // historical builds, kept as written; not runtime
         "/bin/",
         "/obj/",
         "/.git/",
@@ -51,7 +52,7 @@ internal static class Program
         }
 
         Console.WriteLine($"KQL smoke test — root: {repoRoot}");
-        Console.WriteLine($"Files: {files.Count} (scratchpad/ excluded)");
+        Console.WriteLine($"Files: {files.Count} (scratchpad/ and babbler-lineage/ excluded)");
         Console.WriteLine(new string('-', 72));
 
         int passCount = 0;

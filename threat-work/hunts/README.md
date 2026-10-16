@@ -1,26 +1,14 @@
 # Threat hunts
 
-Reusable, hypothesis-led searches across a defined population and time range.
+Each hunt states the behaviour being tested, the population and window, the
+expected benign noise, telemetry limits and the result that warrants an
+investigation.
 
-A hunt belongs here when it states the behaviour being tested, scope, expected
-benign noise, telemetry limits, and the result that warrants investigation.
-It does not belong here merely because it queries multiple devices or users.
+| Hunt | Surface | What it looks for |
+| --- | --- | --- |
+| [`endpoint/cloudflare-tunnel/`](endpoint/cloudflare-tunnel/) | Sentinel Log Analytics | Cloudflare Tunnel (`cloudflared`) deployment and execution, with preserved triage notes. |
+| [`endpoint/high-volume-url-file-pull/`](endpoint/high-volume-url-file-pull/) | Defender Advanced Hunting | Scored high-volume pulls from a target service, joined to file origin and execution. |
+| [`identity/babbler-novelty/`](identity/babbler-novelty/) | Sentinel Log Analytics | Tenant-wide per-actor sign-in novelty using the Babbler Good-Turing engine. |
 
-Keep live-incident pivots in `../../investigation/`, sourced candidate notes in
-`../research/`, deployable alert logic in `../detections/`, and agentic
-one-shots in the separate
-[`louisgiles/oneshots`](https://github.com/louisgiles/oneshots) repository.
-
-## Current modules
-
-- [`endpoint/cloudflare-tunnel/`](endpoint/cloudflare-tunnel/) - behaviour-based Cloudflare Tunnel deployment/execution hunt with preserved validation and triage notes.
-- [`endpoint/high-volume-url-file-pull/`](endpoint/high-volume-url-file-pull/) - scored target-service volume, file-origin, and execution hunt ported from preserved PR #13.
-
-The legacy high-volume URL file-pull PR #13 head remains preserved at
-`archive/pr-13-highvol-url-filepull-2026-08-20`. The v2 module records its
-provenance and adapts it to the current hunt contract without changing that
-archive.
-
-Query-bearing modules follow the
-[`repository contract`](../../repo-contract.md). Migration into this folder
-preserves useful logic; it does not by itself promote a hunt into a detection.
+A hunt that keeps finding real things is a detection candidate. Promotion into
+`../detections/` is a separate, reviewed change.
