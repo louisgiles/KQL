@@ -72,7 +72,7 @@ let IdpDispositionedResolved =
     | extend DispositionSelectionKey = strcat(
         format_datetime(
             coalesce(ValidFrom, datetime(0001-01-01)),
-            "yyyy-MM-ddTHH:mm:ss.fffffffZ"),
+            "yyyy-MM-dd HH:mm:ss.fffffff"),
         "|", hash_sha256(strcat(
             tostring(ExpiresOn), "|", tostring(CaseId), "|",
             tostring(DispositionNote))))
@@ -121,9 +121,9 @@ let IdpResolvedUserId = toscalar(
     IdpEligibleResolverRows
     | extend ResolverSelectionKey = strcat(
         format_datetime(
-            ResolverEventTime, "yyyy-MM-ddTHH:mm:ss.fffffffZ"),
+            ResolverEventTime, "yyyy-MM-dd HH:mm:ss.fffffff"),
         "|", format_datetime(
-            TimeGenerated, "yyyy-MM-ddTHH:mm:ss.fffffffZ"),
+            TimeGenerated, "yyyy-MM-dd HH:mm:ss.fffffff"),
         "|", tostring(UserId))
     | summarize arg_max(ResolverSelectionKey, UserId)
     | project UserId
@@ -185,7 +185,7 @@ let IdpRawSigninRows = materialize(
         FlowKeySource == "id", strcat("id:", tostring(Id)),
         strcat(
             "fallback:",
-            format_datetime(EventTime, "yyyy-MM-ddTHH:mm:ss.fffffffZ"), "|",
+            format_datetime(EventTime, "yyyy-MM-dd HH:mm:ss.fffffff"), "|",
             tostring(UserId), "|", tostring(IPAddress), "|",
             tostring(AppId), "|", tostring(ResultType), "|",
             tostring(SessionId)))
@@ -210,9 +210,9 @@ let IdpRawSigninRows = materialize(
         tostring(SessionId)))
     | extend RowSelectionKey = strcat(
         format_datetime(
-            EventTime, "yyyy-MM-ddTHH:mm:ss.fffffffZ"),
+            EventTime, "yyyy-MM-dd HH:mm:ss.fffffff"),
         "|", format_datetime(
-            TimeGenerated, "yyyy-MM-ddTHH:mm:ss.fffffffZ"),
+            TimeGenerated, "yyyy-MM-dd HH:mm:ss.fffffff"),
         "|", tostring(Id), "|", tostring(ResultType), "|",
         RowSelectionTieBreaker)
     | project

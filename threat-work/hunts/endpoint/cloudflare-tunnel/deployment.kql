@@ -53,7 +53,7 @@ let AllEvidence = materialize(
     union isfuzzy=true
     (
         DeviceProcessEvents
-        | where Timestamp >= BaselineStart and Timestamp < HuntEnd
+        | where TimeGenerated >= BaselineStart and TimeGenerated < HuntEnd
         | extend
             FileNameLower = tolower(tostring(FileName)),
             OriginalFileNameLower = tolower(tostring(ProcessVersionInfoOriginalFileName)),
@@ -112,7 +112,7 @@ let AllEvidence = materialize(
             HasTunnelRun, "Cloudflare Tunnel execution command",
             "cloudflared execution or command reference")
         | project
-            EventTime = Timestamp,
+            EventTime = TimeGenerated,
             DeviceId = tostring(DeviceId),
             DeviceName = tostring(DeviceName),
             Actor = ActorLabel(AccountUpn, AccountDomain, AccountName),
@@ -139,14 +139,14 @@ let AllEvidence = materialize(
     ),
     (
         DeviceNetworkEvents
-        | where Timestamp >= BaselineStart and Timestamp < HuntEnd
+        | where TimeGenerated >= BaselineStart and TimeGenerated < HuntEnd
         | where ActionType =~ "ConnectionSuccess"
         | where RemotePort == 7844 and Protocol in~ ("Tcp", "Udp")
         | where InitiatingProcessFileName contains "cloudflared"
             or InitiatingProcessCommandLine contains "cloudflared"
             or InitiatingProcessCommandLine contains "cloudflare/cloudflared"
         | project
-            EventTime = Timestamp,
+            EventTime = TimeGenerated,
             DeviceId = tostring(DeviceId),
             DeviceName = tostring(DeviceName),
             Actor = ActorLabel(
