@@ -357,8 +357,6 @@ let ResultLabel = (r:string) {
         r == "53003", "blocked by Conditional Access",
         "")
 };
-
-
 // === SECTION 1: The Keys Cut ===
 // Every key cut for this door. One AuditLogs read, pre-filtered to the shapes
 // any later section needs (method changes, PIM, follow-on operations), then
@@ -521,8 +519,6 @@ let RegistrationsCompleted =
     MethodEvents
     | where Action == "registration completed"
     | project RegTime = TimeGenerated, RegTargetKey = TargetKey;
-
-
 // === SECTION 2: The Customer ===
 // Who was at the counter. Each change is tied to the INITIATOR's closest
 // successful sign-in before it (not the target's), within PreChangeWindow,
@@ -710,8 +706,6 @@ let SessionOrigins = materialize(
         WalkOriginRisk = RiskLevelDuringSignIn, WalkOriginUserAgent = UserAgent,
         WalkOriginCorrelationId = CorrelationId
 );
-
-
 // === SECTION 3: The Strength Test ===
 // How the customer proved who they were, read from the session's first
 // authentication. Where no session could be walked, the bridged sign-in
@@ -798,8 +792,6 @@ let RegisterCaByChange =
     ) on $left.InitiatorId == $right.CaUserId
     | where CaTime between ((EventTime - PreChangeWindow) .. (EventTime + BridgeSkew))
     | summarize RegisterCaPolicies = make_set(CaPolicy, 10) by ChangeId;
-
-
 // === SECTION 4: The Footprint ===
 // Where they walked in from. Every IP the target and initiators used in
 // IpWindow (both sign-in tables), plus any audit IP that never signed in,
@@ -895,8 +887,6 @@ let FootprintDigest = toscalar(
         ", users ", BaselineUsers, ", days ", BaselineDays)
     | summarize make_list(Line, 50)
 );
-
-
 // === SECTION 5: The Sessions ===
 // How many times the door opened that day. The session count is distinct
 // SessionIds with a successful sign-in for the target on the change day.
@@ -932,8 +922,6 @@ let Flows = materialize(
     | extend Flow = strcat_array(array_sort_asc(Steps), " > ")
     | project CorrelationId, Flow
 );
-
-
 // === SECTION 6: The Premises ===
 // Confirm the building is worth breaking into. Roles come from the latest
 // IdentityInfo record per account. PIM activations by the target or the
@@ -974,8 +962,6 @@ let PimByChange =
             iff(PimUserId == TargetId, " (target)", " (initiator)")), 20),
         PimTargetActivations = countif(PimUserId == TargetId)
         by ChangeId;
-
-
 // === SECTION 7: After Hours ===
 // What happened once the shop shut: activity inside PostChangeWindow by the
 // target or the change's initiator.
@@ -1092,8 +1078,6 @@ let NeighboursByChange =
     | where NbTime between ((EventTime - FallbackWindow) .. (EventTime + FallbackWindow))
     | where NbUserId != InitiatorId
     | summarize OtherAccountsOnChangeIp = make_set(NbUpn, 10), OtherAccountCount = dcount(NbUserId) by ChangeId;
-
-
 // === SECTION 8: The Verdict ===
 // One row per change. Weighted flags sum to Score; the two hard flags force
 // Escalate while HardFlagsForceEscalate is true; the Narrative is one plain
