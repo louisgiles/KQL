@@ -1,0 +1,1364 @@
+// name:              The Locksmith - privileged auth-method change triage (one-shot)
+// purpose:           For each authentication-method change on a privileged account, answer whether the session that changed the locks belonged to the legitimate user.
+// starting_entities: TargetUpn (the account whose methods changed). ChangeTime is optional; without it the last day is scanned.
+// required_tables:   AuditLogs, SigninLogs
+// optional_tables:   AADNonInteractiveUserSignInLogs (bridge, session walk, footprint), IdentityInfo (assigned roles), OfficeActivity (inbox rules after the change). Each is read through union isfuzzy=true, so a missing table removes its evidence, not the rows.
+// variables:         TargetUpn, ChangeTime, PreChangeWindow, PostChangeWindow, IpWindow, BaselineWindow; tuning knobs, AppId, role, ASN and CA lists, weights and thresholds in SECTION 0
+// done_criteria:     Every row has a Verdict and Narrative; every Escalate row is escalated; every Review row has each Flag explained (change ticket, out-of-band confirmation with the user, known egress) or is escalated; the ticket records, per change, whether the session that changed the locks was the legitimate user.
+// output_type:       analysis
+//
+// ============================================================================
+// THE LOCKSMITH - privileged auth-method change triage, one-shot
+// ============================================================================
+//
+// Someone cut a new key for a privileged door. The Locksmith works out who was
+// at the counter, how they proved who they were, where they walked in from and
+// what they did once inside, then answers one question per change: was the
+// session that changed the locks the legitimate user?
+//
+// PURPOSE
+//   One row per authentication-method change on TargetUpn. Each change is
+//   bridged to the initiator's sign-in, that sign-in's session is walked back
+//   to its first authentication, the strength of that authentication is
+//   tested, the IPs in play are scored against the tenant, privilege is
+//   confirmed, the hours after the change are searched for follow-on
+//   activity, and a weighted Verdict and a one-sentence Narrative close the
+//   row. Single workspace by design: run it in the client workspace that owns
+//   the incident.
+//
+// PARAMETERS (all in SECTION 0)
+//   TargetUpn          Required. The privileged account whose methods changed.
+//   ChangeTime         Optional UTC datetime. Set: the scan is ChangeTime
+//                      +/- ChangeTimeSlack. Null: the scan is the last
+//                      DefaultLookback (1d).
+//   PreChangeWindow    60m. How far before a change to look for the
+//                      initiator's sign-in.
+//   PostChangeWindow   4h. How far after a change to look for follow-on
+//                      activity, and the add-then-delete span for the
+//                      lockout pattern.
+//   IpWindow           24h. Footprint: every IP the target and initiators
+//                      used in this window, ending at the scan window close.
+//   BaselineWindow     30d. Tenant-wide prevalence window for each IP in the
+//                      footprint.
+//   Everything else    Window plumbing, footprint thresholds, AppId lists,
+//                      privileged roles, ASN lists, CA policy IDs, weights and
+//                      verdict thresholds. Each is commented where it is set.
+//
+// READING THE OUTPUT (one row per change, oldest first)
+//   Verdict, Score, Narrative, Flags
+//       Benign, Review or Escalate; the summed weights; one sentence for the
+//       ticket; every flag that fired with its weight.
+//   EventTime, OperationName, Action, MethodType, ChangeKind, MethodDetail
+//       The change. Action is added, deleted, default changed, updated or
+//       added and deleted. ChangeKind is self-service, admin, app or unknown.
+//   Target, TargetPrivilege, Initiator, InitiatorPrivilege
+//       Who was changed, who changed them, and the roles each holds.
+//   ChangeIp*
+//       The IP the change came from (audit IP, else bridged sign-in IP) with
+//       its FootprintClass, ASN, ASN class, country, baseline users and days.
+//       FootprintClass: campaign, novel, egress or VPN, familiar, baseline
+//       incomplete (seen only in non-interactive logs, which the baseline
+//       skips by default), no sign-in record (audit IP never seen signing in).
+//   OtherAccountsOnChangeIp
+//       Other accounts that signed in from the change IP within
+//       +/- FallbackWindow. Who else was standing in the shop.
+//   BridgeMethod, ChangePathClass, Bridge*
+//       The sign-in the change was tied to and how. ChangePathClass: expected
+//       (My Signins), WHfB provisioning (Windows Sign In), scripted (Graph or
+//       PowerShell), unfamiliar app, app-made change, no sign-in bridged.
+//   Origin*
+//       The first successful authentication of the bridged session:
+//       requirement, MFA methods, token-claim seen, risk, device, user agent.
+//       OriginPossiblyTruncated means the walk hit SessionLookback, so the
+//       real first authentication may be older; token-claim is not trusted
+//       there.
+//   ChangeDevice*
+//       Device on the bridged sign-in: the hands on the keyboard.
+//   RegisterCaApplied, RegisterCaPolicies, RegistrationCompletedAt
+//       CA policies that look like the "Register security information" user
+//       action, and the "registered all required" event that feeds the
+//       single-factor-then-registration flag.
+//   SessionCountOnDay, SessionIdsOnDay, OriginFlow, BridgeFlow
+//       Distinct SessionIds with a successful sign-in for the target on the
+//       change day (the session count), and the step-by-step flow of the
+//       origin and bridged sign-ins (interrupts, MFA prompts, success),
+//       stitched by CorrelationId.
+//   PimActivations
+//       PIM activations by the target or initiator within +/- PimWindow.
+//   AfterHoursActions, InboxRuleActivity, NewMethodInfraIps, LockoutDetail
+//       What happened inside PostChangeWindow.
+//   UserFootprint
+//       Every footprint IP with its class. Identical on every row.
+//   EchoesSuppressed
+//       App-initiated Update user rows dropped as mirrors of a security-info
+//       row on the same target (SECTION 1).
+//
+// KNOWN LIMITATIONS
+//   - No rows means no successful auth-method change on TargetUpn in the scan
+//     window. Failed attempts are excluded by design. Check the UPN spelling
+//     and ChangeTime before concluding anything.
+//   - The bridge is an inference. AuditLogs has no SessionId and its
+//     CorrelationId does not reliably match the sign-in tables, so changes are
+//     tied to sign-ins by initiator, IP and time. A commented CorrelationId
+//     join in SECTION 2 lets you test the direct link in a given tenant.
+//   - Graph and PowerShell changes often have no sign-in inside
+//     PreChangeWindow because the token is older than the window. The
+//     fallback looks for the initiator on the audit IP within
+//     +/- FallbackWindow and lists other accounts on that IP. It does not
+//     invent a session, and the Narrative says when it was used.
+//   - Cookie replay carries the victim's SessionId, so a replayed session
+//     walks back to the victim's genuine origin. Token-claim at origin will
+//     not fire for that shape; the session ASN hop flag is there for it.
+//   - Sign-ins on joined devices using a Primary Refresh Token can carry the
+//     same "claim in the token" text at origin. TokenClaimIgnoreRegisteredDevice
+//     (default true) suppresses the flag for registered devices.
+//   - Both hard flags need a walked session (SessionId present) whose origin
+//     is not at the edge of SessionLookback. Without one they cannot fire and
+//     the row rests on weights alone.
+//   - Single-factor then registration also describes a genuine first-time
+//     onboarding on a password, as in a registration campaign. On a privileged
+//     account that is still worth an Escalate; close it with the user's
+//     confirmation, not the query's.
+//   - The IP baseline reads SigninLogs only unless BaselineIncludeNonInteractive
+//     is true. IPs seen only in non-interactive logs read "baseline incomplete"
+//     rather than "novel".
+//   - IdentityInfo AssignedRoles is a snapshot of active roles. A PIM-eligible
+//     admin may show no roles until activated, so a PIM activation by the
+//     target near the change also counts as privileged.
+//   - MethodType is keyword-matched from ResultReason or modifiedProperties.
+//     For "default changed" the text may name the old default, not the new.
+//   - Follow-on activity is attributed by the target's and initiator's object
+//     IDs. Actions taken later by a service principal the attacker created
+//     are not followed.
+//   - IPv4 versus IPv6 differences between the audit IP and the sign-in IP show
+//     up as an IP mismatch or "no sign-in record". Look before you leap.
+//
+// UNVERIFIED NAMES AND VALUES (confirm against a real incident before trusting)
+//   - LoggedByService "Authentication Methods" as supplied; not checked here.
+//   - ResultReason naming the method (including Temporary Access Pass
+//     issuance), and the verbs in "security info" OperationNames that Action
+//     is read from.
+//   - StrongAuthentication* property names beyond StrongAuthenticationMethod
+//     (PhoneAppDetail, UserDetails, Requirement), and the MethodType integers
+//     inside StrongAuthenticationMethod: not mapped, raw values are shown.
+//   - PIM activation operation names and where the role name sits in
+//     TargetResources.
+//   - Follow-on operation names in AppConsentOps, SpCredentialOps and
+//     InboxRuleOps (UpdateInboxRules in particular).
+//   - AppIds other than My Signins, every ASN number, and the ResultType labels.
+//   - SessionId being populated on both sign-in tables.
+//   - The authenticationStepResultDetail text "MFA requirement satisfied by
+//     claim in the token", and CA result values "success" and "failure".
+//
+// ============================================================================
+
+
+// === SECTION 0: The Key Ring ===
+// Every analyst input and tuning knob lives here. Nothing investigation-scoped
+// appears inline below this block. The derived windows and helpers at the
+// bottom are computed, not edited.
+//
+// --- Investigation inputs ---
+let TargetUpn = "";                     // required: the privileged account whose methods were changed
+let ChangeTime = datetime(null);        // optional: UTC time of the change; null scans the last DefaultLookback
+let PreChangeWindow = 60m;              // look-back from each change for the initiator's sign-in
+let PostChangeWindow = 4h;              // look-forward from each change for follow-on activity
+let IpWindow = 24h;                     // footprint window, ending at the scan window close
+let BaselineWindow = 30d;               // tenant-wide prevalence window for every footprint IP
+//
+// --- Window plumbing ---
+let DefaultLookback = 1d;               // scan width when ChangeTime is null
+let ChangeTimeSlack = 15m;              // scan half-width either side of ChangeTime when it is set
+let BridgeSkew = 2m;                    // audit and sign-in clocks disagree; a bridged sign-in may land this far after the change
+let FallbackWindow = 10m;               // +/- window for the IP fallback bridge and the other-accounts check
+let SessionLookback = 7d;               // how far back the session walk may go for its first authentication
+let OriginBoundaryTolerance = 1h;       // an origin this close to the start of the walk may be older than we can see
+let EchoWindow = 2m;                    // app-initiated Update user rows this close to a security-info row are echoes
+let PimWindow = 4h;                     // +/- window for PIM activations around each change
+let IdentityInfoLookback = 14d;         // how far back to look for the latest IdentityInfo record
+let NoveltyWindow = 1d;                 // "first seen today": first seen within this before the scan window opened
+//
+// --- Footprint classification ---
+let BaselineIncludeNonInteractive = false;  // true adds the non-interactive table to the IP baseline; costly in big tenants
+let EgressMinUsers = 5;                 // at least this many users ...
+let EgressMinDays = 7;                  // ... over at least this many days reads as egress or VPN
+let CampaignMinUsers = 3;               // at least this many users on an IP first seen inside NoveltyWindow reads as campaign
+//
+// --- Change path apps, matched on AppId, never on display name ---
+let MySigninsAppId = "19db86c3-b2b9-44cc-b339-36da233a3be2";    // My Signins: the expected path
+//
+// AppIds this client treats as expected. Keep the placeholder so the list is
+// never empty; add real entries alongside it.
+let AdditionalExpectedAppIds = dynamic(["__locksmith_placeholder__"]);
+//
+// Windows Sign In, which suggests WHfB provisioning. AppId from memory, not
+// verified against a live tenant.
+let WindowsSignInAppIds = dynamic(["38aa3b87-a06d-4817-b275-7a316988d93b"]);
+//
+// Scripting and API clients. First-party AppIds from memory; confirm them in
+// the client's sign-in logs. Display-name matching on "PowerShell" and
+// "Command Line" in SECTION 8 is a backstop for clients missing here.
+let ScriptedAppIds = dynamic([
+    "14d82eec-204b-4c2f-b7e8-296a70dab67e",   // Microsoft Graph Command Line Tools
+    "de8bc8b5-d9f9-48b1-a8ad-b748da725064",   // Graph Explorer
+    "1b730954-1685-4b74-9bfd-dac224a7b894",   // Azure Active Directory PowerShell
+    "1950a258-227b-4e31-a9cf-717495945fc2",   // Microsoft Azure PowerShell
+    "04b07795-8ddb-461a-bbee-02f9e1bf7b46"    // Microsoft Azure CLI
+]);
+//
+// --- Privileged roles, matched against IdentityInfo AssignedRoles ---
+// Same list as deep-dive.kql so the family agrees on what privileged means.
+let PrivilegedRoles = dynamic([
+    "Global Administrator", "Privileged Role Administrator",
+    "Privileged Authentication Administrator", "Security Administrator",
+    "Exchange Administrator", "SharePoint Administrator",
+    "User Administrator", "Application Administrator",
+    "Cloud Application Administrator", "Intune Administrator",
+    "Conditional Access Administrator", "Helpdesk Administrator",
+    "Password Administrator", "Authentication Administrator",
+    "Directory Synchronization Accounts"
+]);
+//
+// --- ASN lists, compared as strings against AutonomousSystemNumber ---
+// Hosting and VPS providers. Starter list, numbers from memory: verify and
+// extend per client. Cloudflare (13335) is left out on purpose: WARP and
+// iCloud Private Relay make it ordinary consumer egress.
+let HostingAsns = dynamic([
+    "16509", "14618",       // Amazon
+    "15169", "396982",      // Google, Google Cloud
+    "14061",                // DigitalOcean
+    "16276",                // OVH
+    "24940",                // Hetzner
+    "63949",                // Akamai Connected Cloud (Linode)
+    "20473",                // Vultr (Choopa)
+    "9009",                 // M247
+    "60068", "212238",      // Datacamp (CDN77)
+    "45102",                // Alibaba Cloud
+    "31898",                // Oracle Cloud
+    "51167",                // Contabo
+    "36352",                // ColoCrossing
+    "53667"                 // FranTech (BuyVM)
+]);
+//
+// Microsoft. Kept apart from hosting with a lower weight: Azure Virtual
+// Desktop, Windows 365 and Microsoft-hosted egress are routine for some
+// clients, but Azure is also a popular AiTM host. Numbers from memory; verify.
+let MicrosoftAsns = dynamic(["8075", "8068", "8069", "12076"]);
+//
+// --- Conditional Access: the "Register security information" user action ---
+// Sign-in logs record which policies applied, not which user action a policy
+// targets. Put this client's policy object IDs here for an exact match. The
+// name regex is a heuristic fallback and is labelled as one in the output.
+let RegisterSecInfoPolicyIds = dynamic(["__locksmith_placeholder__"]);
+let RegisterSecInfoUseNameHeuristic = true;
+let RegisterSecInfoNameRegex = @"(?i)(security info|registration|register)";
+//
+// --- Follow-on operations for SECTION 7. Names from memory; verify. ---
+let AppConsentOps = dynamic(["Consent to application", "Add delegated permission grant", "Add app role assignment to service principal"]);
+let SpCredentialOps = dynamic(["Add service principal credentials"]);
+// Application secret and certificate changes log as "Update application",
+// a dash, then "Certificates and secrets management". SECTION 7 matches the
+// trailing phrase so the dash character never has to be typed.
+let InboxRuleOps = dynamic(["New-InboxRule", "Set-InboxRule", "UpdateInboxRules"]);
+//
+// --- Verdict weights and thresholds ---
+let W_TokenClaimAtOrigin    = 40;   // hard flag: MFA satisfied by a claim at the session's first authentication
+let W_SingleFactorThenReg   = 40;   // hard flag: single-factor origin, then "registered all required security info"
+let W_CampaignIp            = 35;
+let W_LockoutPattern        = 30;
+let W_PrivilegedActionAfter = 30;
+let W_NovelIp               = 25;
+let W_HostingAsn            = 25;
+let W_PhoneDowngrade        = 25;
+let W_ScriptedChangePath    = 25;
+let W_UnfamiliarChangePath  = 20;
+let W_NewMethodFromNewInfra = 20;
+let W_InboxRuleAfter        = 20;
+let W_RiskySignin           = 20;
+let W_SessionAsnHop         = 15;
+let W_TapIssued             = 15;
+let W_AppMadeChange         = 15;
+let W_MicrosoftAsn          = 10;
+let W_UnmanagedDevice       = 10;
+let W_NoSigninBridged       = 10;
+let W_ChangeIpUnseen        = 10;
+let W_FallbackBridge        = 5;
+let W_BaselineIncomplete    = 5;
+let W_NoRegisterCaPolicy    = 5;
+let ReviewThreshold         = 20;
+let EscalateThreshold       = 50;
+let HardFlagsForceEscalate  = true;     // only the two hard flags above force Escalate; everything else is weight
+let TokenClaimIgnoreRegisteredDevice = true;   // PRT sign-ins on registered devices carry the same claim text
+//
+// --- Derived windows (computed, do not edit) ---
+let AnchorSet = isnotnull(ChangeTime);
+let ScanStart = iff(AnchorSet, ChangeTime - ChangeTimeSlack, now() - DefaultLookback);
+let ScanEnd = iff(AnchorSet, ChangeTime + ChangeTimeSlack, now());
+let AuditStart = ScanStart - max_of(PimWindow, PostChangeWindow, PreChangeWindow);
+let AuditEnd = ScanEnd + max_of(PimWindow, PostChangeWindow);
+let FootprintStart = min_of(ScanEnd - IpWindow, ScanStart - PreChangeWindow);
+let FootprintEnd = ScanEnd + PostChangeWindow;
+let UserPullStart = min_of(startofday(ScanStart), FootprintStart, ScanStart - FallbackWindow);
+let UserPullEnd = max_of(startofday(ScanEnd) + 1d, FootprintEnd);
+let SessionWalkStart = ScanStart - SessionLookback;
+let BaselineStart = ScanEnd - BaselineWindow;
+let NoveltyStart = ScanStart - NoveltyWindow;
+let TargetUpnLc = tolower(TargetUpn);
+let EmptySetGuard = dynamic(["__locksmith_none__"]);
+let TokenClaimText = "MFA requirement satisfied by claim in the token";
+let FallbackMinutes = tostring(toint(FallbackWindow / 1m));
+//
+// --- Helpers ---
+// Some modifiedProperties values arrive as JSON inside a string inside JSON.
+let ParseNested = (v:dynamic) {
+    let p = parse_json(tostring(v));
+    iff(gettype(p) == "string", parse_json(tostring(p)), p)
+};
+//
+// Method family from free text. Order matters: "Phone app notification" is
+// the Authenticator, not a phone. Wording in ResultReason is not verified, so
+// anything unmatched comes back "Unknown" rather than guessed.
+let MethodFromText = (t:string) {
+    case(
+        t contains "temporary access pass" or t contains "TemporaryAccessPass", "Temporary Access Pass",
+        t contains "FIDO" or t contains "passkey" or t contains "security key", "FIDO2 or passkey",
+        t contains "Windows Hello" or t contains "WindowsHello", "Windows Hello for Business",
+        t contains "Authenticator" or t contains "PhoneApp" or t contains "app notification" or t contains "mobile app", "Microsoft Authenticator",
+        t contains "SMS" or t contains "text message", "Phone (SMS)",
+        t contains "voice" or t contains "phone call" or t contains "office phone", "Phone (voice)",
+        t contains "phone", "Phone (unspecified)",
+        t contains "OATH" or t contains "hardware token" or t contains "software token", "OATH token",
+        t contains "email", "Email",
+        t contains "password", "Password",
+        "Unknown")
+};
+//
+// A sign-in method counts as "the new method" when the families agree.
+// Authenticator codes show up in sign-ins as OATH verification codes.
+let MethodsMatch = (changed:string, used:string) {
+    changed == used
+    or (changed startswith "Phone" and used startswith "Phone"
+        and (changed == "Phone (unspecified)" or used == "Phone (unspecified)"))
+    or (changed == "Microsoft Authenticator" and used == "OATH token")
+};
+//
+// Labels for the flow steps in SECTION 5. From memory; blank when unknown.
+let ResultLabel = (r:string) {
+    case(
+        r == "0", "success",
+        r == "50074", "MFA required",
+        r == "50076", "MFA required by policy",
+        r == "50072", "MFA registration required",
+        r == "50079", "MFA registration required",
+        r == "50125", "password reset or registration interrupt",
+        r == "50140", "keep-me-signed-in interrupt",
+        r == "50158", "external security challenge",
+        r == "50126", "bad credentials",
+        r == "53003", "blocked by Conditional Access",
+        "")
+};
+
+
+// === SECTION 1: The Keys Cut ===
+// Every key cut for this door. One AuditLogs read, pre-filtered to the shapes
+// any later section needs (method changes, PIM, follow-on operations), then
+// split. Two change shapes:
+//   a) LoggedByService "Authentication Methods" and OperationName has
+//      "security info". No operation list is hard-coded; Action is read from
+//      the verb in the operation name.
+//   b) "Update user" whose modifiedProperties touch StrongAuthentication*.
+//      contains, not has: "StrongAuthenticationMethod" is one term.
+let AuditContext = materialize(
+    AuditLogs
+    | where TimeGenerated between (AuditStart .. AuditEnd)
+    | where (LoggedByService == "Authentication Methods" and OperationName has "security info")
+        or (OperationName == "Update user" and tostring(TargetResources) contains "StrongAuthentication")
+        or (LoggedByService == "PIM" and OperationName has "PIM activation")
+        or OperationName has "member to role"
+        or OperationName in~ (AppConsentOps)
+        or OperationName in~ (SpCredentialOps)
+        or OperationName has "Certificates and secrets management"
+        or OperationName has "conditional access policy"
+    | project TimeGenerated, Id, OperationName, LoggedByService, Result, ResultReason,
+        InitiatedBy, TargetResources, CorrelationId
+);
+//
+// Successful changes on the target only. TargetResources[0] matches the rest
+// of this family; if a client's logs put the user in another slot, this is
+// where rows go missing.
+let MethodEventsRaw =
+    AuditContext
+    | where (LoggedByService == "Authentication Methods" and OperationName has "security info")
+        or (OperationName == "Update user" and tostring(TargetResources) contains "StrongAuthentication")
+    | where Result =~ "success"
+    | extend
+        TargetUpnLower = tolower(tostring(TargetResources[0].userPrincipalName)),
+        TargetId = tostring(TargetResources[0].id),
+        InitiatorUpn = tolower(tostring(InitiatedBy.user.userPrincipalName)),
+        InitiatorId = tostring(InitiatedBy.user.id),
+        InitiatorIp = tostring(InitiatedBy.user.ipAddress),
+        InitiatorAppName = tostring(InitiatedBy.app.displayName),
+        InitiatorAppId = tostring(InitiatedBy.app.appId)
+    | where isnotempty(TargetUpnLc) and TargetUpnLower == TargetUpnLc;
+//
+// Shape a. "registered all required" and the started / reviewed / canceled
+// events are context, not changes: they never become scored rows, but
+// "registration completed" feeds the SECTION 3 hard flag.
+let SecInfoRows =
+    MethodEventsRaw
+    | where OperationName != "Update user"
+    | extend Action = case(
+        OperationName has "all required", "registration completed",
+        OperationName has_any ("started", "reviewed", "canceled", "cancelled"), "informational",
+        OperationName has "default", "default changed",
+        OperationName has "deleted", "deleted",
+        OperationName has "registered", "added",
+        OperationName has_any ("updated", "changed"), "updated",
+        "other")
+    | extend MethodType = MethodFromText(ResultReason)
+    | extend MethodType = iff(MethodType == "Unknown",
+        MethodFromText(tostring(TargetResources[0].modifiedProperties)), MethodType)
+    | extend
+        MethodDetail = ResultReason,
+        ModifiedProps = substring(tostring(TargetResources[0].modifiedProperties), 0, 500);
+//
+// Shape b. Action comes from comparing old and new values per property:
+// more entries is added, fewer is deleted, same count with a different
+// Default entry in StrongAuthenticationMethod is default changed. The
+// MethodType integers are not mapped (unverified); raw values are kept.
+let StrongAuthRows =
+    MethodEventsRaw
+    | where OperationName == "Update user"
+    | mv-apply mp = TargetResources[0].modifiedProperties on (
+        where tostring(mp.displayName) startswith "StrongAuthentication"
+        | extend
+            PropName = tostring(mp.displayName),
+            OldText = tostring(ParseNested(mp.oldValue)),
+            NewText = tostring(ParseNested(mp.newValue))
+        | extend
+            OldCount = coalesce(array_length(parse_json(OldText)), 0),
+            NewCount = coalesce(array_length(parse_json(NewText)), 0),
+            OldDefault = extract(@'"MethodType"\s*:\s*(\d+)', 1,
+                extract(@'\{[^{}]*"Default"\s*:\s*true[^{}]*\}', 0, OldText)),
+            NewDefault = extract(@'"MethodType"\s*:\s*(\d+)', 1,
+                extract(@'\{[^{}]*"Default"\s*:\s*true[^{}]*\}', 0, NewText))
+        | extend PropAction = case(
+            NewCount > OldCount, "added",
+            NewCount < OldCount, "deleted",
+            PropName == "StrongAuthenticationMethod" and OldDefault != NewDefault, "default changed",
+            "updated")
+        | summarize
+            SaProps = make_set(PropName),
+            SaActions = make_set(PropAction),
+            SaDetail = strcat_array(make_list(strcat(PropName, ": ",
+                substring(OldText, 0, 200), " -> ", substring(NewText, 0, 200)), 8), " | ")
+    )
+    | where array_length(SaProps) > 0
+    | extend Action = case(
+        set_has_element(SaActions, "added") and set_has_element(SaActions, "deleted"), "added and deleted",
+        set_has_element(SaActions, "deleted"), "deleted",
+        set_has_element(SaActions, "added"), "added",
+        set_has_element(SaActions, "default changed"), "default changed",
+        "updated")
+    | extend MethodType = iff(
+        array_length(SaProps) == 1 and set_has_element(SaProps, "StrongAuthenticationRequirement"),
+        "Per-user MFA requirement", MethodFromText(SaDetail))
+    | extend
+        MethodDetail = "Update user (StrongAuthentication properties)",
+        ModifiedProps = SaDetail
+    | project-away SaProps, SaActions, SaDetail;
+//
+let MethodEvents = materialize(
+    union SecInfoRows, StrongAuthRows
+    | extend TargetKey = TargetUpnLower
+    | extend ChangeKind = case(
+        isnotempty(InitiatorId) and InitiatorId == TargetId, "self-service",
+        isnotempty(InitiatorUpn) and InitiatorUpn == TargetUpnLower, "self-service",
+        isnotempty(InitiatorId) or isnotempty(InitiatorUpn), "admin",
+        isnotempty(InitiatorAppId) or isnotempty(InitiatorAppName), "app",
+        "unknown")
+    | extend IsScored = Action !in ("registration completed", "informational")
+);
+//
+// Echo suppression. A user's own registration is often mirrored seconds
+// later by an app-initiated "Update user" StrongAuthentication* row. Counting
+// it would double the change and trip the app flag. An echo must sit on the
+// same target user as the security-info row it mirrors: the join is on
+// TargetKey, not just on time.
+let EchoIds = materialize(
+    MethodEvents
+    | where OperationName == "Update user" and ChangeKind == "app"
+    | project EchoId = Id, EchoTime = TimeGenerated, EchoTargetKey = TargetKey
+    | join kind=inner (
+        MethodEvents
+        | where OperationName != "Update user" and IsScored
+        | project SecTime = TimeGenerated, SecTargetKey = TargetKey
+    ) on $left.EchoTargetKey == $right.SecTargetKey
+    | where EchoTime between ((SecTime - EchoWindow) .. (SecTime + EchoWindow))
+    | distinct EchoId
+);
+let EchoCount = toscalar(EchoIds | count);
+//
+// Every real change across the audit pull (used for the lockout pairing), and
+// the ones inside the scan window, which become the output rows.
+let MethodChanges = materialize(
+    MethodEvents
+    | where IsScored
+    | where Id !in (EchoIds)
+);
+let Changes = materialize(
+    MethodChanges
+    | where TimeGenerated between (ScanStart .. ScanEnd)
+    | extend
+        IsTapIssued = MethodType == "Temporary Access Pass" and Action == "added",
+        IsAppMadeChange = ChangeKind == "app"
+    | project ChangeId = Id, EventTime = TimeGenerated, OperationName, Action, MethodType,
+        MethodDetail, ModifiedProps, ChangeKind, TargetUpnLower, TargetId, TargetKey,
+        InitiatorUpn, InitiatorId, InitiatorIp, InitiatorAppName, InitiatorAppId,
+        IsTapIssued, IsAppMadeChange, AuditCorrelationId = CorrelationId
+);
+let RegistrationsCompleted =
+    MethodEvents
+    | where Action == "registration completed"
+    | project RegTime = TimeGenerated, RegTargetKey = TargetKey;
+
+
+// === SECTION 2: The Customer ===
+// Who was at the counter. Each change is tied to the INITIATOR's closest
+// successful sign-in before it (not the target's), within PreChangeWindow,
+// preferring one from the audit IP. Both sign-in tables are read, scoped to
+// the users in play and the windows here; the non-interactive table is big.
+// The non-interactive columns DeviceDetail, LocationDetails,
+// AuthenticationDetails and ConditionalAccessPolicies are strings, so every
+// leg goes through parse_json(tostring()).
+let InitiatorIdSet = array_concat(
+    toscalar(Changes | where isnotempty(InitiatorId) | summarize make_set(InitiatorId)), EmptySetGuard);
+let TargetIdSet = array_concat(
+    toscalar(MethodEvents | where isnotempty(TargetId) | summarize make_set(TargetId)), EmptySetGuard);
+let UserIdSet = set_union(InitiatorIdSet, TargetIdSet);
+let UpnSet = array_concat(
+    toscalar(Changes | where isnotempty(InitiatorUpn) | summarize make_set(InitiatorUpn)), pack_array(TargetUpnLc));
+let InitiatorIpSet = array_concat(
+    toscalar(Changes | where isnotempty(InitiatorIp) | summarize make_set(InitiatorIp)), EmptySetGuard);
+//
+// Target and initiators, one pull covering the bridge, footprint, session
+// count and post-change windows.
+let UserSignins = materialize(
+    union isfuzzy=true
+        (SigninLogs
+        | where TimeGenerated between (UserPullStart .. UserPullEnd)
+        | where UserId in (UserIdSet) or (isnotempty(TargetUpnLc) and UserPrincipalName =~ TargetUpnLc)
+        | project TimeGenerated, SigninTable = "interactive", UserId, UserPrincipalName = tolower(UserPrincipalName),
+            IPAddress, AppId, AppDisplayName, ResultType = tostring(ResultType), SessionId, CorrelationId,
+            Asn = iff(tostring(AutonomousSystemNumber) in ("", "0"), "", tostring(AutonomousSystemNumber)),
+            Country = tostring(parse_json(tostring(LocationDetails)).countryOrRegion),
+            AuthenticationRequirement, AuthDetailsRaw = tostring(AuthenticationDetails),
+            CaRaw = tostring(ConditionalAccessPolicies), DeviceRaw = tostring(DeviceDetail),
+            RiskLevelDuringSignIn, UserAgent),
+        (AADNonInteractiveUserSignInLogs
+        | where TimeGenerated between (UserPullStart .. UserPullEnd)
+        | where UserId in (UserIdSet) or (isnotempty(TargetUpnLc) and UserPrincipalName =~ TargetUpnLc)
+        | project TimeGenerated, SigninTable = "non-interactive", UserId, UserPrincipalName = tolower(UserPrincipalName),
+            IPAddress, AppId, AppDisplayName, ResultType = tostring(ResultType), SessionId, CorrelationId,
+            Asn = iff(tostring(AutonomousSystemNumber) in ("", "0"), "", tostring(AutonomousSystemNumber)),
+            Country = tostring(parse_json(tostring(LocationDetails)).countryOrRegion),
+            AuthenticationRequirement, AuthDetailsRaw = tostring(AuthenticationDetails),
+            CaRaw = tostring(ConditionalAccessPolicies), DeviceRaw = tostring(DeviceDetail),
+            RiskLevelDuringSignIn, UserAgent)
+);
+//
+// Anyone signing in from an audit IP around the scan window. Feeds the
+// fallback bridge and the other-accounts check.
+let IpFallbackSignins = materialize(
+    union isfuzzy=true
+        (SigninLogs
+        | where TimeGenerated between ((ScanStart - FallbackWindow) .. (ScanEnd + FallbackWindow))
+        | where IPAddress in (InitiatorIpSet)
+        | where tostring(ResultType) == "0"
+        | project TimeGenerated, SigninTable = "interactive", UserId, UserPrincipalName = tolower(UserPrincipalName),
+            IPAddress, AppId, AppDisplayName, SessionId, CorrelationId,
+            Asn = iff(tostring(AutonomousSystemNumber) in ("", "0"), "", tostring(AutonomousSystemNumber)),
+            Country = tostring(parse_json(tostring(LocationDetails)).countryOrRegion),
+            AuthenticationRequirement, AuthDetailsRaw = tostring(AuthenticationDetails),
+            DeviceRaw = tostring(DeviceDetail), RiskLevelDuringSignIn, UserAgent),
+        (AADNonInteractiveUserSignInLogs
+        | where TimeGenerated between ((ScanStart - FallbackWindow) .. (ScanEnd + FallbackWindow))
+        | where IPAddress in (InitiatorIpSet)
+        | where tostring(ResultType) == "0"
+        | project TimeGenerated, SigninTable = "non-interactive", UserId, UserPrincipalName = tolower(UserPrincipalName),
+            IPAddress, AppId, AppDisplayName, SessionId, CorrelationId,
+            Asn = iff(tostring(AutonomousSystemNumber) in ("", "0"), "", tostring(AutonomousSystemNumber)),
+            Country = tostring(parse_json(tostring(LocationDetails)).countryOrRegion),
+            AuthenticationRequirement, AuthDetailsRaw = tostring(AuthenticationDetails),
+            DeviceRaw = tostring(DeviceDetail), RiskLevelDuringSignIn, UserAgent)
+);
+//
+// Primary bridge: initiator, successful, [change - PreChangeWindow, change +
+// BridgeSkew]. Rank: audit IP match first, then nearest in time, then
+// interactive over non-interactive.
+let BridgePrimary = materialize(
+    Changes
+    | where isnotempty(InitiatorId)
+    | project ChangeId, EventTime, InitiatorId, InitiatorIp
+    | join kind=inner (
+        UserSignins
+        | where ResultType == "0"
+        | project BridgeTime = TimeGenerated, BridgeTable = SigninTable, BridgeUserId = UserId,
+            BridgeUpn = UserPrincipalName, BridgeIp = IPAddress, BridgeAppId = AppId,
+            BridgeAppName = AppDisplayName, BridgeSessionId = SessionId,
+            BridgeCorrelationId = CorrelationId, BridgeAsn = Asn, BridgeCountry = Country,
+            BridgeAuthReq = AuthenticationRequirement, BridgeAuthDetailsRaw = AuthDetailsRaw,
+            BridgeDeviceRaw = DeviceRaw, BridgeRisk = RiskLevelDuringSignIn, BridgeUserAgent = UserAgent
+    ) on $left.InitiatorId == $right.BridgeUserId
+    | where BridgeTime between ((EventTime - PreChangeWindow) .. (EventTime + BridgeSkew))
+    | extend BridgeIpMatch = isnotempty(InitiatorIp) and BridgeIp == InitiatorIp
+    | extend BridgeRank = iff(BridgeIpMatch, 0, 100000000)
+        + abs(datetime_diff("second", EventTime, BridgeTime)) * 2
+        + iff(BridgeTable == "interactive", 0, 1)
+    | summarize arg_min(BridgeRank, *) by ChangeId
+    | extend BridgeMethod = case(
+        BridgeIpMatch, "initiator + IP + time",
+        isempty(InitiatorIp), "initiator + time (no audit IP)",
+        "initiator + time (audit IP did not match)")
+    | project-away EventTime, InitiatorId, InitiatorIp, BridgeRank
+);
+//
+// Fallback bridge, typical of Graph and PowerShell changes whose token is
+// older than PreChangeWindow: the initiator on the audit IP within
+// +/- FallbackWindow. Sign-ins by other accounts on that IP are never used as
+// the bridge; they are reported in SECTION 8 as OtherAccountsOnChangeIp.
+let BridgeFallback =
+    Changes
+    | where isnotempty(InitiatorId) and isnotempty(InitiatorIp)
+    | project ChangeId, EventTime, InitiatorId, InitiatorIp
+    | join kind=leftanti BridgePrimary on ChangeId
+    | join kind=inner (
+        IpFallbackSignins
+        | project BridgeTime = TimeGenerated, BridgeTable = SigninTable, BridgeUserId = UserId,
+            BridgeUpn = UserPrincipalName, BridgeIp = IPAddress, BridgeAppId = AppId,
+            BridgeAppName = AppDisplayName, BridgeSessionId = SessionId,
+            BridgeCorrelationId = CorrelationId, BridgeAsn = Asn, BridgeCountry = Country,
+            BridgeAuthReq = AuthenticationRequirement, BridgeAuthDetailsRaw = AuthDetailsRaw,
+            BridgeDeviceRaw = DeviceRaw, BridgeRisk = RiskLevelDuringSignIn, BridgeUserAgent = UserAgent
+    ) on $left.InitiatorIp == $right.BridgeIp
+    | where BridgeUserId == InitiatorId
+    | where BridgeTime between ((EventTime - FallbackWindow) .. (EventTime + FallbackWindow))
+    | extend BridgeIpMatch = true, BridgeRank = abs(datetime_diff("second", EventTime, BridgeTime))
+    | summarize arg_min(BridgeRank, *) by ChangeId
+    | extend BridgeMethod = "fallback: initiator on the audit IP within FallbackWindow"
+    | project-away EventTime, InitiatorId, InitiatorIp, BridgeRank;
+let Bridge = materialize(union BridgePrimary, BridgeFallback);
+//
+// --- Commented-out CorrelationId bridge, for testing only ---
+// AuditLogs.CorrelationId does not reliably equal the sign-in CorrelationId.
+// To test it in a tenant: set TargetUpn and ChangeTime to a known-good
+// self-service registration, uncomment this block and the CORRELATION TEST
+// line at the very end of the query, and check whether CorrSigninTime lands
+// seconds before EventTime on the expected AppId. If it does across several
+// known-good cases, it is a usable tie-breaker in that tenant.
+//
+// let CorrelationBridge =
+//     Changes
+//     | project ChangeId, AuditCorrelationId
+//     | join kind=inner (
+//         UserSignins
+//         | project CorrelationId, CorrSigninTime = TimeGenerated, CorrAppId = AppId,
+//             CorrSessionId = SessionId, CorrIp = IPAddress
+//     ) on $left.AuditCorrelationId == $right.CorrelationId
+//     | summarize arg_max(CorrSigninTime, CorrAppId, CorrSessionId, CorrIp) by ChangeId;
+//
+// Session walk: every record carrying a bridged SessionId, back to
+// SessionLookback, scoped by user and SessionId.
+let BridgedSessionIds = array_concat(
+    toscalar(Bridge | where isnotempty(BridgeSessionId) | summarize make_set(BridgeSessionId)), EmptySetGuard);
+let BridgedUserIds = array_concat(
+    toscalar(Bridge | summarize make_set(BridgeUserId)), EmptySetGuard);
+let SessionRows =
+    union isfuzzy=true
+        (SigninLogs
+        | where TimeGenerated between (SessionWalkStart .. FootprintEnd)
+        | where UserId in (BridgedUserIds)
+        | where SessionId in (BridgedSessionIds)
+        | project TimeGenerated, SigninTable = "interactive", SessionId, ResultType = tostring(ResultType),
+            IPAddress, AppDisplayName, CorrelationId,
+            Asn = iff(tostring(AutonomousSystemNumber) in ("", "0"), "", tostring(AutonomousSystemNumber)),
+            Country = tostring(parse_json(tostring(LocationDetails)).countryOrRegion),
+            AuthenticationRequirement, AuthDetailsRaw = tostring(AuthenticationDetails),
+            DeviceRaw = tostring(DeviceDetail), RiskLevelDuringSignIn, UserAgent),
+        (AADNonInteractiveUserSignInLogs
+        | where TimeGenerated between (SessionWalkStart .. FootprintEnd)
+        | where UserId in (BridgedUserIds)
+        | where SessionId in (BridgedSessionIds)
+        | project TimeGenerated, SigninTable = "non-interactive", SessionId, ResultType = tostring(ResultType),
+            IPAddress, AppDisplayName, CorrelationId,
+            Asn = iff(tostring(AutonomousSystemNumber) in ("", "0"), "", tostring(AutonomousSystemNumber)),
+            Country = tostring(parse_json(tostring(LocationDetails)).countryOrRegion),
+            AuthenticationRequirement, AuthDetailsRaw = tostring(AuthenticationDetails),
+            DeviceRaw = tostring(DeviceDetail), RiskLevelDuringSignIn, UserAgent);
+//
+// First successful authentication per session.
+let SessionOrigins = materialize(
+    SessionRows
+    | where ResultType == "0"
+    | summarize arg_min(TimeGenerated, SigninTable, IPAddress, AppDisplayName, Asn, Country,
+        AuthenticationRequirement, AuthDetailsRaw, DeviceRaw, RiskLevelDuringSignIn, UserAgent,
+        CorrelationId) by SessionId
+    | project WalkSessionId = SessionId, WalkOriginTime = TimeGenerated, WalkOriginTable = SigninTable,
+        WalkOriginIp = IPAddress, WalkOriginAppName = AppDisplayName, WalkOriginAsn = Asn,
+        WalkOriginCountry = Country, WalkOriginAuthReq = AuthenticationRequirement,
+        WalkOriginAuthDetailsRaw = AuthDetailsRaw, WalkOriginDeviceRaw = DeviceRaw,
+        WalkOriginRisk = RiskLevelDuringSignIn, WalkOriginUserAgent = UserAgent,
+        WalkOriginCorrelationId = CorrelationId
+);
+
+
+// === SECTION 3: The Strength Test ===
+// How the customer proved who they were, read from the session's first
+// authentication. Where no session could be walked, the bridged sign-in
+// stands in and OriginSource says so.
+//
+// Hard flags. Both need a walked session whose origin is not at the edge of
+// the walk (OriginPossiblyTruncated): a bridged sign-in with no session may be
+// mid-session, where a token claim is normal.
+//   - Token-claim MFA at origin: the first record of the session reads "MFA
+//     requirement satisfied by claim in the token" and shows no MFA method of
+//     its own. Suppressed for registered devices while
+//     TokenClaimIgnoreRegisteredDevice is true (PRT sign-ins look the same).
+//   - Single-factor then registration: an interactive origin with
+//     AuthenticationRequirement singleFactorAuthentication, no MFA method and
+//     no token claim in AuthenticationDetails, then "User registered all
+//     required security info" for the same target. AuthenticationRequirement
+//     alone records what was required, not what was done, and
+//     non-interactive refreshes routinely read single-factor, hence the extra
+//     conditions. Someone enrolling their own MFA on a password alone.
+let Spine = materialize(
+    Changes
+    | lookup kind=leftouter Bridge on ChangeId
+    | lookup kind=leftouter SessionOrigins on $left.BridgeSessionId == $right.WalkSessionId
+    | extend OriginSource = case(
+        isnotnull(WalkOriginTime), "session walk",
+        isnotnull(BridgeTime), "bridged sign-in (no session walk)",
+        "none")
+    | extend UseWalk = OriginSource == "session walk"
+    | extend
+        OriginTime = iff(UseWalk, WalkOriginTime, BridgeTime),
+        OriginTable = iff(UseWalk, WalkOriginTable, BridgeTable),
+        OriginIp = iff(UseWalk, WalkOriginIp, BridgeIp),
+        OriginAppName = iff(UseWalk, WalkOriginAppName, BridgeAppName),
+        OriginAsn = iff(UseWalk, WalkOriginAsn, BridgeAsn),
+        OriginCountry = iff(UseWalk, WalkOriginCountry, BridgeCountry),
+        OriginAuthRequirement = iff(UseWalk, WalkOriginAuthReq, BridgeAuthReq),
+        OriginAuthDetailsRaw = iff(UseWalk, WalkOriginAuthDetailsRaw, BridgeAuthDetailsRaw),
+        OriginDeviceRaw = iff(UseWalk, WalkOriginDeviceRaw, BridgeDeviceRaw),
+        OriginRisk = iff(UseWalk, WalkOriginRisk, BridgeRisk),
+        OriginUserAgent = iff(UseWalk, WalkOriginUserAgent, BridgeUserAgent),
+        OriginCorrelationId = iff(UseWalk, WalkOriginCorrelationId, BridgeCorrelationId)
+);
+//
+// Methods that succeeded at origin, parsed from AuthenticationDetails.
+let OriginMethods =
+    Spine
+    | where isnotempty(OriginAuthDetailsRaw)
+    | project ChangeId, ad = parse_json(OriginAuthDetailsRaw)
+    | mv-expand ad
+    | where tobool(ad.succeeded)
+    | summarize OriginMethodsUsed = make_set(tostring(ad.authenticationMethod)) by ChangeId;
+//
+// "Registered all required security info" for the same target, after the
+// origin and around the change. Feeds the single-factor hard flag.
+let RegAfterChange =
+    Spine
+    | project ChangeId, TargetKey, EventTime, OriginTime
+    | join kind=inner RegistrationsCompleted on $left.TargetKey == $right.RegTargetKey
+    | where RegTime between ((EventTime - PreChangeWindow) .. (EventTime + PostChangeWindow))
+    | where isnull(OriginTime) or RegTime >= OriginTime
+    | summarize RegistrationCompletedAt = min(RegTime) by ChangeId;
+//
+// CA policies on the initiator's sign-ins in the pre-change window that match
+// the "Register security information" policy IDs, or by name if the
+// heuristic is on. Only applied results count (success or failure).
+let RegisterCaByChange =
+    Changes
+    | project ChangeId, EventTime, InitiatorId
+    | join kind=inner (
+        UserSignins
+        | where TimeGenerated between ((ScanStart - PreChangeWindow) .. (ScanEnd + BridgeSkew))
+        | where UserId in (InitiatorIdSet)
+        | where CaRaw has "displayName"
+        | mv-expand cap = parse_json(CaRaw)
+        | extend CapId = tostring(cap.id), CapName = tostring(cap.displayName), CapResult = tostring(cap.result)
+        | where CapResult in ("success", "failure")
+        | extend CapMatchedBy = case(
+            CapId in (RegisterSecInfoPolicyIds), "policy id",
+            RegisterSecInfoUseNameHeuristic and CapName matches regex RegisterSecInfoNameRegex, "name heuristic",
+            "")
+        | where isnotempty(CapMatchedBy)
+        | project CaTime = TimeGenerated, CaUserId = UserId,
+            CaPolicy = strcat(CapName, " (", CapResult, ", ", CapMatchedBy, ")")
+    ) on $left.InitiatorId == $right.CaUserId
+    | where CaTime between ((EventTime - PreChangeWindow) .. (EventTime + BridgeSkew))
+    | summarize RegisterCaPolicies = make_set(CaPolicy, 10) by ChangeId;
+
+
+// === SECTION 4: The Footprint ===
+// Where they walked in from. Every IP the target and initiators used in
+// IpWindow (both sign-in tables), plus any audit IP that never signed in,
+// scored against the tenant over BaselineWindow.
+let FootprintSigninIps = materialize(
+    UserSignins
+    | where TimeGenerated between (FootprintStart .. FootprintEnd)
+    | where isnotempty(IPAddress)
+    | summarize
+        InteractiveHits = countif(SigninTable == "interactive"),
+        NonInteractiveHits = countif(SigninTable == "non-interactive"),
+        FootprintAsn = take_anyif(Asn, isnotempty(Asn)),
+        FootprintCountry = take_anyif(Country, isnotempty(Country)),
+        TargetFirstInFootprint = minif(TimeGenerated, UserId in (TargetIdSet) or UserPrincipalName == TargetUpnLc)
+        by IPAddress
+);
+let FootprintIps =
+    union
+        FootprintSigninIps,
+        (Changes
+        | where isnotempty(InitiatorIp)
+        | distinct IPAddress = InitiatorIp
+        | join kind=leftanti FootprintSigninIps on IPAddress
+        | extend InteractiveHits = tolong(0), NonInteractiveHits = tolong(0));
+let FootprintIpSet = array_concat(
+    toscalar(FootprintIps | summarize make_set(IPAddress)), EmptySetGuard);
+//
+// Tenant-wide prevalence. SigninLogs only unless BaselineIncludeNonInteractive
+// is true; the constant-false filter on the second leg stops it being read.
+let IpBaseline = materialize(
+    union isfuzzy=true
+        (SigninLogs
+        | where TimeGenerated between (BaselineStart .. FootprintEnd)
+        | where IPAddress in (FootprintIpSet)
+        | project TimeGenerated, IPAddress, UserId,
+            Asn = iff(tostring(AutonomousSystemNumber) in ("", "0"), "", tostring(AutonomousSystemNumber)),
+            Country = tostring(Location)),
+        (AADNonInteractiveUserSignInLogs
+        | where BaselineIncludeNonInteractive
+        | where TimeGenerated between (BaselineStart .. FootprintEnd)
+        | where IPAddress in (FootprintIpSet)
+        | project TimeGenerated, IPAddress, UserId,
+            Asn = iff(tostring(AutonomousSystemNumber) in ("", "0"), "", tostring(AutonomousSystemNumber)),
+            Country = tostring(parse_json(tostring(LocationDetails)).countryOrRegion))
+    | summarize
+        BaselineUsers = dcount(UserId),
+        BaselineDays = dcount(startofday(TimeGenerated)),
+        BaselineFirstSeen = min(TimeGenerated),
+        BaselineAsn = take_anyif(Asn, isnotempty(Asn)),
+        BaselineCountry = take_anyif(Country, isnotempty(Country)),
+        TargetFirstSeenOnIp = minif(TimeGenerated, UserId in (TargetIdSet))
+        by IPAddress
+);
+//
+// Classes, first match wins:
+//   baseline incomplete  only seen in non-interactive logs, which the baseline skipped
+//   no sign-in record    an audit IP with no sign-in from it anywhere in the baseline
+//   campaign             CampaignMinUsers or more, all first seen inside NoveltyWindow
+//   novel                fewer users than that, first seen inside NoveltyWindow
+//   egress or VPN        EgressMinUsers or more across EgressMinDays or more
+//   familiar             everything else
+let Footprint = materialize(
+    FootprintIps
+    | lookup kind=leftouter IpBaseline on IPAddress
+    | extend
+        BaselineUsers = coalesce(BaselineUsers, tolong(0)),
+        BaselineDays = coalesce(BaselineDays, tolong(0)),
+        Asn = coalesce(FootprintAsn, BaselineAsn),
+        Country = coalesce(FootprintCountry, BaselineCountry),
+        TargetFirstOnIp = case(
+            isnull(TargetFirstSeenOnIp), TargetFirstInFootprint,
+            isnull(TargetFirstInFootprint), TargetFirstSeenOnIp,
+            TargetFirstSeenOnIp < TargetFirstInFootprint, TargetFirstSeenOnIp,
+            TargetFirstInFootprint)
+    | extend AsnClass = case(
+        isempty(Asn), "unknown",
+        Asn in (HostingAsns), "hosting",
+        Asn in (MicrosoftAsns), "Microsoft",
+        "other")
+    | extend FootprintClass = case(
+        BaselineUsers == 0 and NonInteractiveHits > 0 and InteractiveHits == 0
+            and not(BaselineIncludeNonInteractive), "baseline incomplete",
+        BaselineUsers == 0, "no sign-in record",
+        BaselineUsers >= CampaignMinUsers and BaselineFirstSeen >= NoveltyStart, "campaign",
+        BaselineFirstSeen >= NoveltyStart, "novel",
+        BaselineUsers >= EgressMinUsers and BaselineDays >= EgressMinDays, "egress or VPN",
+        "familiar")
+);
+let FootprintDigest = toscalar(
+    Footprint
+    | extend Line = strcat(IPAddress, " ", FootprintClass, ", ", AsnClass,
+        iff(isnotempty(Asn), strcat(" AS", Asn), ""), iff(isnotempty(Country), strcat(" ", Country), ""),
+        ", users ", BaselineUsers, ", days ", BaselineDays)
+    | summarize make_list(Line, 50)
+);
+
+
+// === SECTION 5: The Sessions ===
+// How many times the door opened that day. The session count is distinct
+// SessionIds with a successful sign-in for the target on the change day.
+// CorrelationId is used only to stitch the steps of one sign-in (interrupt,
+// MFA prompt, success) into a flow. It is never a session.
+let SessionsByDay =
+    UserSignins
+    | where UserId in (TargetIdSet) or UserPrincipalName == TargetUpnLc
+    | where ResultType == "0" and isnotempty(SessionId)
+    | summarize SessionIdsOnDay = make_set(SessionId) by ChangeDay = startofday(TimeGenerated)
+    | extend SessionCountOnDay = array_length(SessionIdsOnDay);
+//
+let FlowCorrelationIds = array_concat(
+    toscalar(Spine | summarize make_set_if(OriginCorrelationId, isnotempty(OriginCorrelationId))),
+    toscalar(Spine | summarize make_set_if(BridgeCorrelationId, isnotempty(BridgeCorrelationId))),
+    EmptySetGuard);
+let Flows = materialize(
+    union isfuzzy=true
+        (SigninLogs
+        | where TimeGenerated between (SessionWalkStart .. FootprintEnd)
+        | where UserId in (BridgedUserIds)
+        | where CorrelationId in (FlowCorrelationIds)
+        | project TimeGenerated, CorrelationId, ResultType = tostring(ResultType), SigninTable = "interactive"),
+        (AADNonInteractiveUserSignInLogs
+        | where TimeGenerated between (SessionWalkStart .. FootprintEnd)
+        | where UserId in (BridgedUserIds)
+        | where CorrelationId in (FlowCorrelationIds)
+        | project TimeGenerated, CorrelationId, ResultType = tostring(ResultType), SigninTable = "non-interactive")
+    | extend StepLabel = ResultLabel(ResultType)
+    | extend Step = strcat(format_datetime(TimeGenerated, "yyyy-MM-dd HH:mm:ss"), " ", ResultType,
+        iff(isnotempty(StepLabel), strcat(" ", StepLabel), ""), " [", SigninTable, "]")
+    | summarize Steps = make_list(Step, 30) by CorrelationId
+    | extend Flow = strcat_array(array_sort_asc(Steps), " > ")
+    | project CorrelationId, Flow
+);
+
+
+// === SECTION 6: The Premises ===
+// Confirm the building is worth breaking into. Roles come from the latest
+// IdentityInfo record per account. PIM activations by the target or the
+// initiator within +/- PimWindow come from AuditLogs, matched on the
+// initiator or any object ID inside TargetResources, because some activations
+// are logged with a PIM service app as the initiator. The operation name
+// shape ("... (PIM activation)") and the role sitting in
+// TargetResources[0].displayName are unverified.
+let Premises = materialize(
+    union isfuzzy=true
+        (datatable(TimeGenerated:datetime, AccountObjectId:string, AccountUPN:string, AssignedRoles:dynamic)[]),
+        (IdentityInfo
+        | where TimeGenerated between ((ScanEnd - IdentityInfoLookback) .. FootprintEnd)
+        | where AccountObjectId in (UserIdSet) or AccountUPN in~ (UpnSet)
+        | project TimeGenerated, AccountObjectId, AccountUPN, AssignedRoles)
+    | extend AccountKey = coalesce(AccountObjectId, tolower(AccountUPN))
+    | summarize arg_max(TimeGenerated, AssignedRoles) by AccountKey
+    | extend PrivRolesHeld = set_intersect(AssignedRoles, PrivilegedRoles)
+);
+//
+let PimEvents =
+    AuditContext
+    | where LoggedByService == "PIM" and OperationName has "PIM activation"
+    | extend PimIds = set_union(pack_array(tostring(InitiatedBy.user.id)),
+        extract_all(@'"id"\s*:\s*"([0-9a-fA-F-]{36})"', tostring(TargetResources)))
+    | mv-expand PimUserId = PimIds to typeof(string)
+    | where PimUserId in (UserIdSet)
+    | distinct PimTime = TimeGenerated, PimUserId, PimRole = tostring(TargetResources[0].displayName);
+let PimByChange =
+    Changes
+    | project ChangeId, EventTime, TargetId, Keys = set_union(pack_array(TargetId), pack_array(InitiatorId))
+    | mv-expand UserKey = Keys to typeof(string)
+    | where isnotempty(UserKey)
+    | join kind=inner PimEvents on $left.UserKey == $right.PimUserId
+    | where PimTime between ((EventTime - PimWindow) .. (EventTime + PimWindow))
+    | summarize
+        PimActivations = make_set(strcat(format_datetime(PimTime, "yyyy-MM-dd HH:mm"), " ", PimRole,
+            iff(PimUserId == TargetId, " (target)", " (initiator)")), 20),
+        PimTargetActivations = countif(PimUserId == TargetId)
+        by ChangeId;
+
+
+// === SECTION 7: After Hours ===
+// What happened once the shop shut: activity inside PostChangeWindow by the
+// target or the change's initiator.
+let AfterHoursAudit =
+    AuditContext
+    | where Result =~ "success"
+    | extend AhKind = case(
+        OperationName has "member to role" and not(OperationName has "PIM activation"), "role assignment",
+        OperationName in~ (AppConsentOps), "app consent",
+        OperationName in~ (SpCredentialOps) or OperationName has "Certificates and secrets management", "SP credential",
+        OperationName has "conditional access policy", "CA policy edit",
+        "")
+    | where isnotempty(AhKind)
+    | extend AhUserId = tostring(InitiatedBy.user.id)
+    | where AhUserId in (UserIdSet)
+    | project AhTime = TimeGenerated, AhUserId, AhKind, AhOp = OperationName,
+        AhTarget = tostring(TargetResources[0].displayName);
+let AfterHoursByChange =
+    Changes
+    | project ChangeId, EventTime, Keys = set_union(pack_array(TargetId), pack_array(InitiatorId))
+    | mv-expand UserKey = Keys to typeof(string)
+    | where isnotempty(UserKey)
+    | join kind=inner AfterHoursAudit on $left.UserKey == $right.AhUserId
+    | where AhTime > EventTime and AhTime <= EventTime + PostChangeWindow
+    | summarize
+        AhRoleAssignments = countif(AhKind == "role assignment"),
+        AhAppConsents = countif(AhKind == "app consent"),
+        AhSpCredentials = countif(AhKind == "SP credential"),
+        AhCaEdits = countif(AhKind == "CA policy edit"),
+        AhActions = make_set(strcat(format_datetime(AhTime, "HH:mm"), " ", AhOp,
+            iff(isnotempty(AhTarget), strcat(" (", AhTarget, ")"), "")), 20)
+        by ChangeId;
+//
+// Inbox rules from OfficeActivity, optional table.
+let InboxRules =
+    union isfuzzy=true
+        (datatable(TimeGenerated:datetime, UserId:string, Operation:string, ClientIP:string)[]),
+        (OfficeActivity
+        | where TimeGenerated between (ScanStart .. FootprintEnd)
+        | where Operation in~ (InboxRuleOps)
+        | where UserId in~ (UpnSet)
+        | project TimeGenerated, UserId, Operation, ClientIP)
+    | project IrTime = TimeGenerated, IrUpn = tolower(UserId), IrOp = Operation, IrIp = ClientIP;
+let InboxByChange =
+    Changes
+    | project ChangeId, EventTime, Keys = set_union(pack_array(TargetUpnLower), pack_array(InitiatorUpn))
+    | mv-expand UpnKey = Keys to typeof(string)
+    | where isnotempty(UpnKey)
+    | join kind=inner InboxRules on $left.UpnKey == $right.IrUpn
+    | where IrTime > EventTime and IrTime <= EventTime + PostChangeWindow
+    | summarize
+        InboxRulesAfter = count(),
+        InboxRuleActivity = make_set(strcat(format_datetime(IrTime, "HH:mm"), " ", IrOp, " from ", IrIp), 10)
+        by ChangeId;
+//
+// The new method in use from new infrastructure: an interactive sign-in by
+// the target, after an added or updated method, that succeeded with the same
+// method family, from an IP that is novel, campaign, baseline incomplete,
+// hosting, or first used by the target around the change.
+let PostChangeMethodUse =
+    UserSignins
+    | where SigninTable == "interactive" and ResultType == "0"
+    | where UserId in (TargetIdSet) or UserPrincipalName == TargetUpnLc
+    | where TimeGenerated between (ScanStart .. FootprintEnd)
+    | where AuthDetailsRaw has "succeeded"
+    | project PsTime = TimeGenerated, PsIp = IPAddress, ad = parse_json(AuthDetailsRaw)
+    | mv-expand ad
+    | where tobool(ad.succeeded)
+    | extend PsMethod = MethodFromText(tostring(ad.authenticationMethod))
+    | where PsMethod !in ("Password", "Unknown")
+    | distinct PsTime, PsIp, PsMethod
+    | lookup kind=leftouter (
+        Footprint
+        | project PsIp = IPAddress, PsIpClass = FootprintClass, PsAsnClass = AsnClass, PsTargetFirstOnIp = TargetFirstOnIp
+    ) on PsIp;
+let NewMethodInfraByChange =
+    Changes
+    | where Action in ("added", "added and deleted", "updated")
+    | project ChangeId, EventTime, MethodType, JoinKey = 1
+    | join kind=inner (PostChangeMethodUse | extend JoinKey = 1) on JoinKey
+    | where PsTime > EventTime and PsTime <= EventTime + PostChangeWindow
+    | where MethodsMatch(MethodType, PsMethod)
+    | where PsIpClass in ("novel", "campaign", "baseline incomplete") or PsAsnClass == "hosting"
+        or (isnotnull(PsTargetFirstOnIp) and PsTargetFirstOnIp >= EventTime - PreChangeWindow)
+    | summarize NewMethodInfraSignins = count(), NewMethodInfraIps = make_set(PsIp, 10) by ChangeId;
+//
+// Lockout pattern: a method added, then a method deleted on the same target
+// within PostChangeWindow. Both rows of the pair carry the flag. A phone swap
+// looks identical, which is why this is weight and never a hard flag.
+let LockoutByChange =
+    MethodChanges
+    | where Action in ("added", "added and deleted")
+    | project AddId = Id, AddTime = TimeGenerated, AddMethod = MethodType, AddTargetKey = TargetKey
+    | join kind=inner (
+        MethodChanges
+        | where Action in ("deleted", "added and deleted")
+        | project DelId = Id, DelTime = TimeGenerated, DelMethod = MethodType, DelTargetKey = TargetKey
+    ) on $left.AddTargetKey == $right.DelTargetKey
+    | where DelTime >= AddTime and DelTime <= AddTime + PostChangeWindow
+    | extend Pair = strcat("added ", AddMethod, " at ", format_datetime(AddTime, "HH:mm"),
+        ", deleted ", DelMethod, " at ", format_datetime(DelTime, "HH:mm"))
+    | mv-expand ChangeId = pack_array(AddId, DelId) to typeof(string)
+    | summarize LockoutDetail = make_set(Pair, 5) by ChangeId;
+//
+// Other accounts signing in from the change's audit IP around the change.
+let NeighboursByChange =
+    Changes
+    | where isnotempty(InitiatorIp)
+    | project ChangeId, EventTime, InitiatorIp, InitiatorId
+    | join kind=inner (
+        IpFallbackSignins
+        | project NbTime = TimeGenerated, NbIp = IPAddress, NbUserId = UserId, NbUpn = UserPrincipalName
+    ) on $left.InitiatorIp == $right.NbIp
+    | where NbTime between ((EventTime - FallbackWindow) .. (EventTime + FallbackWindow))
+    | where NbUserId != InitiatorId
+    | summarize OtherAccountsOnChangeIp = make_set(NbUpn, 10), OtherAccountCount = dcount(NbUserId) by ChangeId;
+
+
+// === SECTION 8: The Verdict ===
+// One row per change. Weighted flags sum to Score; the two hard flags force
+// Escalate while HardFlagsForceEscalate is true; the Narrative is one plain
+// English sentence for the ticket.
+Spine
+| lookup kind=leftouter OriginMethods on ChangeId
+| lookup kind=leftouter RegAfterChange on ChangeId
+| lookup kind=leftouter RegisterCaByChange on ChangeId
+| extend ChangeIp = coalesce(InitiatorIp, BridgeIp)
+| lookup kind=leftouter (
+    Footprint
+    | project ChangeIp = IPAddress, ChangeIpClass = FootprintClass, ChangeIpAsn = Asn,
+        ChangeIpAsnClass = AsnClass, ChangeIpCountry = Country, ChangeIpUsers = BaselineUsers,
+        ChangeIpDays = BaselineDays, ChangeIpFirstSeen = BaselineFirstSeen
+  ) on ChangeIp
+| extend ChangeDay = startofday(EventTime)
+| lookup kind=leftouter SessionsByDay on ChangeDay
+| lookup kind=leftouter (Flows | project OriginCorrelationId = CorrelationId, OriginFlow = Flow) on OriginCorrelationId
+| lookup kind=leftouter (Flows | project BridgeCorrelationId = CorrelationId, BridgeFlow = Flow) on BridgeCorrelationId
+| extend
+    TargetPremisesKey = coalesce(TargetId, TargetUpnLower),
+    InitiatorPremisesKey = coalesce(InitiatorId, InitiatorUpn)
+| lookup kind=leftouter (
+    Premises | project TargetPremisesKey = AccountKey, TargetRoles = AssignedRoles, TargetPrivRoles = PrivRolesHeld
+  ) on TargetPremisesKey
+| lookup kind=leftouter (
+    Premises | project InitiatorPremisesKey = AccountKey, InitiatorPrivRoles = PrivRolesHeld
+  ) on InitiatorPremisesKey
+| lookup kind=leftouter PimByChange on ChangeId
+| lookup kind=leftouter AfterHoursByChange on ChangeId
+| lookup kind=leftouter InboxByChange on ChangeId
+| lookup kind=leftouter NewMethodInfraByChange on ChangeId
+| lookup kind=leftouter LockoutByChange on ChangeId
+| lookup kind=leftouter NeighboursByChange on ChangeId
+//
+// --- Fill the gaps left by unmatched lookups ---
+| extend
+    BridgeMethod = coalesce(BridgeMethod, "none"),
+    PimTargetActivations = coalesce(PimTargetActivations, tolong(0)),
+    AhRoleAssignments = coalesce(AhRoleAssignments, tolong(0)),
+    AhAppConsents = coalesce(AhAppConsents, tolong(0)),
+    AhSpCredentials = coalesce(AhSpCredentials, tolong(0)),
+    AhCaEdits = coalesce(AhCaEdits, tolong(0)),
+    InboxRulesAfter = coalesce(InboxRulesAfter, tolong(0)),
+    NewMethodInfraSignins = coalesce(NewMethodInfraSignins, tolong(0)),
+    OtherAccountCount = coalesce(OtherAccountCount, tolong(0)),
+    SessionCountOnDay = coalesce(SessionCountOnDay, tolong(0))
+//
+// --- Strength, device, privilege and path features ---
+| extend
+    OriginTokenClaimSeen = OriginAuthDetailsRaw contains TokenClaimText,
+    BridgeTokenClaimSeen = BridgeAuthDetailsRaw contains TokenClaimText,
+    OriginPossiblyTruncated = UseWalk and OriginTime <= SessionWalkStart + OriginBoundaryTolerance,
+    OriginDevice = parse_json(OriginDeviceRaw),
+    ChangeDevice = parse_json(iff(isnotnull(BridgeTime), BridgeDeviceRaw, OriginDeviceRaw)),
+    OriginMfaMethods = set_difference(OriginMethodsUsed, dynamic(["Password", "Previously satisfied"])),
+    OriginAsnClass = case(
+        isempty(OriginAsn), "unknown",
+        OriginAsn in (HostingAsns), "hosting",
+        OriginAsn in (MicrosoftAsns), "Microsoft",
+        "other"),
+    RegisterCaApplied = coalesce(array_length(RegisterCaPolicies), 0) > 0,
+    TargetIsPrivileged = coalesce(array_length(TargetPrivRoles), 0) > 0 or PimTargetActivations > 0,
+    ChangePathClass = case(
+        isempty(BridgeAppId) and IsAppMadeChange, "app-made change",
+        isempty(BridgeAppId), "no sign-in bridged",
+        BridgeAppId == MySigninsAppId or BridgeAppId in (AdditionalExpectedAppIds), "expected (My Signins)",
+        BridgeAppId in (WindowsSignInAppIds), "WHfB provisioning (Windows Sign In)",
+        BridgeAppId in (ScriptedAppIds) or BridgeAppName contains "PowerShell" or BridgeAppName contains "Command Line",
+            "scripted (Graph or PowerShell)",
+        "unfamiliar app")
+| extend
+    OriginDeviceTrust = tostring(OriginDevice.trustType),
+    OriginDeviceCompliant = tostring(OriginDevice.isCompliant),
+    OriginDeviceRegistered = isnotempty(tostring(OriginDevice.deviceId)) or isnotempty(tostring(OriginDevice.trustType)),
+    ChangeDeviceTrust = tostring(ChangeDevice.trustType),
+    ChangeDeviceCompliant = tostring(ChangeDevice.isCompliant),
+    ChangeDeviceOs = tostring(ChangeDevice.operatingSystem),
+    ChangeDeviceRegistered = isnotempty(tostring(ChangeDevice.deviceId)) or isnotempty(tostring(ChangeDevice.trustType))
+//
+// --- Flags ---
+| extend
+    OriginMfaPerformed = coalesce(array_length(OriginMfaMethods), 0) > 0,
+    OriginIsWalkedFirst = UseWalk and not(OriginPossiblyTruncated)
+| extend
+    F_TokenClaimAtOrigin = OriginIsWalkedFirst and OriginTokenClaimSeen and not(OriginMfaPerformed)
+        and (not(TokenClaimIgnoreRegisteredDevice) or not(OriginDeviceRegistered)),
+    F_SingleFactorThenReg = OriginIsWalkedFirst and OriginTable == "interactive"
+        and OriginAuthRequirement == "singleFactorAuthentication"
+        and not(OriginMfaPerformed) and not(OriginTokenClaimSeen)
+        and isnotnull(RegistrationCompletedAt),
+    F_CampaignIp = ChangeIpClass == "campaign",
+    F_LockoutPattern = coalesce(array_length(LockoutDetail), 0) > 0,
+    F_PrivilegedActionAfter = AhRoleAssignments + AhAppConsents + AhSpCredentials + AhCaEdits > 0,
+    F_NovelIp = ChangeIpClass == "novel",
+    F_HostingAsn = ChangeIpAsnClass == "hosting" or OriginAsnClass == "hosting",
+    F_PhoneDowngrade = TargetIsPrivileged and MethodType startswith "Phone"
+        and Action in ("added", "default changed", "updated", "added and deleted"),
+    F_ScriptedChangePath = ChangePathClass startswith "scripted",
+    F_UnfamiliarChangePath = ChangePathClass == "unfamiliar app",
+    F_NewMethodFromNewInfra = NewMethodInfraSignins > 0,
+    F_InboxRuleAfter = InboxRulesAfter > 0,
+    F_RiskySignin = OriginRisk in ("medium", "high") or BridgeRisk in ("medium", "high"),
+    F_SessionAsnHop = UseWalk and isnotempty(OriginAsn) and isnotempty(BridgeAsn) and OriginAsn != BridgeAsn,
+    F_TapIssued = IsTapIssued,
+    F_AppMadeChange = IsAppMadeChange,
+    F_UnmanagedDevice = isnotnull(BridgeTime) and not(ChangeDeviceRegistered) and ChangeDeviceCompliant != "true",
+    F_NoSigninBridged = BridgeMethod == "none" and not(IsAppMadeChange),
+    F_ChangeIpUnseen = ChangeIpClass == "no sign-in record",
+    F_FallbackBridge = BridgeMethod startswith "fallback",
+    F_BaselineIncomplete = ChangeIpClass == "baseline incomplete",
+    F_NoRegisterCaPolicy = isnotnull(BridgeTime) and not(RegisterCaApplied)
+| extend F_MicrosoftAsn = not(F_HostingAsn) and (ChangeIpAsnClass == "Microsoft" or OriginAsnClass == "Microsoft")
+| extend Score =
+      iff(F_TokenClaimAtOrigin, W_TokenClaimAtOrigin, 0)
+    + iff(F_SingleFactorThenReg, W_SingleFactorThenReg, 0)
+    + iff(F_CampaignIp, W_CampaignIp, 0)
+    + iff(F_LockoutPattern, W_LockoutPattern, 0)
+    + iff(F_PrivilegedActionAfter, W_PrivilegedActionAfter, 0)
+    + iff(F_NovelIp, W_NovelIp, 0)
+    + iff(F_HostingAsn, W_HostingAsn, 0)
+    + iff(F_PhoneDowngrade, W_PhoneDowngrade, 0)
+    + iff(F_ScriptedChangePath, W_ScriptedChangePath, 0)
+    + iff(F_UnfamiliarChangePath, W_UnfamiliarChangePath, 0)
+    + iff(F_NewMethodFromNewInfra, W_NewMethodFromNewInfra, 0)
+    + iff(F_InboxRuleAfter, W_InboxRuleAfter, 0)
+    + iff(F_RiskySignin, W_RiskySignin, 0)
+    + iff(F_SessionAsnHop, W_SessionAsnHop, 0)
+    + iff(F_TapIssued, W_TapIssued, 0)
+    + iff(F_AppMadeChange, W_AppMadeChange, 0)
+    + iff(F_MicrosoftAsn, W_MicrosoftAsn, 0)
+    + iff(F_UnmanagedDevice, W_UnmanagedDevice, 0)
+    + iff(F_NoSigninBridged, W_NoSigninBridged, 0)
+    + iff(F_ChangeIpUnseen, W_ChangeIpUnseen, 0)
+    + iff(F_FallbackBridge, W_FallbackBridge, 0)
+    + iff(F_BaselineIncomplete, W_BaselineIncomplete, 0)
+    + iff(F_NoRegisterCaPolicy, W_NoRegisterCaPolicy, 0)
+| extend Flags = array_concat(
+    iff(F_TokenClaimAtOrigin,    pack_array(strcat("token-claim MFA at session origin +", W_TokenClaimAtOrigin)), dynamic([])),
+    iff(F_SingleFactorThenReg,   pack_array(strcat("single-factor sign-in then full registration +", W_SingleFactorThenReg)), dynamic([])),
+    iff(F_CampaignIp,            pack_array(strcat("campaign IP +", W_CampaignIp)), dynamic([])),
+    iff(F_LockoutPattern,        pack_array(strcat("lockout pattern (added then deleted) +", W_LockoutPattern)), dynamic([])),
+    iff(F_PrivilegedActionAfter, pack_array(strcat("privileged action afterwards +", W_PrivilegedActionAfter)), dynamic([])),
+    iff(F_NovelIp,               pack_array(strcat("novel IP +", W_NovelIp)), dynamic([])),
+    iff(F_HostingAsn,            pack_array(strcat("hosting ASN +", W_HostingAsn)), dynamic([])),
+    iff(F_PhoneDowngrade,        pack_array(strcat("phone or SMS on a privileged account +", W_PhoneDowngrade)), dynamic([])),
+    iff(F_ScriptedChangePath,    pack_array(strcat("scripted change path +", W_ScriptedChangePath)), dynamic([])),
+    iff(F_UnfamiliarChangePath,  pack_array(strcat("unfamiliar change path +", W_UnfamiliarChangePath)), dynamic([])),
+    iff(F_NewMethodFromNewInfra, pack_array(strcat("new method used from new infrastructure +", W_NewMethodFromNewInfra)), dynamic([])),
+    iff(F_InboxRuleAfter,        pack_array(strcat("inbox rule afterwards +", W_InboxRuleAfter)), dynamic([])),
+    iff(F_RiskySignin,           pack_array(strcat("risky sign-in +", W_RiskySignin)), dynamic([])),
+    iff(F_SessionAsnHop,         pack_array(strcat("session changed ASN since origin +", W_SessionAsnHop)), dynamic([])),
+    iff(F_TapIssued,             pack_array(strcat("Temporary Access Pass issued +", W_TapIssued)), dynamic([])),
+    iff(F_AppMadeChange,         pack_array(strcat("change made by an app +", W_AppMadeChange)), dynamic([])),
+    iff(F_MicrosoftAsn,          pack_array(strcat("Microsoft ASN +", W_MicrosoftAsn)), dynamic([])),
+    iff(F_UnmanagedDevice,       pack_array(strcat("unregistered, non-compliant device +", W_UnmanagedDevice)), dynamic([])),
+    iff(F_NoSigninBridged,       pack_array(strcat("no sign-in bridged +", W_NoSigninBridged)), dynamic([])),
+    iff(F_ChangeIpUnseen,        pack_array(strcat("change IP never signed in +", W_ChangeIpUnseen)), dynamic([])),
+    iff(F_FallbackBridge,        pack_array(strcat("fallback bridge +", W_FallbackBridge)), dynamic([])),
+    iff(F_BaselineIncomplete,    pack_array(strcat("baseline incomplete +", W_BaselineIncomplete)), dynamic([])),
+    iff(F_NoRegisterCaPolicy,    pack_array(strcat("no register-security-info CA policy applied +", W_NoRegisterCaPolicy)), dynamic([])))
+| extend FlagCount = array_length(Flags)
+| extend Verdict = case(
+    HardFlagsForceEscalate and (F_TokenClaimAtOrigin or F_SingleFactorThenReg), "Escalate",
+    Score >= EscalateThreshold, "Escalate",
+    Score >= ReviewThreshold, "Review",
+    "Benign")
+| extend LeadFlag = case(
+    F_TokenClaimAtOrigin, "token-claim MFA at session origin",
+    F_SingleFactorThenReg, "a single-factor sign-in followed by full registration",
+    F_CampaignIp, "a campaign IP",
+    F_LockoutPattern, "a lockout pattern",
+    F_PrivilegedActionAfter, "privileged activity afterwards",
+    F_NovelIp, "a novel IP",
+    F_HostingAsn, "a hosting ASN",
+    F_PhoneDowngrade, "phone or SMS on a privileged account",
+    F_ScriptedChangePath, "a scripted change path",
+    F_UnfamiliarChangePath, "an unfamiliar change path",
+    F_NewMethodFromNewInfra, "the new method used from new infrastructure",
+    F_InboxRuleAfter, "an inbox rule afterwards",
+    F_RiskySignin, "a risky sign-in",
+    F_SessionAsnHop, "an ASN change inside the session",
+    F_TapIssued, "a Temporary Access Pass",
+    F_AppMadeChange, "an app making the change",
+    "minor signals")
+//
+// --- Narrative: one sentence, assembled from parts ---
+| extend
+    _who = case(
+        ChangeKind == "self-service", TargetUpnLower,
+        ChangeKind == "admin", strcat("Admin ", InitiatorUpn),
+        ChangeKind == "app", strcat("The app ", coalesce(InitiatorAppName, InitiatorAppId, "(unnamed)")),
+        "An unknown initiator"),
+    _method = iff(MethodType == "Unknown", "an authentication method", MethodType),
+    _onWhom = iff(ChangeKind == "self-service", " on their own account", strcat(" on ", TargetUpnLower)),
+    _when = strcat(" at ", format_datetime(EventTime, "yyyy-MM-dd HH:mm"), " UTC"),
+    _origin = format_datetime(OriginTime, "yyyy-MM-dd HH:mm")
+| extend
+    _what = case(
+        Action == "added", strcat(" added ", _method),
+        Action == "deleted", strcat(" deleted ", _method),
+        Action == "default changed", strcat(" changed the default method (", _method, ")"),
+        Action == "added and deleted", strcat(" added and deleted ", _method),
+        strcat(" updated ", _method)),
+    _path = case(
+        BridgeMethod startswith "initiator", strcat(" via ", coalesce(BridgeAppName, BridgeAppId, "an unnamed app"),
+            iff(BridgeMethod has "did not match", " (sign-in IP differs from the audit IP)", "")),
+        BridgeMethod startswith "fallback", strcat(" with no sign-in inside the pre-change window, so it was bridged on IP and a +/-",
+            FallbackMinutes, " minute window only (", coalesce(BridgeAppName, "unnamed app"), ")"),
+        ChangeKind == "app", " with no user session behind it",
+        OtherAccountCount > 0, strcat(" with no initiator sign-in to bridge, even on IP and a +/-", FallbackMinutes,
+            " minute window, though ", OtherAccountCount, " other account(s) signed in from that IP"),
+        strcat(" with no initiator sign-in to bridge, even on IP and a +/-", FallbackMinutes, " minute window")),
+    _ip = iff(isempty(ChangeIp), "", strcat(" from ", ChangeIp, " (", coalesce(ChangeIpClass, "unclassified"),
+        iff(isnotempty(ChangeIpAsn), strcat(", AS", ChangeIpAsn, " ", ChangeIpAsnClass), ""),
+        iff(isnotempty(ChangeIpCountry), strcat(", ", ChangeIpCountry), ""), ")")),
+    _auth = case(
+        OriginMfaPerformed, strcat("with MFA (", strcat_array(OriginMfaMethods, ", "), ")"),
+        OriginTokenClaimSeen, strcat("on a token-claim MFA", iff(OriginDeviceRegistered, " from a registered device", "")),
+        OriginAuthRequirement == "singleFactorAuthentication", "on single-factor authentication",
+        strcat("with ", coalesce(OriginAuthRequirement, "unrecorded authentication"))),
+    _originTable = iff(OriginTable == "non-interactive", " (a non-interactive record)", "")
+| extend
+    _session = case(
+        OriginSource == "none", "",
+        F_TokenClaimAtOrigin, strcat(", in a session that first appeared at ", _origin,
+            " on a token-claim MFA with no MFA step of its own"),
+        F_SingleFactorThenReg, strcat(", in a session that began at ", _origin,
+            " on single-factor authentication and went on to complete registration"),
+        not(UseWalk), strcat(", on a sign-in at ", _origin, " with no session to walk, ", _auth),
+        OriginPossiblyTruncated, strcat(", in a session older than the walk, first seen at ", _origin, _originTable, " ", _auth),
+        strcat(", in a session that began at ", _origin, _originTable, " ", _auth)),
+    _close = iff(FlagCount == 0,
+        strcat("; no flags fired, so ", Verdict, "."),
+        strcat("; lead signal ", LeadFlag, ", ", FlagCount, iff(FlagCount == 1, " flag", " flags"),
+            ", score ", Score, ", so ", Verdict, "."))
+| extend Narrative = strcat(_who, _what, _onWhom, _when, _path, _ip, _session, _close)
+| extend
+    TargetPrivilege = case(
+        coalesce(array_length(TargetPrivRoles), 0) > 0, strcat_array(TargetPrivRoles, ", "),
+        PimTargetActivations > 0, "PIM activation seen near the change",
+        isnull(TargetRoles), "unknown (no IdentityInfo record)",
+        "no privileged role found"),
+    InitiatorPrivilege = case(
+        ChangeKind != "admin", "",
+        coalesce(array_length(InitiatorPrivRoles), 0) > 0, strcat_array(InitiatorPrivRoles, ", "),
+        "no privileged role found"),
+    Initiator = case(
+        ChangeKind == "app", strcat("[app] ", coalesce(InitiatorAppName, InitiatorAppId)),
+        coalesce(InitiatorUpn, InitiatorId))
+| project
+    Verdict, Score, Narrative, Flags,
+    EventTime, OperationName, Action, MethodType, ChangeKind, MethodDetail,
+    Target = TargetUpnLower, TargetPrivilege, Initiator, InitiatorId, InitiatorPrivilege, InitiatorIp, InitiatorAppId,
+    ChangeIp, ChangeIpClass, ChangeIpAsn, ChangeIpAsnClass, ChangeIpCountry, ChangeIpUsers, ChangeIpDays,
+    ChangeIpFirstSeen, OtherAccountsOnChangeIp,
+    BridgeMethod, ChangePathClass, BridgeTime, BridgeTable, BridgeAppName, BridgeAppId, BridgeIp,
+    BridgeSessionId, BridgeTokenClaimSeen, BridgeFlow,
+    OriginSource, OriginTime, OriginPossiblyTruncated, OriginTable, OriginAppName, OriginIp, OriginAsn,
+    OriginAsnClass, OriginCountry, OriginAuthRequirement, OriginMfaMethods, OriginTokenClaimSeen,
+    OriginRisk, OriginDeviceTrust, OriginDeviceCompliant, OriginUserAgent, OriginFlow,
+    ChangeDeviceTrust, ChangeDeviceCompliant, ChangeDeviceOs,
+    RegisterCaApplied, RegisterCaPolicies, RegistrationCompletedAt,
+    SessionCountOnDay, SessionIdsOnDay, PimActivations,
+    AfterHoursActions = AhActions, InboxRuleActivity, NewMethodInfraIps, LockoutDetail, IsTapIssued,
+    ModifiedProps, EchoesSuppressed = EchoCount, UserFootprint = FootprintDigest, ChangeId, AuditCorrelationId
+| sort by EventTime asc
+// | lookup kind=leftouter CorrelationBridge on ChangeId    // CORRELATION TEST: see SECTION 2

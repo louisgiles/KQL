@@ -28,6 +28,22 @@ reviewer asks at triage:
 |---|---|---|
 | `deep-dive.kql` | analysis | Evidence engine. Filters `AuditLogs` to auth-change operations, enriches with `IdentityInfo`, privileged-user baseline, actor historical frequency, and the actor's recent `SigninLogs` posture, then emits a weighted `RiskScore` / `TriageVerdict`. |
 | `narrative-gen.kql` | narrative | Closure note. Target-UPN-focused — pulls each auth-method change for the user, joins sign-in context within `SigninContextWindow` of each change, and emits a ticket-ready text summary. Does not overlap the deep dive's row-per-event scoring. |
+| `the-locksmith-one-shot.kql` | analysis | "The Locksmith". Incident-driven one-shot for a privileged account whose authentication methods changed. One row per change: bridges it to the initiator's sign-in, walks that session back to its first authentication, tests the MFA, scores every IP in play against the tenant, confirms privilege, checks the hours after, and returns a weighted `Verdict` with a one-sentence `Narrative`. |
+
+### Note on `the-locksmith-one-shot.kql`
+
+This file sits outside the contract's named file set, like The Curio
+Cabinet in `03-office-ops/`. It is not a quick-dive: it answers one
+closing question per change (was the session that changed the locks the
+legitimate user?) rather than gating the deep dive. It complements
+`deep-dive.kql`, which asks whether the actor normally makes this kind of
+change, by asking who was actually at the keyboard. It carries the full
+contract header and is covered by the smoke harness. Single workspace by
+design.
+
+Its own header holds the parameters, how to read every output column, the
+known limitations, and the names and values it relies on that have not yet
+been checked against a live tenant.
 
 ## Starting entities
 
@@ -58,6 +74,20 @@ reviewer asks at triage:
   leave the posture columns null and only the two posture-related
   risk factors (`_actorSigninRisk`, `_actorUntrustedDevice`) zero out.
   A missing `SigninLogs` row never drops an audit event.
+
+### Data dependencies for `the-locksmith-one-shot.kql`
+
+- `AuditLogs`: **Required**. Method changes, PIM activations and the
+  follow-on operations all come from one pre-filtered read.
+- `SigninLogs`: **Required**. The bridge, the session walk, the origin's
+  strength test and the 30-day IP baseline.
+- `AADNonInteractiveUserSignInLogs`: **Optional enrichment**. Read through
+  `union isfuzzy=true`, always scoped to the users, IPs or SessionIds in
+  play. Kept out of the IP baseline unless `BaselineIncludeNonInteractive`
+  is set; IPs seen only here read "baseline incomplete".
+- `IdentityInfo`: **Optional enrichment**. Latest `AssignedRoles` per
+  account. Missing rows read as "unknown", never as "not privileged".
+- `OfficeActivity`: **Optional enrichment**. Inbox rules after the change.
 
 ## Variables
 
@@ -138,3 +168,26 @@ reviewer asks at triage:
    `ACTOR_SIGNIN_RISK`, `ACTOR_UNTRUSTED_DEVICE`, and likely
    `ACTOR_FIRST_TIME_OP` firing together.
    *Fill in:* actor UPN, target UPN, IP, timestamps.
+
+### The Locksmith - test cases
+
+> TODO: replace with anonymised examples from completed investigations.
+
+1. **Known benign - TODO.** A privileged user adds Microsoft Authenticator
+   through My Signins from the office egress IP, on a compliant joined
+   device, in a session that began that morning with MFA.
+   *Expected:* `Benign`; `ChangePathClass` expected (My Signins);
+   `ChangeIpClass` egress or VPN or familiar.
+2. **Ambiguous - TODO.** A privileged user adds SMS through My Signins
+   from their usual home broadband IP on an unmanaged personal device, in
+   a session that began with MFA.
+   *Expected:* `Review` on weight (phone or SMS on a privileged account
+   25, unregistered device 10, possibly no register-security-info CA
+   policy 5). The same change made by an admin through Graph would reach
+   50 and Escalate.
+3. **Known bad - TODO.** Single-factor interactive sign-in from a hosting
+   ASN, "User registered all required security info" minutes later,
+   Authenticator added and the old method deleted, an inbox rule inside
+   four hours.
+   *Expected:* `Escalate` forced by single-factor then registration, with
+   hosting ASN, lockout pattern and inbox rule afterwards also firing.

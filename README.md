@@ -20,7 +20,7 @@ its own `notes.md`, its own done criteria.
 | Folder | Family |
 |---|---|
 | `01-sign-in/` | Sign-in triage. Anomalous logins, risky sign-ins, IP / device / location familiarity, MFA posture. Includes `Babbl33r.kql`, a probabilistic sign-in novelty scorer (Good-Turing estimation), and its build history in `babbler-lineage/`. |
-| `02-auth-changes/` | Authentication-change triage. Password resets, MFA registrations / removals, security-info changes, role assignments. |
+| `02-auth-changes/` | Authentication-change triage. Password resets, MFA registrations / removals, security-info changes, role assignments. Includes The Locksmith, a one-shot that decides whether the session that changed a privileged account's authentication methods was the legitimate user. |
 | `03-office-ops/` | Office / M365 operations triage. Mailbox permissions, inbox rules, forwarding, transport rules, delegation. Includes The Curio Cabinet, a rare-operations hunt. |
 | `04-azure-activity/` | Azure control-plane triage. Resource creation / deletion, RBAC changes, Key Vault, NSG edits. |
 | `05-endpoint/` | Endpoint triage. Three sub-families: `process/`, `file/`, `network/`. |
