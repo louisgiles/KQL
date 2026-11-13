@@ -1,8 +1,8 @@
 # High-probability, low-severity threat hunts
 
 **Last researched:** 13 November 2026  
-**Latest research run:** 07 — 06:00 new-lead assessment; H011 and H012 added
-**Active candidates:** Ten low-severity H packs (H001, H003, H004, H005, H007, H008, H009, H010, H011, H012), and three escalation E packs (E001, E002, E003). H002 and H006 retired.
+**Latest research run:** 08 — 07:00 new-lead assessment; H013 and H014 added
+**Active candidates:** Twelve low-severity H packs (H001, H003, H004, H005, H007, H008, H009, H010, H011, H012, H013, H014), and three escalation E packs (E001, E002, E003). H002 and H006 retired.
 **Scheduled research:** Hourly through the final scheduled run at 08:00 Europe/London on 14 November 2026  
 **Execution surface:** Microsoft Sentinel / Log Analytics workspaces only  
 **Status:** Researched hunt hypotheses; no client queries have been run or results claimed.
@@ -25,7 +25,7 @@ The likelihood of a hit across clients is not yet measured. Selection below uses
 | OneStart / BaoLoader-associated activity | Not suitable for a routine low-severity PUP entry. [^excluded-onestart] |
 | H006 HollowMare | Retired from the low-severity list in Run 04, re-filed as E003 after the Unit 42 signer evidence. This historical ID is not reused. [^hollow][^pdf-signer] |
 
-Retired IDs are not reused. Ten active low-severity packs are indexed below; H006 was reclassified as E003, not counted as new.
+Retired IDs are not reused. Twelve active low-severity packs are indexed below; H006 was reclassified as E003, not counted as new.
 
 ## Hunt index — low-severity packs
 
@@ -38,11 +38,13 @@ Retired IDs are not reused. Ten active low-severity packs are indexed below; H00
 | 3 | [H010](#h010-honeygain-windows-bandwidth-sharing-app) | Honeygain Windows | **A (provider-level)** | 30 Sep 2026: ~68k provider-associated Windows users, not relay proof | Run 05 | Finished: branded execution; relay unproven |
 | 4 | [H008](#h008-infatica-p2b-proxy-component) | Infatica P2B component | **B** | 11 Aug 2026: updated consumer-install report, not enterprise prevalence | Run 04 | Finished: product execution; relay unproven |
 | 5 | [H011](#h011-iobit-driver-booster-for-windows) | IObit Driver Booster 14 | **B (live download)** | 13 Nov 2026: official product download live; 16 Sep 2026 release; enterprise prevalence unknown | Run 07 | Finished: branded process/path; separate PUP detection |
-| 6 | [H012](#h012-torrent-classic-for-windows) | µTorrent Classic Windows | **B (live download)** | 13 Nov 2026: official Classic download live; 2021 PUA bundle classification is historical | Run 07 | Finished: process/path corroboration; transfers unproven |
-| 7 | [H003](#h003-adaware-web-companion) | Adaware Web Companion | **B (live download)** | 13 Nov 2026: official Windows download page live; business report from 2023 | Run 01 replacement | Finished: typed identifiers; current estate use unmeasured |
-| 8 | [H005](#h005-bright-sdk--luminati-sdk-in-host-apps) | Bright/Luminati SDK in host apps | **B (live programme)** | 13 Nov 2026: publisher lists Windows host partners; 22 Jul Windows tool guide | Run 02, widened 03 | Finished: identifiable SDK; no current corporate prevalence |
-| 9 | [H001](#h001-onelaunch) | OneLaunch | **B (residual)** | 27 Mar 2026 corporate sighting; new downloads withdrawn | Run 01 | Finished: distinctive runtime; remaining installations only |
-| 10 | [H004](#h004-relevantknowledge) | RelevantKnowledge | **C** | 8 Dec 2025 sandbox; live privacy-panel listing ≠ current installs | Run 02 | Incomplete: recent real-world presence evidence |
+| 6 | [H013](#h013-outbyte-driver-updater) | Outbyte Driver Updater | **B (live download)** | 13 Nov 2026 official download live; July 2026 removal guidance; no estate prevalence measured | Run 08 | Finished: product path/metadata; generic process paired |
+| 7 | [H014](#h014-driverpack-online-and-notifier) | DriverPack Online and Notifier | **B (live download)** | 13 Nov 2026 official download live; 2018 Notifier artefacts historical | Run 08 | Finished: branded runtime plus product metadata; bundles assessed separately |
+| 8 | [H012](#h012-torrent-classic-for-windows) | µTorrent Classic Windows | **B (live download)** | 13 Nov 2026: official Classic download live; 2021 PUA bundle classification is historical | Run 07 | Finished: process/path corroboration; transfers unproven |
+| 9 | [H003](#h003-adaware-web-companion) | Adaware Web Companion | **B (live download)** | 13 Nov 2026: official Windows download page live; business report from 2023 | Run 01 replacement | Finished: typed identifiers; current estate use unmeasured |
+| 10 | [H005](#h005-bright-sdk--luminati-sdk-in-host-apps) | Bright/Luminati SDK in host apps | **B (live programme)** | 13 Nov 2026: publisher lists Windows host partners; 22 Jul Windows tool guide | Run 02, widened 03 | Finished: identifiable SDK; no current corporate prevalence |
+| 11 | [H001](#h001-onelaunch) | OneLaunch | **B (residual)** | 27 Mar 2026 corporate sighting; new downloads withdrawn | Run 01 | Finished: distinctive runtime; remaining installations only |
+| 12 | [H004](#h004-relevantknowledge) | RelevantKnowledge | **C** | 8 Dec 2025 sandbox; live privacy-panel listing ≠ current installs | Run 02 | Incomplete: recent real-world presence evidence |
 
 **Status:** Finished means sourced, product-specific standalone identifier without command lines, typed table and explicit match meaning. It does not mean verified tenant execution. No tenant data queried in any run.
 
@@ -354,6 +356,39 @@ Intentional approved panel participation is a real alternative explanation, cons
 
 **Hunt:** Corroborate running branded client and user/path over the retained window; where available, examine attributed peer connections and the execution of downloaded payloads. **Proves:** µTorrent execution, **not** illegal download, exfiltration or malware. **Benign:** approved P2P transfers and legitimate client use. **Escalate:** independent malicious downloaded-executable execution, sensitive-file transfer or externally reachable service contrary to policy. **Signer screen:** a legacy 2015 diagnostic listed company metadata `BitTorrent, Inc.` and product `µTorrent`, not a currently verified code signer; the Unit 42 list has no observed matching company, which is not evidence of safety. [^r07-ut-legacy]
 
+## H013: Outbyte Driver Updater
+
+**Hypothesis, tier B (Review 007 L7):** Some managed Windows endpoints run an unapproved consumer driver updater. Outbyte's official Windows download was live **13 November 2026**, GridinSoft updated removal guidance **7 July 2026**, and Malwarebytes classifies the broader Outbyte product family as PUP.Optional.Outbyte. **Live distribution, not measured enterprise prevalence.** [^r08-ob-live][^r08-ob-grid][^r08-ob-mb]
+
+**Identifier provenance:** One public ANY.RUN installer sample from **17 May 2025**, under **Processes → Process information** PIDs 2064/4164/4212, shows the full runtime path, Company Outbyte and Description Driver Updater. These are historical sample details; the current build is not shown using the same directory. The automated “stealer” verdict alone does not prove exfiltration by every authentic Outbyte application. [^r08-ob-sample]
+
+| Product | Type | Exact value | Log Analytics table.column if ingested | Condition | Source |
+| --- | --- | --- | --- | --- | --- |
+| Outbyte Driver Updater | runtime full path | C:\Program Files (x86)\Outbyte\Driver Updater\DriverUpdater.exe | DeviceProcessEvents.FolderPath | **standalone** full product path and executable | [^r08-ob-sample] |
+| Outbyte Driver Updater | process | DriverUpdater.exe | DeviceProcessEvents.FileName | **pair with Outbyte path or metadata**; other vendors use it | [^r08-ob-file] |
+| Outbyte Driver Updater | version company | Outbyte | DeviceProcessEvents.ProcessVersionInfoCompanyName | **pair with executable and folder**; metadata not verified signer | [^r08-ob-sample] |
+| Outbyte Driver Updater | version description | Driver Updater | DeviceProcessEvents.ProcessVersionInfoFileDescription | **pair with Outbyte name/path** | [^r08-ob-sample] |
+| Outbyte software family | PUP name | PUP.Optional.Outbyte | SecurityAlert.AlertName or vendor detection field | **standalone detection lead**; may be a block, not this exact product | [^r08-ob-mb] |
+
+**Hunt:** In a 30-day window of collected Sentinel process events, find full product path or pair generic process with Outbyte-specific metadata, group by device/user/repeat execution and check approval. **Proves:** product execution, not a malware verdict or driver change. **Benign:** authorised technician use. **Escalate:** separately supported malicious child process, unapproved driver modification or security-control tampering. **Signer screen:** version field Outbyte is not Authenticode; none of the Unit 42 signer strings in the review matched Outbyte, which is not clearance.
+
+## H014: DriverPack Online and Notifier
+
+**Hypothesis, tier B (Review 007 L7):** Managed endpoints may run DriverPack Online, perhaps with its historically bundled Notifier, without approval. Official **DriverPack Online 17.11.108** remained available **13 November 2026**. Malwarebytes documents the PUP.Optional.DriverPack bundled-offer concern, but its cited removal log is **6 May 2018**. Live download does not quantify current business installs. [^r08-dp-live][^r08-dp-mb]
+
+**Identifier provenance:** Historical process attribution and version info are recorded at file.net; Notifier task-cache and DRPSu traces come from the 2018 Malwarebytes log. Do not assert the current version has identical persistence. Official FAQ says DriverPack can run **without installation**. [^r08-dp-file][^r08-dp-faq]
+
+| Product | Type | Exact value | Log Analytics table.column if ingested | Condition | Source |
+| --- | --- | --- | --- | --- | --- |
+| DriverPack | runtime process | DriverPack.exe | DeviceProcessEvents.FileName | **standalone** distinctive execution lead; corroborate version info | [^r08-dp-file] |
+| DriverPack | version product | DriverPack Solution | DeviceProcessEvents.ProcessVersionInfoProductName | **standalone** product metadata on observed execution, not validated signer | [^r08-dp-file] |
+| DriverPack Online | version product | driverpack online | DeviceProcessEvents.ProcessVersionInfoProductName | **standalone** product metadata on observed execution | [^r08-dp-file] |
+| DriverPack Notifier | 2018 task-cache registry | HKLM\SOFTWARE\MICROSOFT\WINDOWS NT\CURRENTVERSION\SCHEDULE\TASKCACHE\TREE\DRIVERPACK NOTIFIER | DeviceRegistryEvents.RegistryKey | **standalone historical persistence lead**, not proof task is active | [^r08-dp-mb] |
+| DriverPack | 2018 folder | C:\Users\{username}\AppData\Roaming\DRPSu\ | DeviceFileEvents.FolderPath | **pair with product process**; username variable | [^r08-dp-mb] |
+| DriverPack | PUP detection | PUP.Optional.DriverPack | SecurityAlert.AlertName or vendor detection field | **standalone detection lead**, check prevention state | [^r08-dp-mb] |
+
+**Hunt:** In actual Sentinel process events, establish the product and execution time; optionally corroborate file/registry activity where ingested. Do not equate installer downloads, blocks or residual tasks with execution. **Proves:** identified DriverPack executed; not malicious download, bundle installation or unwanted driver change. **Benign:** approved technician portable usage. **Escalate:** confirmed malicious bundled payload, unauthorised driver installation or security-tool interference. **Signer screen:** historical Kuzyakov Artur Vyacheslavovich IP is not on the reviewed Unit 42 escalation signer list; present-day Authenticode was not validated.
+
 ## Same route, not low severity — escalation packs
 
 These are **incident leads**, separate from the low-severity H list; neither a PUP label nor a shared search-advert route proves a host is infected.
@@ -471,6 +506,7 @@ For each run, record the number of workspaces and endpoints actually covered, th
 | 05 | 2026-11-13 | H009 Hola, H010 Honeygain, E002 Jia Hao/Projextor | Review 007 followed; existing fixes verified, 04:00 E002 carryover actioned, two recent measured/provider-level leads chosen, L8 deferred; details below. No client queries. |
 | 06 | 2026-11-13 | No new IDs; H001/H003/H004/H005 evidence and typed tables; both indexes re-ranked | Review 007 and 05:00 plan followed. H001/H003/H005 finished; H004 remains incomplete because real-world current activity was not verified. No client queries. |
 | 07 | 2026-11-13 | H011 IObit Driver Booster; H012 µTorrent Classic; no E additions | Review 007 read; remaining L8/L6 examined but not promoted, L7 sourced as two current-download low-severity packs. Detailed action log below. No tenant queries. |
+| 08 | 2026-11-13 | H013 Outbyte Driver Updater; H014 DriverPack Online/Notifier | Review 007 and 07:00 orders followed; L8/L6 examined and declined; L7 produced two current-download candidates, with exact historical artefacts. See details below. No tenant queries. |
 
 ### Run 03: review actions, corrections and deliberate shortfall
 
@@ -536,6 +572,18 @@ For each run, record the number of workspaces and endpoints actually covered, th
 - **Next #5 / Standing guidance 8 — actioned:** Checked historical company strings IObit and BitTorrent, Inc. against the review's Unit 42 signer list; no observed match. **No current Authenticode signer was verified**, and absence from the listed campaign signers is not proof of harmlessness. Any verified listed signer would demand an escalation pack. Each new identifier has a source, Log Analytics field, and standalone/pair role; generic download/setup names were not used alone.
 - **Formatting, shortfall and scope — actioned:** No existing cards deleted or rewritten. New cards are compact and defer to the shared 30-day/telemetry/approval standard. The 06:00 two-candidate target was met without counting L8's network recovery as PacketShare deployment. No KQL generated or client workspaces accessed.
 
+
+### Run 08: 07:00 evidence-ranked candidate research
+
+**Read first:** **Review 007 · 2026-11-13 02:46 GMT** (reviewed register commit **05a9a36**, main-branch reviews.md blob SHA **33247266896ac3f03072ddac0980a64ac1e6adff**). Read brief, orders, Standing guidance, lead queue, Verified sweep sheet and newest review before researching. This was still the newest review even though earlier runs had since advanced the register. Reviews.md was not edited.
+
+- **Review 007 Next #1 — actioned:** Exact review, timestamp, reviewed commit, SHA recorded. Review's 02:00 missing-commit observation acknowledged; whether a run was attempted or why it failed remains unknown.
+- **Next #2 / Review 006 corrections 1–4 and Review 005 corrections 1–3 — already completed in Runs 04–06 and rechecked:** H006 retired into E003, temporary versus installed paths distinguished, PDF Spark/OneBrowser signer association qualified, Shift page details corrected, H005 index anchor and identifier table fixed, PDF Polish attribution caveat preserved. No duplicate edits.
+- **Review 007 Correction #2 — followed:** DigitalPulseService.exe was **not** attributed to Infatica. Evidence for equivalence is missing.
+- **Next #3 — already completed:** E001 added Run 04, E002 Run 05 and E003 reclassified in Run 04. No independently supported new malware-grade pack, so none added.
+- **Next #4 / 07:00 plan — actioned with declines:** L3/H007 and L4/H008 completed earlier. **L8 PacketShare/IPIDEA declined as finished:** a GridinSoft ThreatInfo entry dated **12 September 2026** shows a PacketShare file sample but does not prove an actively installed Windows app following the network disruption; Lumen's recovery data is network-level, not PacketShare deployment. [^r08-packet] **L6 PDFFlows declined:** the alleged genuine-WinRAR delivery report could not be reliably opened previously, and no current live misleading installer was independently substantiated. Proceeded to L7: official Outbyte and DriverPack Windows downloads were live **13 November 2026**, permitting **H013** and **H014**. Both **Tier B**, without quantified enterprise prevalence. [^r08-ob-live][^r08-dp-live]
+- **Next #5 / Standing guidance 8 — actioned:** Checked historical Outbyte version company and DriverPack's Kuzyakov Artur Vyacheslavovich IP reference against the Unit 42 escalation signers in the review sweep sheet; neither observed match. Not validated as current signing; absence is not safety proof. Outbyte's generic DriverUpdater.exe only paired with folder/product metadata. Exact Outbyte path taken from the sandbox **Processes → Process information**; historical Notifier values from the cited 2018 log. Two new cards each have source, Log Analytics table.column and standalone/pair columns.
+- **Integrity and scope — actioned:** No existing cards removed or rewritten, other than required header, index, run log and new append-only references. No aliases double-counted, no untested KQL and no client workspace or Defender Advanced Hunting access. One 2025 sandbox installer was one sample; no evidence of traffic relay or compromise inferred from PUP matches.
 
 ## Sources
 
@@ -612,3 +660,14 @@ All sources reviewed on **13 November 2026**. Undated pages are not represented 
 [^r07-ut-forum]: Malwarebytes support forum, [uTorrent exception thread](https://forums.malwarebytes.com/topic/323305-resolved-any-way-to-exclude-utorrent-from-scans/), **1 Mar 2025** user report of executable and two exact Windows paths. User report is not provider-certified prevalence or a present-day sample.
 [^r07-ut-legacy]: µTorrent Community Forum, [2015 antivirus troubleshooting log](https://forum.utorrent.com/topic/98398-utorrentexe-detected-by-anti-virus-and-anti-malware-software/), **7 May 2015** original diagnostic file version info `Company="BitTorrent, Inc."` and `ProductName="µTorrent"`; not current digital signing validation.
 [^r07-lumen]: Lumen Black Lotus Labs, [“Symbiotic Parasites: The Modern Proxy Ecosystem”](https://www.lumen.com/blog/en-us/symbiotic-parasites-the-modern-proxy-ecosystem), **24 Jul 2026**, section “IPIDEA”; IPIDEA network recovery and ~10m daily IPs not attributable specifically to PacketShare Windows installs.
+
+[^r08-ob-live]: Outbyte, [official Driver Updater Windows download](https://outbyte.com/software/driver-updater/), live **13 Nov 2026**. Does not measure enterprise installs.
+[^r08-ob-grid]: GridinSoft, [Outbyte Driver Updater removal](https://blog.gridinsoft.com/outbyte-driver-updater-removal/), last updated **7 Jul 2026**, current removal guidance not estate prevalence.
+[^r08-ob-mb]: Malwarebytes, [PUP.Optional.Outbyte](https://www.malwarebytes.com/blog/detections/pup-optional-outbyte), opened **13 Nov 2026**; detection applies broadly, not an observed Outbyte Driver Updater instance.
+[^r08-ob-sample]: ANY.RUN, [windows-outbyte-driver-updater.exe](https://any.run/report/3c3204ce0daa4fd1af3d4f017fba57b793651719944c317324b23ef2bb867195/64713c27-ff5c-4099-9c17-7d0d11875282), **17 May 2025**, **Processes → Process information** PID 2064/4164/4212: exact C:\Program Files (x86)\Outbyte\Driver Updater\DriverUpdater.exe, version Company Outbyte and Description Driver Updater. **One sandbox installer/sample**, not multiple enterprise sightings or proven stealer operations.
+[^r08-ob-file]: file.net, [DriverUpdater.exe](https://www.file.net/process/driverupdater.exe.html), opened **13 Nov 2026**, generic filename shared with multiple products, thus never a standalone Outbyte verdict.
+[^r08-dp-live]: DriverPack, [official administrator downloads](https://driverpack.io/en/foradmin/), live **13 Nov 2026**, DriverPack Online 17.11.108, current distribution only.
+[^r08-dp-mb]: Malwarebytes, [PUP.Optional.DriverPack](https://www.malwarebytes.com/blog/detections/pup-optional-driverpack), “Short bio” and **6 May 2018 removal log**; task-cache path and DRPSu folder observed historically, not current release.
+[^r08-dp-file]: file.net, [DriverPack.exe file information](https://www.file.net/process/driverpack.exe.html), opened **13 Nov 2026**, process and historic product metadata DriverPack Solution / driverpack online, not validated current signer.
+[^r08-dp-faq]: DriverPack, [How to install DriverPack](https://driverpack.io/en/faq/install), opened **13 Nov 2026**, says no conventional installation is required.
+[^r08-packet]: GridinSoft ThreatInfo, [PacketShare.exe file](https://threatinfo.net/files/PacketShare.exe-833ad5d123c61568a48e713dda647162), analysis date **12 Sep 2026**, product PacketShare, reported signer DATALABS LIMITED; file sample not known active install or post-disruption traffic; ignore stale relative-age text.
