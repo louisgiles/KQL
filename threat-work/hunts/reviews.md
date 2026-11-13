@@ -135,6 +135,7 @@ Researched leads for the research run to take from, best first. The reviews main
 - **Evidence:** [Huntress, "When PUPs Grow Fangs"](https://www.huntress.com/blog/pups-grow-fangs), 14 Apr 2026.
 - **First identifiers:** signer `Dragon Boss Solutions LLC`. Paths `C:\Program Files (x86)\Chromstera Browser\` and `C:\Program Files (x86)\World Wide Solutions\World Wide Web\`. Files `ChromsteraUpdater.exe`, `ArtificiusUpdater.exe`, `WorldWideWeb.exe`, `UniversalUpdater.exe`.
 - **Severity:** presence is adware or PUP grade, which is how vendors classed it before. Huntress documents an update channel that delivered a tool to remove antivirus products (scheduled tasks `ClockSetupWmiAtBoot`, `RemoveClockPeriodic`; scripts `ClockRemoval.ps1`). Those artefacts are the escalation line. Decide whether the pack clears the low-severity bar. If it does not, put it in the already-covered table with the reason.
+- **Added by Review 007:** Huntress re-read. Of the 23,565 addresses seen in the 24 hours, 2,223 were in the UK. It says vendors have classed the software as adware or unwanted software, which supports a low-severity pack for presence, with the antivirus-removal artefacts as the escalation line. Eight more updater names, a second WMI consumer and the payload folder are in the sweep sheet.
 
 ### L4 · Infatica P2B bandwidth-sharing component · open
 - **What:** a peer-to-business proxy component that arrives inside free software. A different vendor from H005.
@@ -142,6 +143,7 @@ Researched leads for the research run to take from, best first. The reviews main
 - **Evidence:** [Sophos KBA-000043735](https://support.sophos.com/support/s/article/KBA-000043735?language=en_US), 8 Jan 2026: detection named "Infatica P2B in Non-Standard Location". [GridinSoft](https://blog.gridinsoft.com/k-lite-codec-pack-infatica-removal/), 10 Jun 2026, updated 11 Aug 2026: reports of Infatica or "Digital Pulse" services after codec-pack installs.
 - **First identifiers:** read by Review 006 on public file-reference pages (keys FN, FX, FA and AI in the sweep sheet): `infatica-service-app.exe` and `infatica_agent.exe` in `C:\Program Files (x86)\Infatica P2B\`, signer `Infatica Pte. Ltd.`, version-information description `Infatica SDK`. One page also shows a copy under `\AppData\Local\Infatica-m\`. A user comment dated 13 Aug 2026 ties `infatica_agent.exe` to a codec-pack install. Still to find: the service name and the "Digital Pulse" names.
 - **Severity:** low when limited to the component on a machine without approval.
+- **Added by Review 007:** "Digital Pulse" has one identifier so far, `DigitalPulseService.exe` (GL), and no source read links it to Infatica. ASEC (AH, July 2025) reports DigitalPulse installed without consent by a loader, so leave it out of the low-severity pack or mark it contested. Malwarebytes detects Infatica as `PUP.Optional.Infatica` and says it may arrive with a bundler (MI). The Infatica service name is still not found.
 
 ### L5 · Hola Browser and Hola VPN · open
 - **What:** consumer browser and VPN built on peer routing.
@@ -149,6 +151,7 @@ Researched leads for the research run to take from, best first. The reviews main
 - **Evidence:** [Sophos, "You do surprise me.exe"](https://www.sophos.com/blog/you-do-surprise-me-exe-an-unexpected-executable-in-hola-browser), 2026 (the page shows no day or month).
 - **First identifiers:** `C:\Program Files\Hola\`. Escalation artefacts from the Sophos report: `me.exe`, `HolaMonitorService.exe`, service `hola_monitor_svc`.
 - **Severity:** unapproved software when it is only the product. The three artefacts above are reported as a coin miner and are the escalation line. Establish whether Hola is distinct enough from H005 to stand alone.
+- **Added by Review 007:** the Sophos page was re-read and still shows no date. It quotes Hola as saying the delivery pipeline has been fixed and that 0.1% of users were affected, so the miner rows are a check for past exposure. The pack still needs a dated source and a Hola process name or signer.
 
 ### L8 · PacketShare and other Windows software tied to the IPIDEA proxy network · open
 - **What:** bandwidth-sharing software and proxy components that turn a machine into a proxy exit point: PacketShare, and programs built with PacketSDK, EarnSDK, HexSDK or CastarSDK. A different operator from H005 and L4.
@@ -156,6 +159,7 @@ Researched leads for the research run to take from, best first. The reviews main
 - **Evidence:** [Google Threat Intelligence on disrupting IPIDEA](https://cloud.google.com/blog/ja/topics/threat-intelligence/disrupting-largest-residential-proxy-network?hl=ja), first published 29 Jan 2026, read in the Japanese edition. [Quointelligence](https://quointelligence.eu/2026/09/residential-proxies-hide-inside-everyday-apps-users-carry-the-risk/), 9 Sep 2026. [Spur](https://spur.us/vulnerable-residential-proxy-software-enterprise-networks), editor's note dated 28 Jan 2026.
 - **First identifiers:** the IPIDEA signer and hostname rows in the sweep sheet. Google links a fuller indicator collection. Still to find: the PacketShare process, folder and service names.
 - **Severity:** low for a payout app the user installed. Google also reports trojanized Windows programs posing as OneDriveSync or Windows Update. Those are the escalation line. The network was disrupted in January 2026, so the pack must say whether the software still runs or is a remnant.
+- **Added by Review 007:** first PacketShare identifiers, now in the sweep sheet: `PacketShare.exe` in `C:\Program Files (x86)\PacketShare\`, version-information product `PacketShare`, and `DATALABS LIMITED` as the publisher in the uninstall record (AU, GK). Both pages date from spring 2025, before the disruption. Still to find: a service or task name, and evidence that the software still runs after January 2026.
 
 ### L6 · Renamed WinRAR installers from PDF-themed advert pages · open
 - **What:** a genuine signed WinRAR installer delivered under rotating fake PDF-tool names.
@@ -172,6 +176,7 @@ These are prevalent and arrive the same way, but public reporting classes them a
 - **JustAskJacky lures** (ManualReaderPro, AllManualsReader, AskBettyHow, pdfblitz): Red Canary describes them as malicious NodeJS applications that run commands in memory, and ranked the family first in its monthly prevalence list in [November 2025](https://redcanary.com/blog/threat-intelligence/intelligence-insights-november-2025/) and back in the top ten for [July 2026](https://redcanary.com/blog/threat-intelligence/intelligence-insights-august-2026/).
 - **"SilentMare"** (PDF Skills, Zip This, Easy 2 Convert, Convert Mate, Rapid Doc, ZapPDF): Intezer (linked in L2) describes a downloader that waits for an operator payload. Now part of E003.
 - **TamperedChef, AppSuite PDF Editor, ManualFinder, OneStart, EpiBrowser:** already excluded from the low-severity list in the register.
+- **Proxy loaders hidden in free utilities:** Expel (EX, 24 Nov 2025) describes a free disk-cleaning utility that carried a staged loader and fetched a proxy program three days later, without consent. ASEC (AH, July 2025) describes a similar chain that installs DigitalPulse or Honeygain components. Their rows are under "Escalate on match".
 
 ## Verified sweep sheet
 
@@ -244,10 +249,16 @@ These are not low severity. Public reporting classes them as malware or as a mal
 | `node.exe` running a `.js` file named as a GUID under `\AppData\Local\Programs\<lure name>\`, with a scheduled task named as a GUID and created from an XML file in a temporary folder | Behaviour | JustAskJacky lures such as ManualReaderPro, AllManualsReader, AskBettyHow and pdfblitz | pattern | RC |
 | `ClockSetupWmiAtBoot`, `DisableClockServicesFirst`, `DisableClockAtStartup`, `RemoveClockAtLogon`, `RemoveClockPeriodic` | Scheduled task | The Dragon Boss payload that removes antivirus products | standalone | HU |
 | `ClockRemoval.ps1`, `ClockRemoval-WmiBoot.ps1` | File | The same payload | standalone | HU |
-| `MbRemovalMbSetupKillConsumer` | WMI consumer | The same payload | standalone | HU |
+| `MbRemovalMbSetupKillConsumer`, `MbRemovalMbSetupKillConsumerTrace` | WMI consumer | The same payload | standalone | HU |
+| `\Windows\System32\config\systemprofile\AppData\Local\WMILoad\` | Folder | Where the same payload is placed | standalone | HU |
 | `HolaMonitorService.exe`, service `hola_monitor_svc` | Process name, service | Coin miner delivered through Hola Browser's update pipeline | standalone | SH |
 | `me.exe` in `\Program Files\Hola\` | Process name | The same miner before it installs itself | pair with the folder | SH |
-| `HONGKONG LINGYUN MDT INFOTECH LIMITED`, `FIRENET LIMITED`, `PRINCE LEGEND LIMITED`, `MARS BROTHERS LIMITED`, `DATALABS LIMITED` | Signer | Code-signing names Google lists for Windows software tied to the IPIDEA proxy network. Some of that software was trojanized. Not yet mapped to products (lead L8), so identify the signed file on a match | standalone | GT |
+| `HONGKONG LINGYUN MDT INFOTECH LIMITED`, `FIRENET LIMITED`, `PRINCE LEGEND LIMITED`, `MARS BROTHERS LIMITED`, `DATALABS LIMITED` | Signer | Code-signing names Google lists for Windows software tied to the IPIDEA proxy network. Some of that software was trojanized. `DATALABS LIMITED` is the publisher shown for PacketShare (see "Unwanted software"). The other four are not yet mapped to products (lead L8), so identify the signed file on a match | standalone | GT, AU |
+| `HybridDriveStatus` under `\Microsoft\Windows\Sysmain\` | Scheduled task | Staged loader shipped with a free disk-cleaning utility. It ran a script through Node.js every hour and later fetched a proxy program without consent | standalone | EX |
+| `Network Perfomance` (spelt this way) | Service and scheduled task | The proxy program the same loader tries to install | standalone | EX |
+| `NTService.exe` in `\AppData\Local\Microsoft\Performance\` | Process name | The same proxy program | pair with the folder | EX |
+| `DefragDiskCleanup` | Scheduled task | Loader that installs DigitalPulse or Honeygain proxy components without consent. Reported in July 2025, so older than 12 months | standalone | AH |
+| `FastCleanPlus.exe`, `NetworkSpeedStatus.exe`, `KB8241660.ps1`, `KB3457229.ps1` | File | The same loader chain | standalone | AH |
 
 ### Unwanted software
 
@@ -264,6 +275,7 @@ These are not low severity. Public reporting classes them as malware or as a mal
 | `\World Wide Solutions\World Wide Web\` | Folder | World Wide Web | standalone | low | HU |
 | `ChromsteraUpdater.exe`, `ArtificiusUpdater.exe` | Process name | Chromstera Browser, Artificius Browser | standalone | low | HU |
 | `WorldWideWeb.exe`, `UniversalUpdater.exe` | Process name | World Wide Web | pair | low | HU |
+| `WinDefenseThree.exe`, `WinDefenseFive.exe`, `WinSupportFive.exe`, `WaveTownFive.exe`, `SistemaTownOne.exe`, `TableBoatTwo.exe`, `RaceCarTwo.exe`, `ProductSetupTwo.exe` | Process name | Dragon Boss updaters under other brand names. Each sits in a folder of the same name under `\Program Files (x86)\`, for example `\WinDefenseThreeSolutions\WinDefenseThree\` or `\TableBoatTwoWorkstation\TableBoatTwo\`. Read once, in Review 007 | standalone | low, but check the escalation rows | HU |
 | `OneLaunch.exe` | Process name | OneLaunch (H001) | standalone | low | SG |
 | `Bright VPN.exe`, `brightvpn_installer.exe` | Process name | Bright VPN (H005) | standalone | low | AR |
 | `Bright SDK`, `Luminati SDK` | Version-information product | Bright SDK component inside any host app (H005) | standalone | low | FF, AM |
@@ -273,7 +285,12 @@ These are not low severity. Public reporting classes them as malware or as a mal
 | `infatica-service-app.exe`, `infatica_agent.exe` | Process name | Infatica P2B component (lead L4) | standalone | low | FN, FX, FA, AI |
 | `\Program Files (x86)\Infatica P2B\` | Folder | Infatica P2B component (lead L4) | standalone | low | FN, FX, FA |
 | `Infatica SDK` (description), `Infatica Service` (product) | Version information | Infatica P2B component (lead L4) | standalone | low | FX |
+| `DigitalPulseService.exe` | Process name | Digital Pulse proxy service. No source read so far links it to Infatica | standalone | contested: detected as unwanted software (GL), and also reported installed without consent by a loader (AH) | GL, AH |
 | `\Program Files\Hola\` | Folder | Hola Browser | standalone | low, but check the escalation rows | SH |
+| `PacketShare.exe` | Process name | PacketShare (lead L8) | standalone | low, but check the escalation rows | AU, GK |
+| `\Program Files (x86)\PacketShare\` | Folder | PacketShare (lead L8). Also holds `unins000.exe` | standalone | low | AU |
+| `PacketShare` (product), `PacketShare.exe` (original file name) | Version information | PacketShare (lead L8). In the sample read, the company field was empty and the file was unsigned | standalone | low | GK |
+| `DATALABS LIMITED` | Publisher in the uninstall record | PacketShare (lead L8). Not confirmed as the signer of the file. The same name is in Google's signer list under "Escalate on match" | pair with a PacketShare row | low | AU, GT |
 
 On the contested rows: PDFDoc and PowerPlayer belong to the family Intezer calls unwanted software, and their signer is not in Unit 42's table. Review 006 moved the family's other products to "Escalate on match": Unit 42 lists their signers in a cluster it classes as malware, Controlware treats CrystalPDF and PowerDoc as malware, and Intezer's own indicator table labels ConvertyFile and OneZip as stealers while its text calls the family unwanted software. Look closer on any match.
 
@@ -295,45 +312,96 @@ On the contested rows: PDFDoc and PowerPlayer belong to the family Intezer calls
 | Dragon Boss products | `worldwidewebuniverse3[.]com`, `worldwidewebframework3[.]com`, `worldwidewebframework2[.]com`, `chromsteraupdates[.]com`, `artificialupdates[.]com`, `dragonstraffic[.]com`, `updaterituals[.]com`, `dl.isready26[.]online`. `chromsterabrowser[.]com` is now a research sinkhole. | HU |
 | OneLaunch | `update.onelaunch[.]com` | SG |
 | IPIDEA proxy network (lead L8) | `packetsdk[.]io`, `packetsdk[.]net`, `packetsdk[.]xyz`, `hexsdk[.]com`, `willmam[.]com`, `asdk2[.]com` | GT |
+| Proxy loader shipped with a free disk-cleaning utility (read once) | `filerit[.]com`, `diskcleanu[.]com`, `devicesetupx[.]com`, `maintenancesat[.]com`, `featherstorage[.]com` | EX |
 
 ### Source keys
 
 "Search text" means the page was read as the text a web search returned, not opened in full.
 
+- **AH:** [ASEC on proxy software spread through a video-download site](https://asec.ahnlab.com/en/89574/), 29 Jul 2025.
 - **AI:** [ANY.RUN report of `Infatica P2B.rar`](https://any.run/report/aee70e50638b79f410bdca412763f51aee6ab78f5ea77d47329b93d61705a7dc/c859e7dc-08ff-45a9-994d-840110eb9faf), 22 Jun 2025. Process name only.
 - **AM:** [ANY.RUN report of a third-party app carrying the SDK](https://any.run/report/ac6b186d8971f71d8a2d9477d71526fc8a0e5f7d03772c9e134813bce4fb2c89/6329de9f-12e9-4564-bdb7-db6dd99d68ad), 29 Jun 2023. Search text for the command line. Opened in Review 006 for the process name, PID and date only.
 - **AP:** [ANY.RUN report of `pdfimage[.]com`](https://any.run/report/6561bf6445f72367479c9386f333f967cdfa7c7111e26ae6f47deaf04687c54b/efad0172-7edb-47be-8bd7-f67ae204178e), 22 Apr 2026. Search text.
 - **AR:** [ANY.RUN report of the Bright VPN installer](https://any.run/report/1929fa577e90828053bfa6e9524837b75ddc2bb8c00578d7ef6754cef37e25ac/1a0281d9-ccbb-42c6-ab9f-30d742d5e5a2), 6 Nov 2025. Process names only.
 - **AS:** [ANY.RUN report of `PDFSparkOnSoft_683918.exe`](https://any.run/report/717c2728b957a7faecb7d1ac057bb03053f6397bbc369092c493daf6d45dc67c/76cba640-dabd-420e-bda4-1ae186bb1fe7). Search text.
+- **AU:** [Advanced Uninstaller page for PacketShare 2.0.6](https://www.advanceduninstaller.com/PacketShare-version-2_0_6-70a259424444c3d6628e4d006a09b8d7-application.htm), written 17 Apr 2025.
 - **BS:** [Bright SDK Windows integration guide](https://help.bright-sdk.com/hc/en-us/articles/16679042461329-Windows-SDK-Integration-Guide-C-C). Search text.
 - **CN:** [Cybersecurity News on the Unit 42 research](https://cybersecuritynews.com/tamperedchef-malware-uses-signed-productivity-apps/amp/), May 2026. Search text.
 - **CW:** [Controlware CSIRT report](https://www.controlware.de/fileadmin/controlware/sonstiges/dokumente/Security_Hinweise/Controlware_Beyond_Potentially_Unwanted_Apps_2025.pdf), Dec 2025.
 - **DW:** ["The FlipFormat_# Illusion: The Magic of the Doc Convert Wizard"](https://medium.com/@rabbit_knight/the-flipformat-illusion-the-magic-of-the-doc-convert-wizard-10036623d0e8), about Apr 2026. Search text.
+- **EX:** [Expel, "Stories from the SOC: Mystery of the postponed proxyware install"](https://expel.com/blog/stories-from-the-soc-mystery-of-the-postponed-proxyware-install/), 24 Nov 2025.
 - **FA:** [FreeFixer file page for `infatica_agent.exe`](https://www.freefixer.com/library/file/infatica_agent.exe-317901), with a user comment dated 13 Aug 2026.
 - **FE:** [Field Effect on signed installers](https://fieldeffect.com/blog/potentially-unwanted-applications), Sep 2025. Search text.
 - **FF:** [FreeFixer file page for `net_updater32.exe`](https://freefixer.com/library/file/net_updater32.exe-315883). Search text.
 - **FN:** [file.net page for `infatica-service-app.exe`](https://www.file.net/process/infatica-service-app.exe.html).
 - **FX:** [FreeFixer file page for `infatica-service-app.exe`](https://www.freefixer.com/library/file/infatica-service-app.exe-308773).
 - **GD:** [G DATA on Projextor](https://blog.gdatasoftware.com/2026/08/38468-projextor-abusing-electron), 17 Aug 2026.
+- **GK:** [GridinSoft file analysis of `PacketShare.exe`](https://gridinsoft.com/online-virus-scanner/id/f6fd8ef9f6e6bb2acf929fa6efe6e16f1821449159746f58d590bce089c36f45), analysis dated 7 Mar 2025.
+- **GL:** [GridinSoft file analysis of `DigitalPulseService.exe`](https://gridinsoft.com/online-virus-scanner/id/d49ac298eb6fd619e9e209454762e4b73c76d9def3e47c6587288ee1c5490674), analysis dated 29 Jul 2024.
 - **GO:** [GridinSoft OneBrowser removal guide](https://blog.gridinsoft.com/onebrowser-removal/), 25 Jun 2026, updated 4 Nov 2026.
 - **GS:** [GridinSoft file analysis of `PDFSparkWare_286830.exe`](https://gridinsoft.com/online-virus-scanner/id/edcd5b2a5419ae6860ac92ffe0be86ee28857adde13420a7f972dbc0883e7eb3), analysis dated 24 Nov 2025. Opened in Review 006.
 - **GT:** [Google Threat Intelligence on disrupting the IPIDEA proxy network](https://cloud.google.com/blog/ja/topics/threat-intelligence/disrupting-largest-residential-proxy-network?hl=ja), first published 29 Jan 2026. Read in the Japanese edition dated 4 Feb 2026.
 - **HE:** [Heimdal on Shift Browser](https://heimdalsecurity.com/blog/shift-browser-signed-adware-fingerprints-endpoint-before-payload/), 3 Sep 2026.
-- **HU:** [Huntress, "When PUPs Grow Fangs"](https://www.huntress.com/blog/pups-grow-fangs), 14 Apr 2026.
+- **HU:** [Huntress, "When PUPs Grow Fangs"](https://www.huntress.com/blog/pups-grow-fangs), 14 Apr 2026. Re-read in Review 007.
 - **IN:** [Intezer, "Two Trojan Families Trotting in Through Google Search Ads"](https://research.intezer.com/blog/2026/07/two-trojan-families/), 27 Jul 2026. Read three times, the last to the end of its indicator table.
 - **JS:** [Joe Sandbox analysis of the `sparkonsoft[.]com` download page](https://www.joesandbox.com/analysis/1787620/0/html). Search text.
 - **MA:** [Mallory entry for OneBrowser](https://mallory.ai/malware/019e6578-e975-70a3-b191-59e9b29bb8e7), summarising the analysis under RK. Search text.
 - **MB:** [Malwarebytes PUP.Optional.SparkOnSoft](https://www.malwarebytes.com/blog/detections/pup-optional-sparkonsoft).
+- **MI:** [Malwarebytes PUP.Optional.Infatica](https://www.malwarebytes.com/blog/detections/pup-optional-infatica), page modified 27 May 2025. No identifiers.
 - **PX:** [TheCyberDef on the Projextor cluster](https://thecyberdef.com/projextor-malware-hides-in-fake-pdf-tools-meal-planners-via-electron-apps/), about Aug 2026. Search text.
 - **RC:** [Red Canary Intelligence Insights, November 2025](https://www.zscaler.com/blogs/cybersecurity-best-practices/intelligence-insights-november-2025), with lure names from the December 2025 edition. Search text.
 - **RK:** ["The Spark or the Smoke: Looking into the PDF SparkOnSoft and OneBrowser Malware"](https://medium.com/@rabbit_knight/the-spark-or-the-smoke-looking-into-the-pdf-sparkonsoft-and-onebrowser-malware-3a7a19dafdba), about Nov 2025. Search text.
 - **RR:** this repository's own research note, `threat-work/research/2026/2026-09-02-shift-browser-security-assessment.md`.
 - **SG:** [SigmaHQ OneLaunch rule](https://github.com/SigmaHQ/sigma/blob/master/rules/windows/dns_query/dns_query_win_onelaunch_update_service.yml).
-- **SH:** [Sophos on Hola Browser](https://www.sophos.com/blog/you-do-surprise-me-exe-an-unexpected-executable-in-hola-browser), 2026.
+- **SH:** [Sophos on Hola Browser](https://www.sophos.com/blog/you-do-surprise-me-exe-an-unexpected-executable-in-hola-browser), 2026. The page shows no day or month. Re-read in Review 007.
 - **SO:** [Sophos KBA-000043676](https://support.sophos.com/support/s/article/KBA-000043676?language=en_US), 24 Sep 2026. Search text.
 - **U42:** [Unit 42, "Tracking TamperedChef Clusters via Certificate and Code Reuse"](https://unit42.paloaltonetworks.com/tracking-tampered-chef-clusters/), 20 May 2026. Opened in Review 006 in its markdown edition. The signer table was transcribed twice with the same result.
 
 <!-- New reviews go directly below this line, newest first. -->
+
+## Review 007 · 2026-11-13 02:46 GMT
+
+**Reviewed:** no new run. The register is still at commit `05a9a36` (Run 03; active H001, H003, H004, H005, H006), which Review 005 reviewed in full. Review 006's *Next run* list still stands, restated below for 03:00.
+
+**Verdict:** The 02:00 research run did not land. The last register commit is Run 03 at 01:18, so no research run has read Reviews 004 to 006, and the register still holds no escalation pack and no pack at the finished standard. That is one missed run. If the 03:00 run is also missing, the 03:40 review starts building packs itself (see the end of this entry). This review re-read the Dragon Boss and Hola sources and found the first PacketShare identifiers.
+
+**Follow-through on earlier reviews:** nothing to check. Every item is still open: Review 005's corrections 1 to 3, Review 006's corrections 1 to 4, E001, E002, E003, L3 and L4.
+
+**Verified against source this review**
+
+| Item | Result |
+| --- | --- |
+| Huntress, 14 Apr 2026 (HU) | Opened from search results. Signer, products, tasks, scripts and hosts match the sheet. New: a second WMI consumer name, the payload folder `WMILoad`, more updater names with their folders, and the country counts for the sinkhole day: 23,565 addresses, 2,223 of them in the UK. It says vendors have classed the software as adware or unwanted software and argues that this understates it. |
+| Sophos on Hola Browser (SH) | Opened from search results. `me.exe`, `HolaMonitorService.exe` and `hola_monitor_svc` match. The page still shows no date. `me.exe` is unsigned and adds a Defender exclusion. Hola is quoted as saying the pipeline is fixed and 0.1% of users were affected. |
+| PacketShare: Advanced Uninstaller page for version 2.0.6 (AU), GridinSoft file page (GK) | Opened from search results. Publisher `DATALABS LIMITED`, folder `C:\Program Files (x86)\PacketShare`, files `PacketShare.exe` and `unins000.exe`, written 17 Apr 2025. The file page, dated 7 Mar 2025, shows product `PacketShare`, original name `PacketShare.exe`, an empty company field and no valid signature. `DATALABS LIMITED` is one of the five IPIDEA signer names already in the sheet. |
+| Digital Pulse: GridinSoft file page (GL). Malwarebytes Infatica page (MI) | Opened from search results. `DigitalPulseService.exe`, detected as unwanted software, analysed 29 Jul 2024, no signer or version information shown. Malwarebytes calls Infatica a proxy service that may arrive with a bundler. Its page was modified on 27 May 2025 and gives no identifiers. |
+| ASEC, 29 Jul 2025 (AH) | Opened from search results. DigitalPulse and Honeygain proxy components installed without consent by a loader from a video-download site. It does not name Infatica. Older than 12 months. |
+| Expel, 24 Nov 2025 (EX) | Opened from search results. A free disk-cleaning utility carried a staged loader that fetched a proxy program three days later, without consent. The task, service and file names are in the sheet. |
+| Not opened | Sophos support notes on new PUA detections, Red Canary's October 2026 edition and the Huntress monthly pages: the searches returned titles only and there was no time to open them. Still unopened from earlier reviews: the PDF Polish sandbox report, the Team-IT case, CyberSift, Sophos KBA-000043676 and the two Medium analyses. |
+
+All new values were read once, through one page fetch each. None was transcribed twice.
+
+**What changed in this file**
+
+- *Verified sweep sheet*: PacketShare rows, a `DigitalPulseService.exe` row and eight more Dragon Boss updater names under "Unwanted software". Under "Escalate on match": a second WMI consumer and the payload folder for Dragon Boss, and two proxy-loader chains (EX, AH). The IPIDEA signer row now says which name maps to PacketShare. One hostname row and six source keys added.
+- *Lead queue*: notes added to L3, L4, L5 and L8. One entry added to "Escalation only". No lead changed status.
+
+**Corrections**
+
+1. Review 006's corrections 1 to 4 and Review 005's corrections 1 to 3 all still stand. None has been actioned because no run has landed.
+2. For L4: do not treat "Digital Pulse" as another name for Infatica. No source read so far links them, and `DigitalPulseService.exe` is rated contested.
+
+**Next run (03:00)**
+
+1. In the run log, name Review 007 as the review read. If a 02:00 run was attempted and failed, say why.
+2. Review 006's corrections 1 to 4 first: re-file H006 as E003, retire the ID, correct the header count and the index.
+3. **E001** as this run's one new escalation pack, as Review 006 item 2 describes. E002 moves to 04:00.
+4. **L3** as a low-severity pack built from the Dragon Boss rows in the sweep sheet. Newest evidence date 14 Apr 2026. Give the UK count. The tasks, scripts, WMI consumers and `WMILoad` folder are its escalation line.
+5. **L4** as the second low-severity pack if time allows, limited to the Infatica rows. Apply standing guidance 8 to both packs and record the result.
+
+**For the 03:40 review:** if the register is still at `05a9a36`, that is two missed runs in a row. Start a *Reviewer-built packs* section in this file with L3, then L8 or L4. Their identifiers are verified in the sweep sheet.
+
+**Not done this review:** no new low-severity lead from the last 90 days. Six low-severity leads are open (L3, L4, L5, L8, L6, L7).
 
 ## Review 006 · 2026-11-13 02:17 GMT
 
