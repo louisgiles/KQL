@@ -85,6 +85,7 @@ Applies to every run until a later review changes it.
 5. **A shortfall is a valid result.** One well-evidenced candidate beats two thin ones. If nothing clears the bar, add none and spend the run strengthening the evidence on existing cards.
 6. **Quote what a pivot rests on.** For any path, argument or service name taken from a sandbox report, record the exact string as shown and where in the report it appears. Two detonations of one file hash are one sample.
 7. **Build packs around what has already hit.** Siblings of a confirmed hit are the strongest leads: other products from the same publisher, installer framework or advertising route. Where several share those, write one pack with a per-product identifier table, each identifier sourced. A pack counts as one candidate. A product the owner already knows is calibration and goes in the already-covered table, not into a pack as new.
+8. **Check the signer before calling anything low severity.** The signer table from Unit 42's May 2026 research is copied into the sweep sheet under "Escalate on match". A product whose signer is in it goes in the escalation list, whatever another source calls it. Record the disagreement in the pack.
 
 ## Lead queue
 
@@ -94,6 +95,7 @@ Researched leads for the research run to take from, best first. The reviews main
 - **What:** PDF Spark is a confirmed previous hit. Public reporting places its signers in a malware-grade cluster and describes a second stage called OneBrowser.
 - **Why likely now:** it has already been found once, and a vendor detection aimed at its signer was released on 24 September 2026.
 - **Evidence:** Unit 42, May 2026 (U42). Sophos KBA-000043676, 24 Sep 2026 (SO). Analysis of the installers and of OneBrowser, about Nov 2025 (RK, MA). Run 03 also cites a Team-IT case dated 26 Aug 2026. The keys are in the *Verified sweep sheet*.
+- **Added by Review 006:** a OneBrowser removal guide published on 25 Jun 2026 and updated on 4 Nov 2026 (GO) gives the updater's task, service, process, folder and registry names. They are in the sweep sheet. Unit 42 lists the signer names and names OneBrowser but never names PDF Spark, so the link between the two is the signer.
 - **First identifiers:** the PDF Spark and OneBrowser rows under "Escalate on match" in the sweep sheet.
 - **Severity:** not low. A match is an incident lead. The pack must say what to check on a machine that already had PDF Spark.
 
@@ -101,8 +103,16 @@ Researched leads for the research run to take from, best first. The reviews main
 - **What:** PDF Polish is a confirmed previous hit. Its company metadata matches Doc Convert Wizard, and public analysis groups those two with FoodFormula and ProfessionalConverter. That group is reported as the Projextor malware cluster.
 - **Why likely now:** it is the sibling family of a confirmed hit, with analysis from April 2026 and reporting from August 2026.
 - **Evidence:** keys DW, PX and AP in the *Verified sweep sheet*. Review 005 sets out what is and is not shown.
+- **Added by Review 006:** the vendor report behind the Projextor name is G DATA, 17 Aug 2026 (GD). It names DocConvertWizard, "Food or Meal Formula" and Kitchen Canvas, gives four installer names and six hostnames, and calls the software malware. It does not name PDF Polish, `Jia Hao` or ProfessionalConverter. The six-digit installer suffix also appears on PDF Spark installers, so it marks the route, not one family.
 - **First identifiers:** the `Jia Hao` rows under "Escalate on match" in the sweep sheet.
 - **Severity:** not low, pending a source that names PDF Polish itself. A match is an incident lead.
+
+### E003 · CL-UNK-1090 document-tool cluster, replacing H006 · open (escalation pack)
+- **What:** SagePDF, PowerDoc, PowerPlayer and PDFDoc (now in H006), with ConvertyFile, OneZip and CrystalPDF. The downloader products Convert Mate, Easy 2 Convert, PDF Skills, Zip This and Zap PDF can be added as rows. One pack, one identifier row per value.
+- **Why likely now:** the same search-advert route as the confirmed hits, reported in May and July 2026, with SagePDF found in January 2026.
+- **Evidence:** Unit 42, 20 May 2026 (U42): the signers of SagePDF, PowerDoc, ConvertyFile, OneZip and CrystalPDF are all in its CL-UNK-1090 group, and it places these applications in the malware category. Intezer, 27 Jul 2026 (IN): the text calls the browser-changing products unwanted software, but the indicator table labels ConvertyFile and OneZip as stealers. Controlware, Dec 2025 (CW): treats CrystalPDF and PowerDoc as malware.
+- **First identifiers:** the CL-UNK-1090 rows under "Escalate on match" in the sweep sheet, and the PowerPlayer and PDFDoc rows under "Unwanted software".
+- **Severity:** not low. State the disagreement between the three sources. `TAMARISK INTERACTIVE LTD` (PDFDoc, PowerPlayer) is not in Unit 42's table: say so in its row.
 
 ### L1 · PDF Spark signer pack · dropped: not low severity (Run 03), reissued as E001
 - **What:** other software signed by the publishers behind a confirmed hit. PDF Spark itself stays calibration.
@@ -112,7 +122,7 @@ Researched leads for the research run to take from, best first. The reviews main
 - **Severity:** Sophos and Malwarebytes class it as PUA. Controlware treats the group it studied as malware, while noting PDFSpark differs from the rest. State both.
 
 ### L2 · Fake utility pack promoted through search adverts ("HollowMare") · taken (H006)
-- **Note:** H006 covers SagePDF, PowerDoc and PowerPlayer. Run 03 left ConvertyFile, OneZip and CrystalPDF out as higher severity.
+- **Note:** H006 covers SagePDF, PowerDoc and PowerPlayer. Run 03 left ConvertyFile, OneZip and CrystalPDF out as higher severity. Review 006 found the signers of SagePDF and PowerDoc in the Unit 42 cluster, so H006 is to be re-filed as E003.
 - **What:** ConvertyFile, OneZip, CrystalPDF, PowerDoc, SagePDF, PDFDoc and PowerPlayer. Installers that force a browser extension or change the default search, with no working application behind them.
 - **Why likely now:** same route and same disguise as the confirmed hits (free PDF and file tools from search adverts), reported in July 2026, with the newest product found in January 2026.
 - **Evidence:** [Intezer, "Two Trojan Families Trotting in Through Google Search Ads"](https://research.intezer.com/blog/2026/07/two-trojan-families/), 27 Jul 2026.
@@ -130,7 +140,7 @@ Researched leads for the research run to take from, best first. The reviews main
 - **What:** a peer-to-business proxy component that arrives inside free software. A different vendor from H005.
 - **Why likely now:** a vendor PUA detection was released in January 2026 and user reports continued through summer 2026.
 - **Evidence:** [Sophos KBA-000043735](https://support.sophos.com/support/s/article/KBA-000043735?language=en_US), 8 Jan 2026: detection named "Infatica P2B in Non-Standard Location". [GridinSoft](https://blog.gridinsoft.com/k-lite-codec-pack-infatica-removal/), 10 Jun 2026, updated 11 Aug 2026: reports of Infatica or "Digital Pulse" services after codec-pack installs.
-- **First identifiers:** none sourced yet. Find the service, process and path names.
+- **First identifiers:** read by Review 006 on public file-reference pages (keys FN, FX, FA and AI in the sweep sheet): `infatica-service-app.exe` and `infatica_agent.exe` in `C:\Program Files (x86)\Infatica P2B\`, signer `Infatica Pte. Ltd.`, version-information description `Infatica SDK`. One page also shows a copy under `\AppData\Local\Infatica-m\`. A user comment dated 13 Aug 2026 ties `infatica_agent.exe` to a codec-pack install. Still to find: the service name and the "Digital Pulse" names.
 - **Severity:** low when limited to the component on a machine without approval.
 
 ### L5 · Hola Browser and Hola VPN · open
@@ -139,6 +149,13 @@ Researched leads for the research run to take from, best first. The reviews main
 - **Evidence:** [Sophos, "You do surprise me.exe"](https://www.sophos.com/blog/you-do-surprise-me-exe-an-unexpected-executable-in-hola-browser), 2026 (the page shows no day or month).
 - **First identifiers:** `C:\Program Files\Hola\`. Escalation artefacts from the Sophos report: `me.exe`, `HolaMonitorService.exe`, service `hola_monitor_svc`.
 - **Severity:** unapproved software when it is only the product. The three artefacts above are reported as a coin miner and are the escalation line. Establish whether Hola is distinct enough from H005 to stand alone.
+
+### L8 · PacketShare and other Windows software tied to the IPIDEA proxy network · open
+- **What:** bandwidth-sharing software and proxy components that turn a machine into a proxy exit point: PacketShare, and programs built with PacketSDK, EarnSDK, HexSDK or CastarSDK. A different operator from H005 and L4.
+- **Why likely now:** measured scale inside 12 months. When Google disrupted the network in January 2026 it counted 3,075 distinct Windows files that contacted the network's control hosts, many of them PacketShare. Spur's analysis of the last quarter of 2025 found residential proxy software in the networks of more than 900 organisations.
+- **Evidence:** [Google Threat Intelligence on disrupting IPIDEA](https://cloud.google.com/blog/ja/topics/threat-intelligence/disrupting-largest-residential-proxy-network?hl=ja), first published 29 Jan 2026, read in the Japanese edition. [Quointelligence](https://quointelligence.eu/2026/09/residential-proxies-hide-inside-everyday-apps-users-carry-the-risk/), 9 Sep 2026. [Spur](https://spur.us/vulnerable-residential-proxy-software-enterprise-networks), editor's note dated 28 Jan 2026.
+- **First identifiers:** the IPIDEA signer and hostname rows in the sweep sheet. Google links a fuller indicator collection. Still to find: the PacketShare process, folder and service names.
+- **Severity:** low for a payout app the user installed. Google also reports trojanized Windows programs posing as OneDriveSync or Windows Update. Those are the escalation line. The network was disrupted in January 2026, so the pack must say whether the software still runs or is a remnant.
 
 ### L6 · Renamed WinRAR installers from PDF-themed advert pages · open
 - **What:** a genuine signed WinRAR installer delivered under rotating fake PDF-tool names.
@@ -153,7 +170,7 @@ uTorrent and BitTorrent clients. Honeygain, Pawns.app, PacketStream, Repocket, G
 ### Escalation only
 These are prevalent and arrive the same way, but public reporting classes them as malware. They never go in the low-severity list. After E001 they can be written as escalation packs, at most one per run.
 - **JustAskJacky lures** (ManualReaderPro, AllManualsReader, AskBettyHow, pdfblitz): Red Canary describes them as malicious NodeJS applications that run commands in memory, and ranked the family first in its monthly prevalence list in [November 2025](https://redcanary.com/blog/threat-intelligence/intelligence-insights-november-2025/) and back in the top ten for [July 2026](https://redcanary.com/blog/threat-intelligence/intelligence-insights-august-2026/).
-- **"SilentMare"** (PDF Skills, Zip This, Easy 2 Convert, Convert Mate, Rapid Doc, ZapPDF): Intezer (linked in L2) describes a downloader that waits for an operator payload.
+- **"SilentMare"** (PDF Skills, Zip This, Easy 2 Convert, Convert Mate, Rapid Doc, ZapPDF): Intezer (linked in L2) describes a downloader that waits for an operator payload. Now part of E003.
 - **TamperedChef, AppSuite PDF Editor, ManualFinder, OneStart, EpiBrowser:** already excluded from the low-severity list in the register.
 
 ## Verified sweep sheet
@@ -171,7 +188,7 @@ Identifiers a reviewer has read in the cited source. This is the list to hunt fr
 | Type | Table and column |
 | --- | --- |
 | Signer | `DeviceFileCertificateInfo.Signer`, joined on `SHA1` to `DeviceProcessEvents` or `DeviceFileEvents` |
-| Version information | `DeviceProcessEvents.ProcessVersionInfoCompanyName` and `ProcessVersionInfoProductName` |
+| Version information | `DeviceProcessEvents.ProcessVersionInfoCompanyName`, `ProcessVersionInfoProductName` and `ProcessVersionInfoFileDescription` |
 | Process name, folder, command line | `DeviceProcessEvents.FileName`, `FolderPath`, `ProcessCommandLine` |
 | File | `DeviceFileEvents.FileName` and `FolderPath` |
 | Scheduled task | `DeviceEvents` where `ActionType` is `ScheduledTaskCreated`, name in `AdditionalFields` |
@@ -188,27 +205,49 @@ These are not low severity. Public reporting classes them as malware or as a mal
 | --- | --- | --- | --- | --- |
 | `Mainstay Crypto LLC`, `Crowd Sync LLC` | Signer and version-information company | PDF Spark installers. Unit 42 lists both names as "OneBrowser signers" in its tracking of TamperedChef-style malware | standalone | U42, MB, SO, CW, GS |
 | `Chickadee Digital`, `Riya Software`, `Eman Group, LLC` | Signer | Other names Unit 42 lists as OneBrowser signers | standalone | U42 |
-| `WORK PRODUCT INC` (also written `WORK PRODUCT, INC.`) | Signer | Publisher of the OneBrowser installer | standalone | RK |
+| `WORK PRODUCT INC` (also written `WORK PRODUCT, INC.`) | Signer | Publisher of the OneBrowser installer. Unit 42 lists it with the OneBrowser signers | standalone | RK, U42 |
 | `\AppData\Local\Programs\PDF_Spark\PDFSpark.exe` | Folder and process name | PDF Spark as installed | standalone | AS |
 | `PDF_Spark` | Version-information product | PDF Spark | standalone | GS, AS |
+| `PDF_Spark Setup` | Version-information description | PDF Spark installer | standalone | GS |
 | `PDFSparkOnSoft_*.exe`, `PDFSparkWare_*.exe` | Process name, installer stage | PDF Spark | standalone | AS, GS, JS |
 | `pdfsetup.exe` | Process name, installer stage | PDF Spark | pair | JS |
-| `OBUpdate` | Scheduled task | OneBrowser, reported as a second stage after PDF Spark | standalone | MA |
+| `OBUpdate`, `OneBUpdate` | Scheduled task | OneBrowser updater. OneBrowser is reported as a second stage after PDF Spark | standalone | MA, GO |
+| `OneBUpdateService.exe`, `OBUpdateService.exe`, `oibrowser.exe` | Process name | OneBrowser and its updater | standalone | GO |
+| `onebupdate`, `obupdate`, `oibupdate` | Service | OneBrowser updater | standalone | GO |
+| `\AppData\Local\OB\OneBUpdate\` | Folder | OneBrowser updater | standalone | GO |
+| `\Program Files (x86)\OB\`, `\Program Files (x86)\OIB\`, `\AppData\Local\OB\` | Folder | OneBrowser | pair with a process, task or service row | GO |
+| `HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\OneBrowser.exe` | Registry key | OneBrowser | standalone | GO |
+| `HKLM\SOFTWARE\WOW6432Node\OB`, `HKLM\SOFTWARE\WOW6432Node\OIB`, `HKCU\SOFTWARE\OIB` | Registry key | OneBrowser | pair with a process, task or service row | GO |
 | `PDF_Spark_is1` under the user's `Uninstall` key | Registry key | PDF Spark install record | standalone | MA |
 | `Jia Hao` | Version-information company | PDF Polish, Doc Convert Wizard and their siblings. The family is reported as a malware cluster (Projextor). No source yet names PDF Polish itself | standalone | DW, PX |
 | `doc-wizard.exe` | Process name | Doc Convert Wizard | standalone | DW |
 | `\DocConvertWizard\`, `\FoodFormula\`, `\ProfessionalConverter\`, `\PDFPolish\` | Folder | The same family | standalone | DW |
-| `FlipFormat_*.exe` | Process name, installer stage | Doc Convert Wizard | standalone | DW |
+| `FlipFormat_*.exe`, `PDFGrip_*.exe`, `FoodFormula_*.exe`, `KitchenCanvas_*.exe`, where `*` is six digits | Process name, installer stage | Projextor installers as the vendor report lists them (DocConvertWizard, "Food or Meal Formula", Kitchen Canvas) | standalone | DW, GD |
+| `\AppData\Roaming\<application name>\resources\app\lib\preload.js` and `main.js` | File | Where the Projextor loader sits inside the installed application | pair with a folder or installer row | GD |
 | `MATCH-TWO-USERS LLC`, `TWEAKSCODE LLC`, `CROWN SKY LLC` | Signer | TamperedChef-style cluster that includes Calendaromatic | standalone | U42, FE |
+| `AFFILIDADOS`, `MARKET FUSION INNOVATIONS LLC`, `BUZZ BOOST ADVERTISERS LLC`, `ADSMARKETO LLC`, `Summit Nexus Holdings LLC`, `Europae-Solutio Ltd`, `SP Development and Solution Limited`, `Echo Infini SDN BHD`, `COMMERCE GROUP TECHNOLOGY LTD`, `ALGORYTHM TECH LTD`, `Byte Media Sdn Bhd`, `GLINT SOFTWARE SDN. BHD`, `Global Tech Allies ltd`, `SOFT SOLUTIONS HUB`, `Monetize forward LLC`, `ADVANTAGE WEB MARKETING LLC`, `Incredimarket`, `ILLUSION MEDIA SOLUTIONS`, `Virtual Media App Ltd`, `DEV SPOTS LLC`, `Digit Consult`, `Outsource Genius LLC`, `OneStart Technologies LLC`, `Apollo Technologies Inc`, `Caerus Media LLC`, `Digital Promotions Sdn. Bhd.`, `Eclipse Media Inc.`, `Astral Media Inc`, `Incredible Media Inc`, `STYLE SOLUTION LIMITED` | Signer | The other 30 names in the same Unit 42 group, CL-CRI-1089 (Calendaromatic, DocuFlex, AppSuite PDF). Unit 42 does not map each name to a product, so identify the signed file on a match | standalone | U42 |
 | `ConvertMateTask`, `Easy2ConvertTask`, `UpdateTaskZT`, `Zapdf` | Scheduled task | Downloader family behind Convert Mate, Easy 2 Convert, PDF Skills, Zip This and Zap PDF | standalone | IN, CW |
 | `PDC_Update` | Scheduled task | Listed with the same group. The product is not stated in the source | standalone | CW |
-| `AMARYLLIS SIGNAL LTD`, `BLUE TAKIN LTD`, `RED ROOT LTD`, `LIGHTNER TOK LTD` | Signer | The same downloader family | standalone | IN |
+| `AMARYLLIS SIGNAL LTD`, `BLUE TAKIN LTD`, `RED ROOT LTD`, `LIGHTNER TOK LTD` | Signer | The same downloader family. Unit 42 lists all four in its CL-UNK-1090 group | standalone | IN, U42 |
+| `Chrono Orion LTD` | Signer | SagePDF. Intezer calls it unwanted software. Unit 42 lists the signer in CL-UNK-1090, a cluster it classes as malware | standalone | IN, U42 |
+| `GOLD HARMONY LTD` | Signer | PowerDoc. The same disagreement, and Controlware treats PowerDoc as malware | standalone | IN, U42, CW |
+| `PowerDoc.exe` | Process name | PowerDoc | standalone | IN |
+| `\AppData\Local\pwrDoc\` | Folder | PowerDoc. Holds `PowerDoc.exe`, `pwrDoc.txt` and `uninstall.exe` | standalone | IN |
+| `TAU CENTAURI LTD` | Signer | ConvertyFile. Intezer's indicator table labels it a stealer | standalone | IN, U42 |
+| `G.R.CIGAR. LTD` | Signer | OneZip. Intezer's indicator table labels it a stealer | standalone | IN, U42, CN |
+| `VAST LAKE LTD`, `LONG SOUND LTD` | Signer | CrystalPDF | standalone | IN, U42 |
+| `Crystal_updater` | Scheduled task | CrystalPDF | standalone | IN, CW |
+| `CrystalPDF.exe` | Process name | CrystalPDF | standalone | IN |
+| `\AppData\Roaming\FMCR\` | Folder | CrystalPDF | pair | IN |
+| `\SagePdf\SageId.txt`, `\ConvertyFile\CFInfo.txt`, `\O\OZInfo.txt`, `\FMCR\userId.txt` | File | Machine-identifier files written by SagePDF, ConvertyFile, OneZip and CrystalPDF. The first three sit under the user's Temp folder | standalone | IN |
+| `CANDY TECH LTD`, `METROPOLITAN DESIGN LLC`, `BLACK INDIGO LTD`, `A1A Marketing Ltd.`, `BEGONIA LIFE LTD`, `SAMBUSAK LLC`, `ACTIVE INTELLECT AI LLC`, `B.L.A ASPIRE LTD`, `VANILLA FORCE LTD`, `SELA LINES LTD`, `WIND TRUST LTD`, `ORCHID MARS LTD`, `ENIGMATIC SAOLA LTD`, `TROPICAL RIFF LTD`, `BITTERN SKY LTD`, `astro bright ltd`, `my tech media ltd`, `TOGO NETWORKS LTD`, `LOGOS AQUA LTD`, `Impresan Solutions OÜ`, `Shopcut LLC`, `Judy Wanjiru`, `Keen Internet Technologies Ltd`, `ROYAL STEP LTD`, `Smart Contract LLC`, `DORNOVI LTD`, `Green Topaz Ltd`, `SPARROW TIDE LTD`, `mania tech ltd`, `PASTEL CONCEPTION LTD` | Signer | The other 30 names in Unit 42's CL-UNK-1090 group (CrystalPDF, Easy2Convert, OneZip, RapiDoc and others). Unit 42 does not map each name to a product, so identify the signed file on a match | standalone | U42 |
 | `node.exe` running a `.js` file named as a GUID under `\AppData\Local\Programs\<lure name>\`, with a scheduled task named as a GUID and created from an XML file in a temporary folder | Behaviour | JustAskJacky lures such as ManualReaderPro, AllManualsReader, AskBettyHow and pdfblitz | pattern | RC |
 | `ClockSetupWmiAtBoot`, `DisableClockServicesFirst`, `DisableClockAtStartup`, `RemoveClockAtLogon`, `RemoveClockPeriodic` | Scheduled task | The Dragon Boss payload that removes antivirus products | standalone | HU |
 | `ClockRemoval.ps1`, `ClockRemoval-WmiBoot.ps1` | File | The same payload | standalone | HU |
 | `MbRemovalMbSetupKillConsumer` | WMI consumer | The same payload | standalone | HU |
 | `HolaMonitorService.exe`, service `hola_monitor_svc` | Process name, service | Coin miner delivered through Hola Browser's update pipeline | standalone | SH |
 | `me.exe` in `\Program Files\Hola\` | Process name | The same miner before it installs itself | pair with the folder | SH |
+| `HONGKONG LINGYUN MDT INFOTECH LIMITED`, `FIRENET LIMITED`, `PRINCE LEGEND LIMITED`, `MARS BROTHERS LIMITED`, `DATALABS LIMITED` | Signer | Code-signing names Google lists for Windows software tied to the IPIDEA proxy network. Some of that software was trojanized. Not yet mapped to products (lead L8), so identify the signed file on a match | standalone | GT |
 
 ### Unwanted software
 
@@ -217,18 +256,9 @@ These are not low severity. Public reporting classes them as malware or as a mal
 | `Shift Technologies Inc` | Signer | Shift Browser | standalone | calibration | HE |
 | `\AppData\Local\Shift\chromium\shift.exe` | Folder and process name | Shift Browser | standalone | calibration | RR |
 | File name starting `shift`, then `pdf_` or `recipes_` and a short random suffix | Process name, installer stage | Shift Browser | standalone | calibration | HE, RR |
-| `Chrono Orion LTD` | Signer | SagePDF | standalone | low | IN |
-| `TAMARISK INTERACTIVE LTD` | Signer | PDFDoc, PowerPlayer | standalone | low | IN |
-| `NativePowerPlayer.exe`, `UninstallPP.exe` | Process name | PowerPlayer | standalone | low | IN |
-| `TAU CENTAURI LTD` | Signer | ConvertyFile | standalone | contested | IN |
-| `G.R.CIGAR. LTD` | Signer | OneZip | standalone | contested | IN, CN |
-| `VAST LAKE LTD`, `LONG SOUND LTD` | Signer | CrystalPDF | standalone | contested | IN |
-| `Crystal_updater` | Scheduled task | CrystalPDF | standalone | contested | IN, CW |
-| `CrystalPDF.exe` | Process name | CrystalPDF | standalone | contested | IN |
-| `\AppData\Roaming\FMCR\` | Folder | CrystalPDF | pair | contested | IN |
-| `GOLD HARMONY LTD` | Signer | PowerDoc | standalone | contested | IN |
-| `PowerDoc.exe` | Process name | PowerDoc | standalone | contested | IN |
-| `\AppData\Local\pwrDoc\` | Folder | PowerDoc | standalone | contested | IN |
+| `TAMARISK INTERACTIVE LTD` | Signer | PDFDoc, PowerPlayer | standalone | contested | IN |
+| `NativePowerPlayer.exe`, `UninstallPP.exe`, both in `\PowerPlayer\` under the user's Temp folder | Process name | PowerPlayer | standalone | contested | IN |
+| `\PwrId\PwrId.txt`, `\DocID\DocID.txt`, under the user's Temp folder | File | Machine-identifier files written by PowerPlayer and PDFDoc | standalone | contested | IN |
 | `Dragon Boss Solutions LLC` | Signer | Chromnius, Chromstera Browser, Artificius Browser, World Wide Web | standalone | low, but check the escalation rows | HU |
 | `\Program Files (x86)\Chromstera Browser\` | Folder | Chromstera Browser | standalone | low | HU |
 | `\World Wide Solutions\World Wide Web\` | Folder | World Wide Web | standalone | low | HU |
@@ -239,9 +269,13 @@ These are not low severity. Public reporting classes them as malware or as a mal
 | `Bright SDK`, `Luminati SDK` | Version-information product | Bright SDK component inside any host app (H005) | standalone | low | FF, AM |
 | `net_updater32.exe`, `net_updater64.exe` | Process name | Bright SDK component inside any host app (H005) | pair with the version information above, or with `--install win_` in the command line | low | BS, AM |
 | `lum_sdk32.dll`, `lum_sdk64.dll` | File | Bright SDK component inside any host app (H005) | standalone | low | BS |
+| `Infatica Pte. Ltd.` (also written `Infatica pte ltd`) | Signer | Infatica P2B component (lead L4) | standalone | low | FX, FA |
+| `infatica-service-app.exe`, `infatica_agent.exe` | Process name | Infatica P2B component (lead L4) | standalone | low | FN, FX, FA, AI |
+| `\Program Files (x86)\Infatica P2B\` | Folder | Infatica P2B component (lead L4) | standalone | low | FN, FX, FA |
+| `Infatica SDK` (description), `Infatica Service` (product) | Version information | Infatica P2B component (lead L4) | standalone | low | FX |
 | `\Program Files\Hola\` | Folder | Hola Browser | standalone | low, but check the escalation rows | SH |
 
-On the contested rows: Intezer calls that family unwanted software. Controlware treats CrystalPDF and PowerDoc as malware. Press coverage of Unit 42's research says one cluster's advert campaigns include CrystalPDF and OneZip. Run 03 reads Intezer as reporting data leaving the machine for ConvertyFile and OneZip, which no reviewer has confirmed yet.
+On the contested rows: PDFDoc and PowerPlayer belong to the family Intezer calls unwanted software, and their signer is not in Unit 42's table. Review 006 moved the family's other products to "Escalate on match": Unit 42 lists their signers in a cluster it classes as malware, Controlware treats CrystalPDF and PowerDoc as malware, and Intezer's own indicator table labels ConvertyFile and OneZip as stealers while its text calls the family unwanted software. Look closer on any match.
 
 ### Hostnames (leads only)
 
@@ -250,21 +284,24 @@ On the contested rows: Intezer calls that family unwanted software. Controlware 
 | PDF Spark | `pdfsparkware[.]com`, `sparkonsoft[.]com`, `pdfsetup[.]com`, `pdfsparkapi[.]com`, `pdfsparkcomponent[.]s3[.]us-east-2[.]amazonaws[.]com`, `pdfsparkcomponents[.]s3[.]us-east-2[.]amazonaws[.]com` | CW, JS, MA |
 | Doc Convert Wizard | `tool[.]securedocumentinstaller[.]com` | DW |
 | PDF Polish download page, reported as a loader | `pdfimage[.]com` | AP |
+| Projextor family | `doceditorinc[.]com`, `conv[.]doceditorinc[.]com`, `meal-formula[.]com`, `kitchen-canvas[.]com`, `flipformatpdf[.]com`, `pdfgrip[.]com` | GD |
 | CrystalPDF | `crystalpdf[.]com`, `strongdwn[.]com`, `negmari[.]com`, `windwn[.]com`, `ramiort[.]com` | IN, CW |
 | PowerDoc | `getpowerdoc[.]com`, `powerdocapp[.]com`, `ulinikio[.]com`, `shtimat[.]com` | IN, CW |
 | ConvertyFile | `convertyfileapp[.]com`, `olienti[.]com` | IN |
-| OneZip | `oneoni[.]com` | IN |
+| OneZip | `oneoni[.]com`, `onezipapp[.]com` | IN, U42 |
 | SagePDF | `ralogoto[.]com` | IN |
 | PDFDoc | `cliedoc[.]com` | IN |
 | PowerPlayer | `kolimau[.]com` | IN |
 | Dragon Boss products | `worldwidewebuniverse3[.]com`, `worldwidewebframework3[.]com`, `worldwidewebframework2[.]com`, `chromsteraupdates[.]com`, `artificialupdates[.]com`, `dragonstraffic[.]com`, `updaterituals[.]com`, `dl.isready26[.]online`. `chromsterabrowser[.]com` is now a research sinkhole. | HU |
 | OneLaunch | `update.onelaunch[.]com` | SG |
+| IPIDEA proxy network (lead L8) | `packetsdk[.]io`, `packetsdk[.]net`, `packetsdk[.]xyz`, `hexsdk[.]com`, `willmam[.]com`, `asdk2[.]com` | GT |
 
 ### Source keys
 
 "Search text" means the page was read as the text a web search returned, not opened in full.
 
-- **AM:** [ANY.RUN report of a third-party app carrying the SDK](https://any.run/report/ac6b186d8971f71d8a2d9477d71526fc8a0e5f7d03772c9e134813bce4fb2c89/6329de9f-12e9-4564-bdb7-db6dd99d68ad). Search text.
+- **AI:** [ANY.RUN report of `Infatica P2B.rar`](https://any.run/report/aee70e50638b79f410bdca412763f51aee6ab78f5ea77d47329b93d61705a7dc/c859e7dc-08ff-45a9-994d-840110eb9faf), 22 Jun 2025. Process name only.
+- **AM:** [ANY.RUN report of a third-party app carrying the SDK](https://any.run/report/ac6b186d8971f71d8a2d9477d71526fc8a0e5f7d03772c9e134813bce4fb2c89/6329de9f-12e9-4564-bdb7-db6dd99d68ad), 29 Jun 2023. Search text for the command line. Opened in Review 006 for the process name, PID and date only.
 - **AP:** [ANY.RUN report of `pdfimage[.]com`](https://any.run/report/6561bf6445f72367479c9386f333f967cdfa7c7111e26ae6f47deaf04687c54b/efad0172-7edb-47be-8bd7-f67ae204178e), 22 Apr 2026. Search text.
 - **AR:** [ANY.RUN report of the Bright VPN installer](https://any.run/report/1929fa577e90828053bfa6e9524837b75ddc2bb8c00578d7ef6754cef37e25ac/1a0281d9-ccbb-42c6-ab9f-30d742d5e5a2), 6 Nov 2025. Process names only.
 - **AS:** [ANY.RUN report of `PDFSparkOnSoft_683918.exe`](https://any.run/report/717c2728b957a7faecb7d1ac057bb03053f6397bbc369092c493daf6d45dc67c/76cba640-dabd-420e-bda4-1ae186bb1fe7). Search text.
@@ -272,12 +309,18 @@ On the contested rows: Intezer calls that family unwanted software. Controlware 
 - **CN:** [Cybersecurity News on the Unit 42 research](https://cybersecuritynews.com/tamperedchef-malware-uses-signed-productivity-apps/amp/), May 2026. Search text.
 - **CW:** [Controlware CSIRT report](https://www.controlware.de/fileadmin/controlware/sonstiges/dokumente/Security_Hinweise/Controlware_Beyond_Potentially_Unwanted_Apps_2025.pdf), Dec 2025.
 - **DW:** ["The FlipFormat_# Illusion: The Magic of the Doc Convert Wizard"](https://medium.com/@rabbit_knight/the-flipformat-illusion-the-magic-of-the-doc-convert-wizard-10036623d0e8), about Apr 2026. Search text.
+- **FA:** [FreeFixer file page for `infatica_agent.exe`](https://www.freefixer.com/library/file/infatica_agent.exe-317901), with a user comment dated 13 Aug 2026.
 - **FE:** [Field Effect on signed installers](https://fieldeffect.com/blog/potentially-unwanted-applications), Sep 2025. Search text.
 - **FF:** [FreeFixer file page for `net_updater32.exe`](https://freefixer.com/library/file/net_updater32.exe-315883). Search text.
-- **GS:** [GridinSoft file analysis of `PDFSparkWare_286830.exe`](https://gridinsoft.com/online-virus-scanner/id/edcd5b2a5419ae6860ac92ffe0be86ee28857adde13420a7f972dbc0883e7eb3). Search text.
+- **FN:** [file.net page for `infatica-service-app.exe`](https://www.file.net/process/infatica-service-app.exe.html).
+- **FX:** [FreeFixer file page for `infatica-service-app.exe`](https://www.freefixer.com/library/file/infatica-service-app.exe-308773).
+- **GD:** [G DATA on Projextor](https://blog.gdatasoftware.com/2026/08/38468-projextor-abusing-electron), 17 Aug 2026.
+- **GO:** [GridinSoft OneBrowser removal guide](https://blog.gridinsoft.com/onebrowser-removal/), 25 Jun 2026, updated 4 Nov 2026.
+- **GS:** [GridinSoft file analysis of `PDFSparkWare_286830.exe`](https://gridinsoft.com/online-virus-scanner/id/edcd5b2a5419ae6860ac92ffe0be86ee28857adde13420a7f972dbc0883e7eb3), analysis dated 24 Nov 2025. Opened in Review 006.
+- **GT:** [Google Threat Intelligence on disrupting the IPIDEA proxy network](https://cloud.google.com/blog/ja/topics/threat-intelligence/disrupting-largest-residential-proxy-network?hl=ja), first published 29 Jan 2026. Read in the Japanese edition dated 4 Feb 2026.
 - **HE:** [Heimdal on Shift Browser](https://heimdalsecurity.com/blog/shift-browser-signed-adware-fingerprints-endpoint-before-payload/), 3 Sep 2026.
 - **HU:** [Huntress, "When PUPs Grow Fangs"](https://www.huntress.com/blog/pups-grow-fangs), 14 Apr 2026.
-- **IN:** [Intezer, "Two Trojan Families Trotting in Through Google Search Ads"](https://research.intezer.com/blog/2026/07/two-trojan-families/), 27 Jul 2026. Read twice.
+- **IN:** [Intezer, "Two Trojan Families Trotting in Through Google Search Ads"](https://research.intezer.com/blog/2026/07/two-trojan-families/), 27 Jul 2026. Read three times, the last to the end of its indicator table.
 - **JS:** [Joe Sandbox analysis of the `sparkonsoft[.]com` download page](https://www.joesandbox.com/analysis/1787620/0/html). Search text.
 - **MA:** [Mallory entry for OneBrowser](https://mallory.ai/malware/019e6578-e975-70a3-b191-59e9b29bb8e7), summarising the analysis under RK. Search text.
 - **MB:** [Malwarebytes PUP.Optional.SparkOnSoft](https://www.malwarebytes.com/blog/detections/pup-optional-sparkonsoft).
@@ -288,9 +331,58 @@ On the contested rows: Intezer calls that family unwanted software. Controlware 
 - **SG:** [SigmaHQ OneLaunch rule](https://github.com/SigmaHQ/sigma/blob/master/rules/windows/dns_query/dns_query_win_onelaunch_update_service.yml).
 - **SH:** [Sophos on Hola Browser](https://www.sophos.com/blog/you-do-surprise-me-exe-an-unexpected-executable-in-hola-browser), 2026.
 - **SO:** [Sophos KBA-000043676](https://support.sophos.com/support/s/article/KBA-000043676?language=en_US), 24 Sep 2026. Search text.
-- **U42:** [Unit 42, "Tracking TamperedChef Clusters via Certificate and Code Reuse"](https://unit42.paloaltonetworks.com/tracking-tampered-chef-clusters/), May 2026. Search text.
+- **U42:** [Unit 42, "Tracking TamperedChef Clusters via Certificate and Code Reuse"](https://unit42.paloaltonetworks.com/tracking-tampered-chef-clusters/), 20 May 2026. Opened in Review 006 in its markdown edition. The signer table was transcribed twice with the same result.
 
 <!-- New reviews go directly below this line, newest first. -->
+
+## Review 006 · 2026-11-13 02:17 GMT
+
+**Reviewed:** no new run. The register is still at commit `05a9a36` (Run 03; active H001, H003, H004, H005, H006), which Review 005 reviewed in full. Two review sessions ran for the 01:40 slot and this is the second. Review 005's *Next run* list still stands, with the changes below. This review opened in full the sources Review 005 could only read as search text.
+
+**Verdict:** H006 is in the wrong list. Unit 42 lists the signers of SagePDF and PowerDoc in a cluster it classes as malware, and Intezer's own indicator table labels two sister products as stealers. The register then holds no low-severity pack from the search-advert PDF-tool route, so the low-severity list has to be built from other routes: L3, L4, L5 and the new L8.
+
+**Follow-through on earlier reviews:** nothing new to check. No run has landed since Review 005.
+
+**Verified against source this review**
+
+| Item | Result |
+| --- | --- |
+| Intezer, 27 Jul 2026 | Opened from search results and read to the end of the indicator table. Every H006 identifier matches. The text calls the family "a PUA rather than malware". The indicator table labels ConvertyFile and OneZip as stealers, labels CrystalPDF's main file "stealer/installer" and lists a data-exfiltration host for PowerDoc. SagePDF was found in January 2026. No month is given for PowerPlayer. |
+| Unit 42, 20 May 2026 | Opened in its markdown edition. Signer table transcribed twice with the same result: 41 rows under CL-UNK-1090, 6 "OneBrowser Signers", 33 under CL-CRI-1089. `CHRONO ORION LTD` and `GOLD HARMONY LTD` are under CL-UNK-1090. `TAMARISK INTERACTIVE LTD` is absent. It says the behaviour puts these applications "in the malware category". It does not name PDF Spark, PDF Polish, `Jia Hao`, SagePDF, PowerDoc or PowerPlayer, and gives no task names. |
+| GridinSoft OneBrowser removal guide, 25 Jun 2026, updated 4 Nov 2026 | Opened. Tasks `OBUpdate` and `OneBUpdate`, three services, three process names, folders and registry keys, now in the sweep sheet. It calls OneBrowser a PUP family and does not name PDF Spark. |
+| G DATA on Projextor, 17 Aug 2026 | Opened. Names Kitchen Canvas, "Food or Meal Formula" and DocConvertWizard, four installer names and six hosts, and calls the software malware. It does not name PDF Polish, `Jia Hao` or ProfessionalConverter. |
+| GridinSoft file page for `PDFSparkWare_286830.exe`, Malwarebytes SparkOnSoft page | Opened. Signer and company `Mainstay Crypto LLC`, product `PDF_Spark`, description `PDF_Spark Setup`, analysis dated 24 Nov 2025. Malwarebytes names the same publisher. Its page was modified on 24 Oct 2025. |
+| ANY.RUN Mouse Server report (H005) | Opened. `net_updater32.exe`, PID 2228 and the date 29 Jun 2023 confirmed. The command line, company, description and `lum_sdk32.dll` were not in the page text served to this reviewer. Review 005 saw the command line in search text. |
+| Malwarebytes Shift Browser page | Opened. Adverts on sites for manuals, recipes and templates. Page modified 18 Aug 2025. No identifiers. |
+| Infatica: file.net, two FreeFixer pages, ANY.RUN 22 Jun 2025 | Opened. File names, folder, signer and version information as now recorded in L4 and the sweep sheet. No service name found. |
+| Google on IPIDEA (first published 29 Jan 2026, read in the Japanese edition), Quointelligence 9 Sep 2026, Spur | Opened. The basis of new lead L8. |
+| Not opened | The PDF Polish sandbox report, the Team-IT case and CyberSift: searches did not find them, and a direct fetch of a register link is refused. Sophos KBA-000043676. The two Medium analyses (DW, RK) and TheCyberDef (PX). Red Canary's August 2026 edition, where the redirect was refused. |
+
+**What changed in this file**
+
+- *Verified sweep sheet*: ten rows for SagePDF, PowerDoc, ConvertyFile, OneZip and CrystalPDF moved from "Unwanted software" to "Escalate on match", because Unit 42 contradicts their `low` and `contested` ratings. PDFDoc and PowerPlayer stay, now `contested`. Added: the other 60 signer names from Unit 42's table, the OneBrowser rows, the Projextor installer names and hosts, the Infatica rows, the IPIDEA rows and seven source keys.
+- *Standing guidance* 8 is new: check the signer against the Unit 42 rows before filing anything as low severity.
+- *Lead queue*: E003 added, which re-files H006. L8 added. L4 now has first identifiers. E001 and E002 each carry a note on what the opened sources do and do not say.
+
+**Corrections**
+
+1. **Move H006 out of the low-severity list.** Re-file it in "Same route, not low severity" as E003, following the E003 lead block. Retire the ID H006 with a run-log note, as H002 was retired, and correct the header count and the index.
+2. In that pack, mark the `%TEMP%` paths (`\SagePdf\`, `\PowerPlayer\`) as installer-stage traces. The signers and `\AppData\Local\pwrDoc\` are the rows that work on an installed machine.
+3. `[^pdf-signer]` and the Run 03 log say Unit 42 describes the PDF Spark ecosystem. Unit 42 lists the two signer names under "OneBrowser Signers" and names OneBrowser, but never names PDF Spark. Say the link is by signer, sourced to Malwarebytes, GridinSoft and Controlware.
+4. `[^shift]`: the Malwarebytes page says manuals, recipes and templates, not PDF, and its metadata carries a modified date of 18 Aug 2025.
+5. Review 005's corrections 1 to 3 still stand.
+
+**Next run (03:00)**
+
+The 02:40 review will strike anything Run 04 has already done.
+
+1. Corrections 1 to 4 first. Moving H006 to E003 does not count against the limit of one new escalation pack per run.
+2. **E001** if it is not yet written. Use the OneBrowser updater rows in the sweep sheet, and give the removal guide updated on 4 Nov 2026 as the newest evidence date.
+3. **E002** if it is not yet written, with G DATA's report as the primary source. State plainly that no source names PDF Polish as part of Projextor, and that the six-digit installer suffix also appears on PDF Spark installers.
+4. **L3**, then **L4**, as low-severity packs. Both have verified first identifiers in the sweep sheet.
+5. Before filing any pack as low severity, apply standing guidance 8 and record the result in the run log.
+
+**Not done this review:** no new low-severity lead beyond L8, and no fresh check of the Dragon Boss or Hola sources. The next review should search vendor notes on new PUA detections from the last 90 days.
 
 ## Review 005 · 2026-11-13 02:03 GMT
 
