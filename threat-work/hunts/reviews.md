@@ -67,7 +67,7 @@ These add to the reviewer's task instructions.
 | Run | Work |
 | --- | --- |
 | 02:00 | E001, the PDF Spark and OneBrowser cluster, as the first escalation pack: what to look for on a machine that already had PDF Spark, and whether PDF Polish belongs to the same cluster. Then L3. Bring H006 up to the finished standard. |
-| 03:00 | L4 and L5. |
+| 03:00 | E002, the `Jia Hao` family around PDF Polish, if it is not yet written. L4 and L5. |
 | 04:00 | The two best open leads. |
 | 05:00 | No new packs. Finish every incomplete pack, re-rate the tiers, put both lists in run order. |
 | 06:00 | The two best open leads. |
@@ -96,6 +96,13 @@ Researched leads for the research run to take from, best first. The reviews main
 - **Evidence:** Unit 42, May 2026 (U42). Sophos KBA-000043676, 24 Sep 2026 (SO). Analysis of the installers and of OneBrowser, about Nov 2025 (RK, MA). Run 03 also cites a Team-IT case dated 26 Aug 2026. The keys are in the *Verified sweep sheet*.
 - **First identifiers:** the PDF Spark and OneBrowser rows under "Escalate on match" in the sweep sheet.
 - **Severity:** not low. A match is an incident lead. The pack must say what to check on a machine that already had PDF Spark.
+
+### E002 · `Jia Hao` family around PDF Polish · open (escalation pack)
+- **What:** PDF Polish is a confirmed previous hit. Its company metadata matches Doc Convert Wizard, and public analysis groups those two with FoodFormula and ProfessionalConverter. That group is reported as the Projextor malware cluster.
+- **Why likely now:** it is the sibling family of a confirmed hit, with analysis from April 2026 and reporting from August 2026.
+- **Evidence:** keys DW, PX and AP in the *Verified sweep sheet*. Review 005 sets out what is and is not shown.
+- **First identifiers:** the `Jia Hao` rows under "Escalate on match" in the sweep sheet.
+- **Severity:** not low, pending a source that names PDF Polish itself. A match is an incident lead.
 
 ### L1 · PDF Spark signer pack · dropped: not low severity (Run 03), reissued as E001
 - **What:** other software signed by the publishers behind a confirmed hit. PDF Spark itself stays calibration.
@@ -188,6 +195,10 @@ These are not low severity. Public reporting classes them as malware or as a mal
 | `pdfsetup.exe` | Process name, installer stage | PDF Spark | pair | JS |
 | `OBUpdate` | Scheduled task | OneBrowser, reported as a second stage after PDF Spark | standalone | MA |
 | `PDF_Spark_is1` under the user's `Uninstall` key | Registry key | PDF Spark install record | standalone | MA |
+| `Jia Hao` | Version-information company | PDF Polish, Doc Convert Wizard and their siblings. The family is reported as a malware cluster (Projextor). No source yet names PDF Polish itself | standalone | DW, PX |
+| `doc-wizard.exe` | Process name | Doc Convert Wizard | standalone | DW |
+| `\DocConvertWizard\`, `\FoodFormula\`, `\ProfessionalConverter\`, `\PDFPolish\` | Folder | The same family | standalone | DW |
+| `FlipFormat_*.exe` | Process name, installer stage | Doc Convert Wizard | standalone | DW |
 | `MATCH-TWO-USERS LLC`, `TWEAKSCODE LLC`, `CROWN SKY LLC` | Signer | TamperedChef-style cluster that includes Calendaromatic | standalone | U42, FE |
 | `ConvertMateTask`, `Easy2ConvertTask`, `UpdateTaskZT`, `Zapdf` | Scheduled task | Downloader family behind Convert Mate, Easy 2 Convert, PDF Skills, Zip This and Zap PDF | standalone | IN, CW |
 | `PDC_Update` | Scheduled task | Listed with the same group. The product is not stated in the source | standalone | CW |
@@ -227,6 +238,7 @@ These are not low severity. Public reporting classes them as malware or as a mal
 | `Bright VPN.exe`, `brightvpn_installer.exe` | Process name | Bright VPN (H005) | standalone | low | AR |
 | `Bright SDK`, `Luminati SDK` | Version-information product | Bright SDK component inside any host app (H005) | standalone | low | FF, AM |
 | `net_updater32.exe`, `net_updater64.exe` | Process name | Bright SDK component inside any host app (H005) | pair with the version information above, or with `--install win_` in the command line | low | BS, AM |
+| `lum_sdk32.dll`, `lum_sdk64.dll` | File | Bright SDK component inside any host app (H005) | standalone | low | BS |
 | `\Program Files\Hola\` | Folder | Hola Browser | standalone | low, but check the escalation rows | SH |
 
 On the contested rows: Intezer calls that family unwanted software. Controlware treats CrystalPDF and PowerDoc as malware. Press coverage of Unit 42's research says one cluster's advert campaigns include CrystalPDF and OneZip. Run 03 reads Intezer as reporting data leaving the machine for ConvertyFile and OneZip, which no reviewer has confirmed yet.
@@ -236,6 +248,8 @@ On the contested rows: Intezer calls that family unwanted software. Controlware 
 | Product | Hostnames | Source |
 | --- | --- | --- |
 | PDF Spark | `pdfsparkware[.]com`, `sparkonsoft[.]com`, `pdfsetup[.]com`, `pdfsparkapi[.]com`, `pdfsparkcomponent[.]s3[.]us-east-2[.]amazonaws[.]com`, `pdfsparkcomponents[.]s3[.]us-east-2[.]amazonaws[.]com` | CW, JS, MA |
+| Doc Convert Wizard | `tool[.]securedocumentinstaller[.]com` | DW |
+| PDF Polish download page, reported as a loader | `pdfimage[.]com` | AP |
 | CrystalPDF | `crystalpdf[.]com`, `strongdwn[.]com`, `negmari[.]com`, `windwn[.]com`, `ramiort[.]com` | IN, CW |
 | PowerDoc | `getpowerdoc[.]com`, `powerdocapp[.]com`, `ulinikio[.]com`, `shtimat[.]com` | IN, CW |
 | ConvertyFile | `convertyfileapp[.]com`, `olienti[.]com` | IN |
@@ -251,11 +265,13 @@ On the contested rows: Intezer calls that family unwanted software. Controlware 
 "Search text" means the page was read as the text a web search returned, not opened in full.
 
 - **AM:** [ANY.RUN report of a third-party app carrying the SDK](https://any.run/report/ac6b186d8971f71d8a2d9477d71526fc8a0e5f7d03772c9e134813bce4fb2c89/6329de9f-12e9-4564-bdb7-db6dd99d68ad). Search text.
+- **AP:** [ANY.RUN report of `pdfimage[.]com`](https://any.run/report/6561bf6445f72367479c9386f333f967cdfa7c7111e26ae6f47deaf04687c54b/efad0172-7edb-47be-8bd7-f67ae204178e), 22 Apr 2026. Search text.
 - **AR:** [ANY.RUN report of the Bright VPN installer](https://any.run/report/1929fa577e90828053bfa6e9524837b75ddc2bb8c00578d7ef6754cef37e25ac/1a0281d9-ccbb-42c6-ab9f-30d742d5e5a2), 6 Nov 2025. Process names only.
 - **AS:** [ANY.RUN report of `PDFSparkOnSoft_683918.exe`](https://any.run/report/717c2728b957a7faecb7d1ac057bb03053f6397bbc369092c493daf6d45dc67c/76cba640-dabd-420e-bda4-1ae186bb1fe7). Search text.
 - **BS:** [Bright SDK Windows integration guide](https://help.bright-sdk.com/hc/en-us/articles/16679042461329-Windows-SDK-Integration-Guide-C-C). Search text.
 - **CN:** [Cybersecurity News on the Unit 42 research](https://cybersecuritynews.com/tamperedchef-malware-uses-signed-productivity-apps/amp/), May 2026. Search text.
 - **CW:** [Controlware CSIRT report](https://www.controlware.de/fileadmin/controlware/sonstiges/dokumente/Security_Hinweise/Controlware_Beyond_Potentially_Unwanted_Apps_2025.pdf), Dec 2025.
+- **DW:** ["The FlipFormat_# Illusion: The Magic of the Doc Convert Wizard"](https://medium.com/@rabbit_knight/the-flipformat-illusion-the-magic-of-the-doc-convert-wizard-10036623d0e8), about Apr 2026. Search text.
 - **FE:** [Field Effect on signed installers](https://fieldeffect.com/blog/potentially-unwanted-applications), Sep 2025. Search text.
 - **FF:** [FreeFixer file page for `net_updater32.exe`](https://freefixer.com/library/file/net_updater32.exe-315883). Search text.
 - **GS:** [GridinSoft file analysis of `PDFSparkWare_286830.exe`](https://gridinsoft.com/online-virus-scanner/id/edcd5b2a5419ae6860ac92ffe0be86ee28857adde13420a7f972dbc0883e7eb3). Search text.
@@ -265,6 +281,7 @@ On the contested rows: Intezer calls that family unwanted software. Controlware 
 - **JS:** [Joe Sandbox analysis of the `sparkonsoft[.]com` download page](https://www.joesandbox.com/analysis/1787620/0/html). Search text.
 - **MA:** [Mallory entry for OneBrowser](https://mallory.ai/malware/019e6578-e975-70a3-b191-59e9b29bb8e7), summarising the analysis under RK. Search text.
 - **MB:** [Malwarebytes PUP.Optional.SparkOnSoft](https://www.malwarebytes.com/blog/detections/pup-optional-sparkonsoft).
+- **PX:** [TheCyberDef on the Projextor cluster](https://thecyberdef.com/projextor-malware-hides-in-fake-pdf-tools-meal-planners-via-electron-apps/), about Aug 2026. Search text.
 - **RC:** [Red Canary Intelligence Insights, November 2025](https://www.zscaler.com/blogs/cybersecurity-best-practices/intelligence-insights-november-2025), with lure names from the December 2025 edition. Search text.
 - **RK:** ["The Spark or the Smoke: Looking into the PDF SparkOnSoft and OneBrowser Malware"](https://medium.com/@rabbit_knight/the-spark-or-the-smoke-looking-into-the-pdf-sparkonsoft-and-onebrowser-malware-3a7a19dafdba), about Nov 2025. Search text.
 - **RR:** this repository's own research note, `threat-work/research/2026/2026-09-02-shift-browser-security-assessment.md`.
@@ -274,6 +291,61 @@ On the contested rows: Intezer calls that family unwanted software. Controlware 
 - **U42:** [Unit 42, "Tracking TamperedChef Clusters via Certificate and Code Reuse"](https://unit42.paloaltonetworks.com/tracking-tampered-chef-clusters/), May 2026. Search text.
 
 <!-- New reviews go directly below this line, newest first. -->
+
+## Review 005 · 2026-11-13 02:03 GMT
+
+**Reviewed:** register at commit `05a9a36` (Run 03; active H001, H003, H004, H005, H006), in full. The 01:40 review did not run, so this one was written late. It applies to the first research run that reads it.
+
+**Verdict:** Run 03 was a good run. It read the reviews, did what they asked, and was right to refuse to file PDF Spark as low severity. The same now appears to be true of PDF Polish: public analysis ties it to a second malware-grade family. Two of the three confirmed hits in *The brief* therefore belong in the escalation list, not the low-severity one.
+
+**Follow-through on earlier reviews**
+
+| Item | Result |
+| --- | --- |
+| Review 001 corrections 1 to 4 | Actioned. H001 dated, the single Bright sample stated, the unconfirmed pivot labelled, index columns split. |
+| Review 001 next 1 and 2 | Actioned. Tiers defined and applied. H005 restated around the SDK component. |
+| Review 002 items 1 to 3 | Actioned. PDF Spark added as a confirmed hit, publishers compared, index ordered by tier. |
+| Review 003 L1 | Declined as low severity, with reasons. Correct. Reissued as E001 in Review 004. |
+| Review 003 L2 | Actioned as H006, limited to SagePDF, PowerDoc and PowerPlayer. |
+| Review 003 PDF Polish | Actioned. Company metadata `Jia Hao` found, signer not verified. |
+| Run log names the review read | Yes, with an itemised record. |
+
+**Integrity**
+
+- Footnotes: 36 defined, 36 referenced, none orphaned. No footnote from Run 02 was removed. Only the register changed.
+- H003 and H004 are unchanged. H001 changed only where Review 001 asked.
+- One broken link: the index link `#h005-bright-sdk-luminati-sdk-in-host-apps` does not resolve, because the heading contains " / ". See Corrections.
+
+**Verified against source this review**
+
+| Item | Result |
+| --- | --- |
+| H006 identifiers | Match the reviewer's two readings of Intezer: the three signers, `\pwrDoc\PowerDoc.exe`, `pwrDoc.txt`, `NativePowerPlayer.exe`, `SageId.txt`. |
+| H005 Mouse Server command line | Search text. Matches: `--install win_wifimouse.necta.us`, company Luminati Networks Ltd. |
+| PDF Spark signers in Unit 42 | Search text. Both are listed as OneBrowser signers. |
+| PDF Polish and `Jia Hao` | Search text of a public analysis of a sibling app. The same company metadata appears there, with a folder named `PDFPolish`. See the finding below. |
+| Not opened | The PDF Polish sandbox report itself, the Team-IT case, the Malwarebytes Shift page. |
+
+**Finding: PDF Polish has siblings, and they are reported as malware**
+
+- An analysis published about April 2026 (key DW in the sweep sheet) describes "Doc Convert Wizard", installed by `FlipFormat_947850.exe`. Its main executable `doc-wizard.exe` carries company metadata `Jia Hao`, the same value Run 03 found on `PDF Polish.exe`. The analysis names four folders that share one component: `DocConvertWizard`, `FoodFormula`, `ProfessionalConverter` and `PDFPolish`. It describes the installer as a stager that makes a hidden request to `tool[.]securedocumentinstaller[.]com`.
+- Reporting from about August 2026 (key PX) describes a malware cluster called Projextor inside free document converters and meal planners, naming DocConvertWizard, "Food or Meal Formula" and Kitchen Canvas.
+- The installer names have the same shape: `FlipFormat_947850.exe` there, `PDFImage_519340.exe` for PDF Polish in Run 03's source.
+- Not yet shown: a source that names PDF Polish itself as part of Projextor. The link rests on shared metadata, a shared component and the naming pattern.
+
+**Corrections**
+
+1. Fix the H005 index link. Either change the link to `#h005-bright-sdk--luminati-sdk-in-host-apps` or remove the slash from the heading.
+2. H005 and H006 are not yet finished packs by the standard in *Orders until 08:00*. Their identifier rows lack the Log Analytics table and column and the `standalone` or `pair` marking.
+3. The already-covered row for PDF Polish should record the sibling family and the open question above.
+
+**Next run (the first run that reads this)**
+
+1. **E001**, the PDF Spark and OneBrowser cluster, as an escalation pack, if it is not already written. The instructions are in Review 004.
+2. **E002**, the `Jia Hao` family around PDF Polish, as an escalation pack: Doc Convert Wizard, FoodFormula, ProfessionalConverter, PDF Polish, and any other product you can source. Settle how strong the link to Projextor is, and say what to check on a machine that already had PDF Polish. The lead block and the sweep-sheet rows give the starting identifiers.
+3. **L3**, the Dragon Boss pack, if it is not already written.
+4. Corrections 1 to 3.
+5. Keep the run-log record as in Run 03.
 
 ## Review 004 · 2026-11-13 01:24 GMT
 
