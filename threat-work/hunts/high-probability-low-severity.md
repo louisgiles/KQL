@@ -1,7 +1,7 @@
 # High-probability, low-severity threat hunts
 
 **Last researched:** 13 November 2026  
-**Latest research run:** 05 — two low-severity packs H009/H010 and E002 Jia Hao / Projextor escalation pack
+**Latest research run:** 06 — 05:00 existing-pack audit and priority ordering; no new IDs
 **Active candidates:** Eight low-severity H packs (H001, H003, H004, H005, H007, H008, H009, H010), and three escalation E packs (E001, E002, E003). H002 and H006 retired.
 **Scheduled research:** Hourly through the final scheduled run at 08:00 Europe/London on 14 November 2026  
 **Execution surface:** Microsoft Sentinel / Log Analytics workspaces only  
@@ -29,18 +29,18 @@ Retired IDs are not reused. Eight active low-severity packs are indexed below; H
 
 ## Hunt index — low-severity packs
 
-**Likelihood tiers are evidence categories, not client hit-rate predictions.** A = measured contemporary activity across a real population; B = a recent dated observation, distribution account or sample without a reliable population denominator; C = mostly historical or undated distribution. An article's publication date is not an installation date. Ordered by strength and recency.
+**Likelihood tiers are evidence categories, not client hit probabilities.** A = measured recent activity (explicitly **provider-level** where not product-specific); B = a dated real-environment report or currently offered distribution without measured prevalence; C = older/undated sources and sandbox-only evidence. Source date and installation date are different. **Run order** favours direct product activity, specificity and evidence age over marketing volume.
 
-| ID | Candidate | Tier | Newest dated evidence | Added | Status |
-| --- | --- | --- | --- | --- | --- |
-| [H009](#h009-hola-browser-and-desktop-vpn) | Hola Browser / desktop VPN | **A (provider-level)** | 30 Sep 2026: ~664k provider-associated active Windows users; live downloads 13 Nov | Run 05 (L5) | Finished: branded presence, miner escalates |
-| [H010](#h010-honeygain-windows-bandwidth-sharing-app) | Honeygain Windows bandwidth-sharing | **A (provider-level)** | 30 Sep 2026: ~68k active Windows users; vendor support 22 Oct | Run 05 (L7) | Finished: branded execution, relay unproven |
-| [H007](#h007-dragon-boss-solutions-browser-updaters) | Dragon Boss Solutions browser/updater family | **A** | 14 Apr 2026: 23,565 source IPs, of which 2,223 UK | Run 04 (L3) | Finished: presence only; check malware escalation |
-| [H008](#h008-infatica-p2b-proxy-component) | Infatica P2B component | **B** | 11 Aug 2026: published consumer-install follow-up | Run 04 (L4) | Finished: product execution; relaying unproven |
-| [H001](#h001-onelaunch) | OneLaunch | **B** | 27 Mar 2026 corporate report | Run 01 | Incomplete: typed identifier table |
-| [H005](#h005-bright-sdk--luminati-sdk-in-host-apps) | Bright/Luminati SDK in host apps | **B (tentative)** | 31 Jan 2026 repeat detonation of one 2025 installer | Run 02, widened Run 03 | Incomplete: current corporate prevalence and typed table |
-| [H004](#h004-relevantknowledge) | RelevantKnowledge | **C** | 8 Dec 2025 public sandbox execution | Run 02 | Incomplete: evidence of current real-world distribution |
-| [H003](#h003-adaware-web-companion) | Adaware Web Companion | **C** | 2023 company sightings | Run 01 replacement | Incomplete: recent dated organisational evidence |
+| Run order | ID | Candidate | Tier | Newest evidence and limitation | Added | Status |
+| --- | --- | --- | --- | --- | --- | --- |
+| 1 | [H007](#h007-dragon-boss-solutions-browser-updaters) | Dragon Boss browser/updater family | **A** | 14 Apr 2026: 23,565 sinkhole source IPs including 2,223 UK; not devices | Run 04 | Finished: product presence; separate AV-removal escalation |
+| 2 | [H009](#h009-hola-browser-and-desktop-vpn) | Hola Browser / desktop VPN | **A (provider-level)** | 30 Sep 2026: ~664k provider-associated Windows users, not branded-app hits | Run 05 | Finished: branded execution; miner findings escalate |
+| 3 | [H010](#h010-honeygain-windows-bandwidth-sharing-app) | Honeygain Windows | **A (provider-level)** | 30 Sep 2026: ~68k provider-associated Windows users, not relay proof | Run 05 | Finished: branded execution; relay unproven |
+| 4 | [H008](#h008-infatica-p2b-proxy-component) | Infatica P2B component | **B** | 11 Aug 2026: updated consumer-install report, not enterprise prevalence | Run 04 | Finished: product execution; relay unproven |
+| 5 | [H003](#h003-adaware-web-companion) | Adaware Web Companion | **B (live download)** | 13 Nov 2026: official Windows download page live; business report from 2023 | Run 01 replacement | Finished: typed identifiers; current estate use unmeasured |
+| 6 | [H005](#h005-bright-sdk--luminati-sdk-in-host-apps) | Bright/Luminati SDK in host apps | **B (live programme)** | 13 Nov 2026: publisher lists Windows host partners; 22 Jul Windows tool guide | Run 02, widened 03 | Finished: identifiable SDK; no current corporate prevalence |
+| 7 | [H001](#h001-onelaunch) | OneLaunch | **B (residual)** | 27 Mar 2026 corporate sighting; new downloads withdrawn | Run 01 | Finished: distinctive runtime; remaining installations only |
+| 8 | [H004](#h004-relevantknowledge) | RelevantKnowledge | **C** | 8 Dec 2025 sandbox; live privacy-panel listing ≠ current installs | Run 02 | Incomplete: recent real-world presence evidence |
 
 **Status:** Finished means sourced, product-specific standalone identifier without command lines, typed table and explicit match meaning. It does not mean verified tenant execution. No tenant data queried in any run.
 
@@ -86,6 +86,16 @@ The vendor's undated About page claims a milestone of one million daily users. I
 | `update.onelaunch.com` | SigmaHQ pairs this exact DNS name with `OneLaunch.exe`. Process-attributed updater traffic is much stronger than an unattributed DNS hit. [^ol-sigma] |
 | `PUP.Optional.OneLaunch` | Vendor detection-name lead. Check whether the record concerns an installed application, a block or historical remediation. [^ol-mb] |
 
+**Typed identifier table (Run 06):** SigmaHQ's 26 February 2024 rule pairs the executable and updater hostname; a named detection is not execution.
+
+| Product | Identifier type | Exact value | Log Analytics table.column, if ingested | Condition | Source |
+| --- | --- | --- | --- | --- | --- |
+| OneLaunch | process | `OneLaunch.exe` | `DeviceProcessEvents.FileName` | **standalone** branded execution seed, confirm metadata/path | [^ol-sigma] |
+| OneLaunch | updater DNS | `update.onelaunch.com` | collected Sysmon 22 in `WindowsEvent.EventData`, or suitable ingested process-attributed DNS field | **pair with OneLaunch.exe**; DNS-only is not program execution | [^ol-sigma] |
+| OneLaunch | detection | `PUP.Optional.OneLaunch` | `SecurityAlert.AlertName` or ingested `DeviceEvents.AdditionalFields` | **standalone detection lead**, verify outcome | [^ol-mb] |
+
+**Finished boundary:** Real organisational observation dated 27 March 2026 plus process-identification evidence. Low severity requires corroborated unapproved execution. Neither a historical block nor a DNS request proves active installation.
+
 The SigmaHQ reference is dated 26 February 2024 and marked `test` / `low`. It supports the historical pivot, not a claim that the rule has been validated in these workspaces. Its ATT&CK tags are not evidence that an updater request demonstrates credential theft. [^ol-sigma]
 
 ### High-level hunt idea
@@ -115,7 +125,7 @@ Windows clients that permit freeware may retain an unapproved Adaware/Lavasoft W
 
 **Reported facts:** Malwarebytes identifies `PUP.Optional.WebCompanion` and describes bundled installation with search-setting changes. The publisher's FAQ acknowledges bundled distribution and inadvertent user acceptance. Trustwave's 2023 manufacturing report documents organisational cases involving the application, including an MSI-to-PowerShell installation chain. [^wc-mb][^wc-faq][^wc-trustwave]
 
-**Assessment:** A practical consumer-software exposure hunt supported by both the distribution mechanism and actual business-environment observations. The organisational evidence is historical; current prevalence across clients is unmeasured.
+**Assessment (tier B, live distribution):** The bundled route and business observations remain relevant but historical. The publisher was still offering a Windows download on **13 November 2026**; this proves an available distribution route, **not** installation prevalence on managed devices. [^r06-wc-live]
 
 ### Verified starting pivots
 
@@ -124,6 +134,18 @@ Windows clients that permit freeware may retain an unapproved Adaware/Lavasoft W
 | `WebCompanion.exe`; supporting `WebCompanion.Loader.exe` and `WebCompanionInstaller.exe` | Component names in Trend Micro's original analysis. Keep installed runtime, loader and installer outcomes distinct. [^wc-trend] |
 | `\Lavasoft\Web Companion\Application\` | Historical product-directory suffix documented under Program Files. Inspect returned paths; do not make this old location the only discovery route. [^wc-trend] |
 | `PUP.Optional.WebCompanion`; `PUA:Win32/WebCompanion` | Malwarebytes and Microsoft detection-name leads, subject to action/remediation review. [^wc-mb][^wc-ms] |
+
+**Typed identifier table (Run 06):** Trend Micro's original sample lists the exact product path; directory and metadata must be checked on modern versions.
+
+| Product | Identifier type | Exact value | Log Analytics table.column, if ingested | Condition | Source |
+| --- | --- | --- | --- | --- | --- |
+| Web Companion | process | `WebCompanion.exe` | `DeviceProcessEvents.FileName` | **standalone** branded runtime candidate; corroborate path/product | [^wc-trend] |
+| Web Companion | historical installed executable path | `%Program Files%\Lavasoft\Web Companion\Application\WebCompanion.exe` | `DeviceProcessEvents.FolderPath` | **standalone** combined path/name, expand variable as appropriate | [^wc-trend] |
+| Web Companion | loader component | `WebCompanion.Loader.exe` | `DeviceProcessEvents.FileName` | **standalone** distinct component candidate; establish role | [^wc-trend] |
+| Web Companion | installer-labelled component | `WebCompanionInstaller.exe` | `DeviceProcessEvents.FileName` or `DeviceFileEvents.FileName` | **standalone** install lead, not proof of runtime | [^wc-trend] |
+| Web Companion | vendor detection | `PUP.Optional.WebCompanion` | `SecurityAlert.AlertName` or ingested `DeviceEvents.AdditionalFields` | **standalone** detection lead, inspect block/remediation | [^wc-mb] |
+
+**Finished boundary:** Current available download and product-specific executable(s), not independently measured current enterprise adoption. Authorised user installation is possible; unwanted browser changes must be shown rather than presumed.
 
 ### High-level hunt idea
 
@@ -162,6 +184,18 @@ Windows endpoints may be running unapproved internet-usage measurement software 
 | `\RelevantKnowledge\` under Program Files / Program Files (x86), plus service identifier `RelevantKnowledge` | Product-directory and service corroboration; architecture and version may change the full path. Trend Micro documents these within a larger bundler, not as the identity of every bundled component. [^rk-trend] |
 | `PUP.Optional.RelevantKnowledge`; `Adware:Win32/RelevantKnowledge!MTB` | Vendor detection leads. A prevented installation remains separate from observed runtime execution. [^rk-mb][^rk-ms] |
 
+**Typed identifier table (Run 06):** Trend Micro's historical FusionCore bundle documents these exact product files and a service string; it is **not 2026 prevalence evidence**.
+
+| Product | Identifier type | Exact value | Log Analytics table.column, if ingested | Condition | Source |
+| --- | --- | --- | --- | --- | --- |
+| RelevantKnowledge | process | `rlvknlg.exe` | `DeviceProcessEvents.FileName` | **standalone** distinctive process seed; corroborate product | [^rk-trend] |
+| RelevantKnowledge | service executable | `rlservice.exe` | `DeviceProcessEvents.FileName` | **standalone** executable seed, confirm product path | [^rk-trend] |
+| RelevantKnowledge | installed executable path | `%Program Files%\RelevantKnowledge\rlvknlg.exe` | `DeviceProcessEvents.FolderPath` | **standalone** combined path/name, historical sample | [^rk-trend] |
+| RelevantKnowledge | service label | `RelevantKnowledge` | collected service-creation event name / `DeviceEvents.AdditionalFields` | **pair with product path/process**; change events are not service inventory | [^rk-trend] |
+| RelevantKnowledge | detection | `PUP.Optional.RelevantKnowledge` | `SecurityAlert.AlertName` or ingested `DeviceEvents.AdditionalFields` | **standalone** detection lead, check prevention/remediation | [^rk-mb] |
+
+**Incomplete — likelihood:** Comscore presently lists the RelevantKnowledge research panel, and the 8 December 2025 sandbox shows execution **inside a sandbox**; neither is a recent real-world distribution/endpoint sighting. The identifier table is finished, but the pack cannot meet the current-presence standard. [^rk-anyrun][^r06-rk-panel]
+
 ### High-level hunt idea
 
 Use the common 30-day starting window, extending for acquisition context if retained.
@@ -185,7 +219,7 @@ Intentional approved panel participation is a real alternative explanation, cons
 
 **Hypothesis:** Third-party Windows utilities can embed the **Bright SDK**, formerly **Luminati SDK**, allowing an unapproved background component on a managed endpoint without a Bright VPN installation. A capability for public-web collection using participant connections is documented by Bright VPN; evidence of the component does **not** prove actual relaying on a specific device. [^bv-faq][^bv-partners][^bv-mb]
 
-**Evidence (B, tentative):** A **June 2023** Mouse Server execution shows SDK inside an unrelated application's directory. Bright VPN ANY.RUN reports **6 Nov 2025** and **31 Jan 2026** share SHA-256 `1929fa577e90828053bfa6e9524837b75ddc2bb8c00578d7ef6754cef37e25ac`: **one installer detonated twice**, not two builds or distinct infections. No SDK-only business prevalence measured. [^sdk-mouse][^bv-sample][^bv-sample-2026]
+**Evidence (tier B, current partner programme; corporate presence unknown):** On **13 November 2026**, the vendor's current programme page listed Windows hosts WiFi Mouse, Megacubo TV, Daemon Tools and DriverHub, and its Windows-capable tooling FAQ was updated **22 July 2026**. Those are publisher marketing claims about supported integrations, **not proof any present build on a client ships the SDK**. [^r06-sdk-live][^r06-sdk-tools] A **June 2023** Mouse Server execution shows SDK inside an unrelated application's directory. Bright VPN ANY.RUN reports **6 Nov 2025** and **31 Jan 2026** share SHA-256 `1929fa577e90828053bfa6e9524837b75ddc2bb8c00578d7ef6754cef37e25ac`: **one installer detonated twice**, not two builds or distinct infections. No SDK-only business prevalence measured. [^sdk-mouse][^bv-sample][^bv-sample-2026]
 
 | Pivot | Evidence and bounds |
 | --- | --- |
@@ -193,6 +227,20 @@ Intentional approved panel participation is a real alternative explanation, cons
 | `"C:\Program Files\Mouse Server\net_updater32.exe" --install win_wifimouse.necta.us` | **Exact ANY.RUN Process information** command, PID 2228, **29 Jun 2023**, with `Company: Luminati Networks Ltd.` and `Description: Luminati SDK Updater`. Its **Modules** section lists `c:\program files\mouse server\lum_sdk32.dll`. `win_wifimouse.necta.us` identifies this **host**; `--install win_<app-id>` is a sample-supported **shape**, not mandatory on every build. [^sdk-mouse] |
 | `Bright VPN.exe` (runtime), `brightvpn_installer.exe` (installer), `net_updater32.exe` (candidate SDK) | Names visible in **2025** public report. The formerly claimed `\Bright VPN\` plus `win_brightvpn.com` path/argument is **UNCONFIRMED** by the publicly visible process details: do **not** treat it as verified. [^bv-sample][^bv-sample-2026] |
 | `PUP.Optional.BrightData` | Broad product-family detection lead, not proof of a running SDK or proxy relay. [^bv-mb] |
+
+**Typed identifier table (Run 06):** The 2023 ANY.RUN **Process information** provides the path, description and command-line sample; **Modules** lists the DLL. An undated file-reference page supplies the service name. The full publisher C/C++ guide redirects to authentication and is **not used as an independent source for new identifiers**.
+
+| Product | Identifier type | Exact source value | Log Analytics table.column, if ingested | Condition | Source |
+| --- | --- | --- | --- | --- | --- |
+| Bright/Luminati SDK | distinctive module/file | `lum_sdk32.dll` | `DeviceFileEvents.FileName` for **file event only**; actual loaded module needs separate module telemetry | **standalone SDK file lead**, not execution | [^sdk-mouse] |
+| Luminati SDK | version description | `Luminati SDK Updater` | `DeviceProcessEvents.ProcessVersionInfoFileDescription` | **pair with net_updater32.exe**, sample description | [^sdk-mouse][^r06-sdk-file] |
+| Bright/Luminati SDK | generic updater | `net_updater32.exe` | `DeviceProcessEvents.FileName` | **pair with SDK metadata/DLL/host folder**; never alone | [^sdk-mouse][^r06-sdk-file] |
+| Luminati SDK in Mouse Server | observed exact process path | `C:\Program Files\Mouse Server\net_updater32.exe` | `DeviceProcessEvents.FolderPath` | **standalone path+name** for this sample host; don't require Mouse Server elsewhere | [^sdk-mouse] |
+| Luminati SDK in Mouse Server | observed installation argument | `--install win_wifimouse.necta.us` | `DeviceProcessEvents.ProcessCommandLine`, if populated | **pair with updater**; optional, not required | [^sdk-mouse] |
+| Bright VPN host | service identifier on file-reference page | `luminati_net_updater_win_brightvpn_com` | collected service-install name or ingested `DeviceEvents.AdditionalFields` | **standalone service lead**, corroborate actual executable | [^r06-sdk-file] |
+| Bright Data family | detection | `PUP.Optional.BrightData` | `SecurityAlert.AlertName` / ingested `DeviceEvents.AdditionalFields` | **standalone detection lead**, can refer to VPN not embedded SDK | [^bv-mb] |
+
+**Finished boundary:** Exact host-specific service/path or SDK DLL provides a no-command-line identification lead; confirm actual updater/host execution before reporting active use. A DLL file event, installer, or product-marketing example does not establish proxy traffic or a current enterprise installation.
 
 **High-level Sentinel hunt:** Sweep available process-creation telemetry for both updater filenames at **all paths**; corroborate product and embedded host. Use recorded argument `win_<app-id>` when available and associate it with the host application. Optional ingested files, services, registry and process-attributed network events clarify continued activity. Separate a blocked installer, executable runtime, and actual relaying. Check whether the host *and SDK* are approved.
 
@@ -277,11 +325,11 @@ Intentional approved panel participation is a real alternative explanation, cons
 
 These are **incident leads**, separate from the low-severity H list; neither a PUP label nor a shared search-advert route proves a host is infected.
 
-| ID | Pack | Newest dated source | Added | Status |
-| --- | --- | --- | --- | --- |
-| [E001](#e001-pdf-spark-and-onebrowser) | PDF Spark / OneBrowser signer overlap | OneBrowser guide updated 4 Nov 2026 | Run 04 | Finished: qualified signer/process/task pivots |
-| [E002](#e002-jia-hao-document-utility-siblings-and-projextor-comparison) | Jia Hao / PDF Polish sibling context and Projextor | G DATA 17 Aug 2026; PDF Polish 10 Apr 2026 | Run 05 | Finished: malware-grade investigation; attribution qualified |
-| [E003](#e003-cl-unk-1090-and-hollowmare-document-tools) | CL-UNK-1090 / HollowMare document tools | Intezer 27 Jul 2026, SagePDF observed Jan 2026 | Run 04 reclassification of H006 | Finished: sample and installer stages separated |
+| Run order | ID | Pack | Newest dated source | Added | Status |
+| --- | --- | --- | --- | --- | --- |
+| 1 | [E001](#e001-pdf-spark-and-onebrowser) | PDF Spark / OneBrowser signer overlap | OneBrowser guide updated 4 Nov 2026 | Run 04 | Finished: qualified signer/process/task pivots |
+| 2 | [E002](#e002-jia-hao-document-utility-siblings-and-projextor-comparison) | Jia Hao / PDF Polish sibling context and Projextor | G DATA 17 Aug 2026; PDF Polish 10 Apr 2026 | Run 05 | Finished: malware-grade investigation; attribution qualified |
+| 3 | [E003](#e003-cl-unk-1090-and-hollowmare-document-tools) | CL-UNK-1090 / HollowMare document tools | Intezer 27 Jul 2026, SagePDF observed Jan 2026 | Run 04 reclassification of H006 | Finished: sample and installer stages separated |
 
 ### E001: PDF Spark and OneBrowser
 
@@ -386,9 +434,9 @@ For each run, record the number of workspaces and endpoints actually covered, th
 | 01 correction | 2026-11-13 | H003 Web Companion replaces H002 | User confirmed PC App Store is already well known. Removed its active card and added a persistent exclusion; preserved its retired ID. |
 | 02 | 2026-11-13 | H004 RelevantKnowledge; H005 Bright VPN | Added two distinct product-specific hunts, including approval/consent checks and strict limits on claims about data collection or actual relaying. No client queries run. |
 | 03 | 2026-11-13 | H006 HollowMare document/browser-change pack (one candidate; one evidence-based shortfall) | **Review 003 · 2026-11-13 01:02 GMT**, reviewed register `b8153a2`, reviews.md SHA `a30fbcd586b720a60c26d2110b1ee3f429143ed9` read before research; itemised action/decline record below. No client data accessed. |
-
 | 04 | 2026-11-13 | H007 Dragon Boss, H008 Infatica, E001 PDF Spark/OneBrowser, reclassified H006 into E003 | Read **Review 007 · 2026-11-13 02:46 GMT**, reviewed register commit 05a9a36, review-file SHA 33247266896ac3f03072ddac0980a64ac1e6adff. Detailed action/decline record below. Six active H packs, two E packs; no client queries. |
 | 05 | 2026-11-13 | H009 Hola, H010 Honeygain, E002 Jia Hao/Projextor | Review 007 followed; existing fixes verified, 04:00 E002 carryover actioned, two recent measured/provider-level leads chosen, L8 deferred; details below. No client queries. |
+| 06 | 2026-11-13 | No new IDs; H001/H003/H004/H005 evidence and typed tables; both indexes re-ranked | Review 007 and 05:00 plan followed. H001/H003/H005 finished; H004 remains incomplete because real-world current activity was not verified. No client queries. |
 
 ### Run 03: review actions, corrections and deliberate shortfall
 
@@ -427,6 +475,19 @@ For each run, record the number of workspaces and endpoints actually covered, th
 - **Next #5 / Standing guidance 8 — ACTIONED:** Checked new H identifiers against Unit 42's 20 May 2026 malware-grade signer set in the review sweep sheet. Neither H009 nor H010 uses a listed signer as a positive; absence is **not** evidence of safety. Sophos's miner/AV-exclusion chain is a distinct **escalation**, not reclassified as PUP.
 - **Review 005 corrections 1–3 — ALREADY/PARTIALLY ACTIONED:** H005 anchor and PDF Polish uncertainty corrected previously. H005 still **incomplete** (SDK-specific contemporary prevalence and typed table); no false “finished” declaration.
 - **Format, integrity and scope — ACTIONED:** New H cards share existing “Applies to every card” policy; each has a source-backed no-command-line standalone seed, table/column, positive/negative interpretation and severity branch. Retained existing IDs and footnotes; no client workspaces were accessed, no KQL was generated and no client results were asserted.
+
+### Run 06: 05:00 finish-and-prioritise audit
+
+**Review read before research:** **Review 007 · 2026-11-13 02:46 GMT**; **reviewed register commit `05a9a36`**; `reviews.md` blob SHA **`33247266896ac3f03072ddac0980a64ac1e6adff`**. Read The brief, Orders until 08:00, Standing guidance, Lead queue, Verified sweep sheet and newest review; `reviews.md` remained unmodified.
+
+- **Review Next #1 — actioned:** Exact review/commit/SHA named. Reviewer saw no 02:00 commit; the cause of any missed execution is unknown and is not invented.
+- **Next #2 / Review 006 corrections 1–4 — already actioned in Run 04:** H006 retired as E003; installer-stage paths separated from installed runtime, PDF Spark/Unit 42 signer overlap qualified, Shift source wording/date corrected. Counts and index checked again.
+- **Next #3 — already actioned:** E001 saved in Run 04 and E002 in Run 05. **No new E pack** during the 05:00 quality-only run. E003 remains separate escalation material.
+- **Next #4 — already actioned:** L3/L4 written in Run 04 as H007/H008, L5/L7 in Run 05 as H009/H010. **Declined additional candidates now** because the 05:00 Orders explicitly require finishing rather than adding; L8/IPIDEA remains a cautious lead after Google's network disruption.
+- **Next #5 / Standing guidance 8 — actioned:** Prior Dragon Boss and Infatica signer comparisons to Unit 42 remain in the log; none of the new typed fields is represented as a clean malware-signer verdict. Process matches do not establish harm; AV-removal and miner chains remain escalation-grade.
+- **Review 005 typed-table correction — actioned:** Gave H001, H003, H004 and H005 product/type/exact value/workspace field/standalone-or-pair/source tables. Verified SigmaHQ, Trend Micro, Malwarebytes, Comscore and the original Mouse Server sandbox; source age and authentication-gated SDK guide clearly labelled. No generic `net_updater32.exe` match is standalone.
+- **05:00 Orders — actioned:** No new packs. Re-ranked both H and E indexes in actual run order. H001 is now finished on a real March 2026 corporate sighting; H003 on live 13 November publisher distribution and typed application execution pivots; H005 on a current Windows SDK partner programme and typed SDK/host identifiers. **H004 remains Incomplete**: 2025 sandbox evidence and the current panel privacy listing do not establish recent installation on real machines. This is an evidence shortfall, not a hidden success.
+- **Integrity/scope — actioned:** Existing cards/footnotes retained; approved use, runtime, downloaded installer, detection/blocked attempt, file artefact and third-party relaying remain separate conclusions. No Log Analytics workspaces queried, KQL generated, or findings claimed.
 
 ## Sources
 
@@ -489,3 +550,9 @@ All sources reviewed on **13 November 2026**. Undated pages are not represented 
 [^r05-jia]: Rabbit Knight, [“The FlipFormat_# Illusion: The Magic of the Doc Convert Wizard”](https://medium.com/@rabbit_knight/the-flipformat-illusion-the-magic-of-the-doc-convert-wizard-10036623d0e8), **4 Apr 2026**, “Files analyzed”, “Living Off the Land”, downloader and hypothetical DLL sideload. `Jia Hao` is *version metadata*, not independently verified signer. Opened in Run 05.
 [^r05-polish-sample]: ANY.RUN, [`PDFImage_519340.exe` / PDF Polish](https://any.run/report/aedc27e467ca25aee298b4bc85ee57d83bceb049ce751c06dac50cc20aea6712/44d19d08-5913-4254-8cc3-84c56759f670), **10 Apr 2026**, “General Info”, “Process information” and “Registry activity”. The user `admin` is a *sandbox example*, not fixed hunting predicate. Opened in Run 05.
 [^r05-ipidea]: Google Threat Intelligence Group, [“No Place Like Home Network: Disrupting the World's Largest Residential Proxy Network”](https://cloud.google.com/blog/topics/threat-intelligence/disrupting-largest-residential-proxy-network), **28 Jan 2026**, original takedown report; disruption does not establish every PacketShare binary stopped. Opened Run 05.
+
+[^r06-wc-live]: Adaware Web Companion, [official Windows download](https://www.webcompanion.com/en/) and [publisher download landing page](https://free.webcompanion.com/), checked **13 Nov 2026**; proves available distribution only.
+[^r06-rk-panel]: Comscore, [research panel privacy listing](https://www.comscore.com/About/Privacy), checked **13 Nov 2026**; lists RelevantKnowledge but gives no current installation count or dated endpoint sighting.
+[^r06-sdk-live]: Bright SDK, [official monetisation partner page](https://bright-sdk.com/monetization), checked **13 Nov 2026**; named Windows examples are publisher claims, not verified current deployed binaries.
+[^r06-sdk-tools]: Bright SDK, [official integration tools description](https://help.bright-sdk.com/hc/en-us/articles/49017749085713-What-integration-tools-does-Bright-SDK-provide), updated **22 Jul 2026**, opened 13 Nov; describes Windows support and tooling, not population.
+[^r06-sdk-file]: file.net, [net_updater32.exe details](https://www.file.net/process/net_updater32.exe.html), opened **13 Nov 2026**, undated reference of SDK labels and specific Bright VPN service; not a fresh incident nor certificate validation.
