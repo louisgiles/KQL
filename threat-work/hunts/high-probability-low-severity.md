@@ -1,8 +1,8 @@
 # High-probability, low-severity threat hunts
 
 **Last researched:** 13 November 2026  
-**Latest research run:** 06 — 05:00 existing-pack audit and priority ordering; no new IDs
-**Active candidates:** Eight low-severity H packs (H001, H003, H004, H005, H007, H008, H009, H010), and three escalation E packs (E001, E002, E003). H002 and H006 retired.
+**Latest research run:** 07 — 06:00 new-lead assessment; H011 and H012 added
+**Active candidates:** Ten low-severity H packs (H001, H003, H004, H005, H007, H008, H009, H010, H011, H012), and three escalation E packs (E001, E002, E003). H002 and H006 retired.
 **Scheduled research:** Hourly through the final scheduled run at 08:00 Europe/London on 14 November 2026  
 **Execution surface:** Microsoft Sentinel / Log Analytics workspaces only  
 **Status:** Researched hunt hypotheses; no client queries have been run or results claimed.
@@ -25,7 +25,7 @@ The likelihood of a hit across clients is not yet measured. Selection below uses
 | OneStart / BaoLoader-associated activity | Not suitable for a routine low-severity PUP entry. [^excluded-onestart] |
 | H006 HollowMare | Retired from the low-severity list in Run 04, re-filed as E003 after the Unit 42 signer evidence. This historical ID is not reused. [^hollow][^pdf-signer] |
 
-Retired IDs are not reused. Eight active low-severity packs are indexed below; H006 was reclassified as E003, not counted as new.
+Retired IDs are not reused. Ten active low-severity packs are indexed below; H006 was reclassified as E003, not counted as new.
 
 ## Hunt index — low-severity packs
 
@@ -37,10 +37,12 @@ Retired IDs are not reused. Eight active low-severity packs are indexed below; H
 | 2 | [H009](#h009-hola-browser-and-desktop-vpn) | Hola Browser / desktop VPN | **A (provider-level)** | 30 Sep 2026: ~664k provider-associated Windows users, not branded-app hits | Run 05 | Finished: branded execution; miner findings escalate |
 | 3 | [H010](#h010-honeygain-windows-bandwidth-sharing-app) | Honeygain Windows | **A (provider-level)** | 30 Sep 2026: ~68k provider-associated Windows users, not relay proof | Run 05 | Finished: branded execution; relay unproven |
 | 4 | [H008](#h008-infatica-p2b-proxy-component) | Infatica P2B component | **B** | 11 Aug 2026: updated consumer-install report, not enterprise prevalence | Run 04 | Finished: product execution; relay unproven |
-| 5 | [H003](#h003-adaware-web-companion) | Adaware Web Companion | **B (live download)** | 13 Nov 2026: official Windows download page live; business report from 2023 | Run 01 replacement | Finished: typed identifiers; current estate use unmeasured |
-| 6 | [H005](#h005-bright-sdk--luminati-sdk-in-host-apps) | Bright/Luminati SDK in host apps | **B (live programme)** | 13 Nov 2026: publisher lists Windows host partners; 22 Jul Windows tool guide | Run 02, widened 03 | Finished: identifiable SDK; no current corporate prevalence |
-| 7 | [H001](#h001-onelaunch) | OneLaunch | **B (residual)** | 27 Mar 2026 corporate sighting; new downloads withdrawn | Run 01 | Finished: distinctive runtime; remaining installations only |
-| 8 | [H004](#h004-relevantknowledge) | RelevantKnowledge | **C** | 8 Dec 2025 sandbox; live privacy-panel listing ≠ current installs | Run 02 | Incomplete: recent real-world presence evidence |
+| 5 | [H011](#h011-iobit-driver-booster-for-windows) | IObit Driver Booster 14 | **B (live download)** | 13 Nov 2026: official product download live; 16 Sep 2026 release; enterprise prevalence unknown | Run 07 | Finished: branded process/path; separate PUP detection |
+| 6 | [H012](#h012-torrent-classic-for-windows) | µTorrent Classic Windows | **B (live download)** | 13 Nov 2026: official Classic download live; 2021 PUA bundle classification is historical | Run 07 | Finished: process/path corroboration; transfers unproven |
+| 7 | [H003](#h003-adaware-web-companion) | Adaware Web Companion | **B (live download)** | 13 Nov 2026: official Windows download page live; business report from 2023 | Run 01 replacement | Finished: typed identifiers; current estate use unmeasured |
+| 8 | [H005](#h005-bright-sdk--luminati-sdk-in-host-apps) | Bright/Luminati SDK in host apps | **B (live programme)** | 13 Nov 2026: publisher lists Windows host partners; 22 Jul Windows tool guide | Run 02, widened 03 | Finished: identifiable SDK; no current corporate prevalence |
+| 9 | [H001](#h001-onelaunch) | OneLaunch | **B (residual)** | 27 Mar 2026 corporate sighting; new downloads withdrawn | Run 01 | Finished: distinctive runtime; remaining installations only |
+| 10 | [H004](#h004-relevantknowledge) | RelevantKnowledge | **C** | 8 Dec 2025 sandbox; live privacy-panel listing ≠ current installs | Run 02 | Incomplete: recent real-world presence evidence |
 
 **Status:** Finished means sourced, product-specific standalone identifier without command lines, typed table and explicit match meaning. It does not mean verified tenant execution. No tenant data queried in any run.
 
@@ -321,6 +323,37 @@ Intentional approved panel participation is a real alternative explanation, cons
 
 **Hunt:** Confirm execution of branded software via Sentinel process telemetry in a 30-day window, identify the user/authorised installation, and optionally correlate network, file and registry events if ingested. `Honeygain.exe` execution establishes product use, **not** that `hgwin.dll` loaded or that third-party traffic flowed. Escalate covert installation, demonstrated traffic relay inconsistent with client policy, or independently evidenced malware. A knowingly authorised earning app could be benign under policy. PaysFair's installer and the public sandbox sample have the **same hash**, so they are not two builds or two observed infections. [^r05-hg-static][^r05-hg-sample]
 
+## H011: IObit Driver Booster for Windows
+
+**Hypothesis, tier B (Review 007 L7):** An unapproved consumer driver updater may be installed on managed Windows endpoints. **Likely-now evidence:** IObit announced Driver Booster **14 on 16 September 2026**, and the official free Windows download was live **13 November 2026**. Malwarebytes labels IObit's specific product `PUP.Optional.iObitDriverBooster`, a PUP not proof of malware. This must **not** be confused with Energizer Softech's different `PUP.Optional.DriverBooster`. Distribution is current; estate prevalence is not measured. [^r07-iobit-press][^r07-iobit-live][^r07-iobit-mb]
+
+**Exact identifier table:** Malwarebytes paths and tasks describe version **6.3.0 in its 12 March 2019 removal log**, not guaranteed paths for version 14.
+
+| Product | Type | Exact value from source | Sentinel Log Analytics table.column, if collected | Match criterion | Source |
+| --- | --- | --- | --- | --- | --- |
+| IObit Driver Booster | executable | `DriverBooster.exe` | `DeviceProcessEvents.FileName` | **standalone** branded runtime lead; validate product/path | [^r07-iobit-mb] |
+| IObit Driver Booster | historical installed executable | `C:\Program Files (x86)\IObit\Driver Booster\6.3.0\DriverBooster.exe` | `DeviceProcessEvents.FolderPath` | **standalone** combined exact path+filename; old-version example only | [^r07-iobit-mb] |
+| IObit Driver Booster | historical scheduled task | `Driver Booster Scheduler` | collected `WindowsEvent.EventData` task-creation events | pair with runtime; events are not live task inventory | [^r07-iobit-mb] |
+| IObit Driver Booster | historical scheduled task | `Driver Booster SkipUAC ({username})` | collected `WindowsEvent.EventData` task-creation events | pair with runtime; username variable | [^r07-iobit-mb] |
+| IObit Driver Booster | PUP classification | `PUP.Optional.iObitDriverBooster` | `SecurityAlert.AlertName` or ingested vendor detection field | **standalone detection lead**, not execution proof | [^r07-iobit-mb] |
+
+**Hunt:** Across 30 retained days of Sentinel Windows process telemetry, seek `DriverBooster.exe` with the IObit product folder and corroborating version/metadata; use scheduler or file evidence only if ingested. Record execution, user and approval separately from mere installers and blocks. **Proves:** branded updater execution, not malware or which drivers were changed. **Benign:** authorised technician use. **Escalate:** corroborated malicious downloads, unapproved driver modification or security-control interference. **Signer screen:** an older version contains IObit-related company metadata, not independently validated current Authenticode; the review's Unit 42 CL-UNK-1090/OneBrowser signer list has no observed IObit name, but absence is not a safety clearance.
+
+## H012: µTorrent Classic for Windows
+
+**Hypothesis, tier B (Review 007 L7):** A Windows endpoint runs a consumer peer-to-peer download client outside the client's permitted software. The publisher's **Windows Classic download remained live 13 November 2026**; advertised lifetime downloads are **not** present-day enterprise installations. Microsoft's named `PUA:Win32/uTorrent_BundleInstaller` classification was last updated **15 February 2021** and refers to a bundled installer, not automatic malware attribution to all clients. [^r07-ut-live][^r07-ut-ms]
+
+**Exact identifier table:** Two full application paths are transcribed from a user's **1 March 2025** Malwarebytes support post. They demonstrate real product locations historically, not current estate scale.
+
+| Product | Type | Exact source value | Sentinel Log Analytics table.column, if collected | Match criterion | Source |
+| --- | --- | --- | --- | --- | --- |
+| µTorrent Classic | executable | `uTorrent.exe` | `DeviceProcessEvents.FileName` | **standalone** branded process lead; corroborate path/product | [^r07-ut-forum] |
+| µTorrent Classic | installed executable | `C:\Program Files (x86)\uTorrent\uTorrent.exe` | `DeviceProcessEvents.FolderPath` | **standalone** combined brand-folder+file | [^r07-ut-forum] |
+| µTorrent Classic | per-user installed executable | `C:\Users\{Username}\AppData\Roaming\uTorrent\uTorrent.exe` | `DeviceProcessEvents.FolderPath` | **standalone** combined brand-folder+file; variable username | [^r07-ut-forum] |
+| µTorrent Classic | bundle PUA detection | `PUA:Win32/uTorrent_BundleInstaller` | `SecurityAlert.AlertName` or appropriate ingested vendor field | **standalone detection lead**; verify prevention outcome | [^r07-ut-ms] |
+
+**Hunt:** Corroborate running branded client and user/path over the retained window; where available, examine attributed peer connections and the execution of downloaded payloads. **Proves:** µTorrent execution, **not** illegal download, exfiltration or malware. **Benign:** approved P2P transfers and legitimate client use. **Escalate:** independent malicious downloaded-executable execution, sensitive-file transfer or externally reachable service contrary to policy. **Signer screen:** a legacy 2015 diagnostic listed company metadata `BitTorrent, Inc.` and product `µTorrent`, not a currently verified code signer; the Unit 42 list has no observed matching company, which is not evidence of safety. [^r07-ut-legacy]
+
 ## Same route, not low severity — escalation packs
 
 These are **incident leads**, separate from the low-severity H list; neither a PUP label nor a shared search-advert route proves a host is infected.
@@ -437,6 +470,7 @@ For each run, record the number of workspaces and endpoints actually covered, th
 | 04 | 2026-11-13 | H007 Dragon Boss, H008 Infatica, E001 PDF Spark/OneBrowser, reclassified H006 into E003 | Read **Review 007 · 2026-11-13 02:46 GMT**, reviewed register commit 05a9a36, review-file SHA 33247266896ac3f03072ddac0980a64ac1e6adff. Detailed action/decline record below. Six active H packs, two E packs; no client queries. |
 | 05 | 2026-11-13 | H009 Hola, H010 Honeygain, E002 Jia Hao/Projextor | Review 007 followed; existing fixes verified, 04:00 E002 carryover actioned, two recent measured/provider-level leads chosen, L8 deferred; details below. No client queries. |
 | 06 | 2026-11-13 | No new IDs; H001/H003/H004/H005 evidence and typed tables; both indexes re-ranked | Review 007 and 05:00 plan followed. H001/H003/H005 finished; H004 remains incomplete because real-world current activity was not verified. No client queries. |
+| 07 | 2026-11-13 | H011 IObit Driver Booster; H012 µTorrent Classic; no E additions | Review 007 read; remaining L8/L6 examined but not promoted, L7 sourced as two current-download low-severity packs. Detailed action log below. No tenant queries. |
 
 ### Run 03: review actions, corrections and deliberate shortfall
 
@@ -488,6 +522,20 @@ For each run, record the number of workspaces and endpoints actually covered, th
 - **Review 005 typed-table correction — actioned:** Gave H001, H003, H004 and H005 product/type/exact value/workspace field/standalone-or-pair/source tables. Verified SigmaHQ, Trend Micro, Malwarebytes, Comscore and the original Mouse Server sandbox; source age and authentication-gated SDK guide clearly labelled. No generic `net_updater32.exe` match is standalone.
 - **05:00 Orders — actioned:** No new packs. Re-ranked both H and E indexes in actual run order. H001 is now finished on a real March 2026 corporate sighting; H003 on live 13 November publisher distribution and typed application execution pivots; H005 on a current Windows SDK partner programme and typed SDK/host identifiers. **H004 remains Incomplete**: 2025 sandbox evidence and the current panel privacy listing do not establish recent installation on real machines. This is an evidence shortfall, not a hidden success.
 - **Integrity/scope — actioned:** Existing cards/footnotes retained; approved use, runtime, downloaded installer, detection/blocked attempt, file artefact and third-party relaying remain separate conclusions. No Log Analytics workspaces queried, KQL generated, or findings claimed.
+
+### Run 07: 06:00 new-candidate research
+
+**Read before any candidate research:** **Review 007 · 2026-11-13 02:46 GMT**; its reviewed register commit was `05a9a36` and latest `reviews.md` main-branch blob SHA is `33247266896ac3f03072ddac0980a64ac1e6adff`. Read the brief, orders, Standing guidance, lead queue, Verified sweep sheet, and newest review. `reviews.md` was not edited.
+
+- **Review 007 Next #1 — actioned:** Review heading/time, reviewed commit and blob SHA recorded. The reviewer reported no 02:00 commit; whether a 02:00 run was attempted or why it failed cannot be determined, so no cause is invented.
+- **Next #2, Review 006 corrections 1–4, Review 005 corrections 1–3 — already actioned in Runs 04–06:** H006 retired to E003; temporary versus installed artefacts separated; PDF Spark/OneBrowser signer linkage qualified; Shift source wording/date corrected; H005 anchor and typed identifiers corrected; already-covered PDF Polish attribution qualified. Rechecked current file, no redundant edits.
+- **Next #3 — already actioned:** E001 added Run 04 and E002 Run 05; E003 is the moved H006. No escalation pack newly justified under the 06:00 plan.
+- **Next #4 / 06:00 order — partly already actioned, two new packs added:** L3/H007 and L4/H008 from Run 04 are complete. L5/H009 and Honeygain/H010 from Run 05 already cover those leads. Investigated remaining **L8 IPIDEA/PacketShare**, then **L6 PDFFlows**, before taking L7. **L8 declined as a finished *PacketShare* ID:** Lumen Black Lotus Labs **24 July 2026** documents IPIDEA network recovery to nearly ten million daily IPs, but that is **not** a verified post-disruption PacketShare Windows installation or active executable sighting; the sweep sheet's PacketShare path/file observations are from **2025**. The network also includes malware-backed installations, so avoid low-severity attribution to network-wide traffic. Keep L8 open pending current product-specific proof. [^r07-lumen]
+- **L6 declined:** Joe Sandbox July 2026 PDFFlows/WinRAR analysis could not be opened. A current product-style PDFFlows marketing site does not verify the installer content or an active misleading download campaign. No claim of a genuine WinRAR payload in current builds; keep lead open.
+- **L7 actioned with evidence bar:** **H011 IObit Driver Booster** and **H012 µTorrent Classic**, two separate publishers/products with **official live Windows downloads checked 13 Nov 2026** and historically observed distinctive exe/path artefacts. IObit released major version 14 **16 Sep 2026**. Vendor PUP names are sourced but old and kept separate from runtime execution; neither current-download page establishes a client hit. Correctly distinguish IObit's tool from Energizer Softech's similarly named product. Both tier B, not speculative tier A. [^r07-iobit-press][^r07-iobit-live][^r07-iobit-mb][^r07-ut-live][^r07-ut-ms]
+- **Next #5 / Standing guidance 8 — actioned:** Checked historical company strings IObit and BitTorrent, Inc. against the review's Unit 42 signer list; no observed match. **No current Authenticode signer was verified**, and absence from the listed campaign signers is not proof of harmlessness. Any verified listed signer would demand an escalation pack. Each new identifier has a source, Log Analytics field, and standalone/pair role; generic download/setup names were not used alone.
+- **Formatting, shortfall and scope — actioned:** No existing cards deleted or rewritten. New cards are compact and defer to the shared 30-day/telemetry/approval standard. The 06:00 two-candidate target was met without counting L8's network recovery as PacketShare deployment. No KQL generated or client workspaces accessed.
+
 
 ## Sources
 
@@ -556,3 +604,11 @@ All sources reviewed on **13 November 2026**. Undated pages are not represented 
 [^r06-sdk-live]: Bright SDK, [official monetisation partner page](https://bright-sdk.com/monetization), checked **13 Nov 2026**; named Windows examples are publisher claims, not verified current deployed binaries.
 [^r06-sdk-tools]: Bright SDK, [official integration tools description](https://help.bright-sdk.com/hc/en-us/articles/49017749085713-What-integration-tools-does-Bright-SDK-provide), updated **22 Jul 2026**, opened 13 Nov; describes Windows support and tooling, not population.
 [^r06-sdk-file]: file.net, [net_updater32.exe details](https://www.file.net/process/net_updater32.exe.html), opened **13 Nov 2026**, undated reference of SDK labels and specific Bright VPN service; not a fresh incident nor certificate validation.
+[^r07-iobit-press]: IObit, [Driver Booster 14 launch press release](https://www.iobit.com/en/pressroom-driver-booster-14-launches-with-new-game-dll-fixer-and-expanded-23m%2B-driver-database-785.php), **16 Sep 2026**; opened 13 Nov. Current product release, not enterprise adoption.
+[^r07-iobit-live]: IObit, [official Driver Booster 14 Windows download](https://www.iobit.com/en/driver-booster.php), live **13 Nov 2026**. No independent current-user count.
+[^r07-iobit-mb]: Malwarebytes, [PUP.Optional.iObitDriverBooster](https://www.malwarebytes.com/blog/detections/pup-optional-iobitdriverbooster), opened 13 Nov; main process/path and two scheduler task names appear under “Malwarebytes removal log”/“Traces/IOCs”, sample date **12 Mar 2019**, version **6.3.0**. Not IObit version 14 or Energizer's similarly named product.
+[^r07-ut-live]: µTorrent, [official product page](https://www.utorrent.com/) and [Windows Classic download page](https://www.utorrent.com/intl/it/downloads/win/), live **13 Nov 2026**, static overall download claims not active Windows/enterprise prevalence. Windows page's `%AppData%\uTorrent` language-pack directory is not proof of execution.
+[^r07-ut-ms]: Microsoft Security Intelligence, [uTorrent PUA classification search](https://www.microsoft.com/en-us/wdsi/threats/threat-search?query=PUA%3AWin32%2FuTorrent), opened 13 Nov; bundled-installer PUA label last updated **15 Feb 2021**. Does not establish installation or malicious client use.
+[^r07-ut-forum]: Malwarebytes support forum, [uTorrent exception thread](https://forums.malwarebytes.com/topic/323305-resolved-any-way-to-exclude-utorrent-from-scans/), **1 Mar 2025** user report of executable and two exact Windows paths. User report is not provider-certified prevalence or a present-day sample.
+[^r07-ut-legacy]: µTorrent Community Forum, [2015 antivirus troubleshooting log](https://forum.utorrent.com/topic/98398-utorrentexe-detected-by-anti-virus-and-anti-malware-software/), **7 May 2015** original diagnostic file version info `Company="BitTorrent, Inc."` and `ProductName="µTorrent"`; not current digital signing validation.
+[^r07-lumen]: Lumen Black Lotus Labs, [“Symbiotic Parasites: The Modern Proxy Ecosystem”](https://www.lumen.com/blog/en-us/symbiotic-parasites-the-modern-proxy-ecosystem), **24 Jul 2026**, section “IPIDEA”; IPIDEA network recovery and ~10m daily IPs not attributable specifically to PacketShare Windows installs.
