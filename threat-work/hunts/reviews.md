@@ -296,10 +296,12 @@ These are not low severity. Public reporting classes them as malware or as a mal
 | `\PwrId\PwrId.txt`, `\DocID\DocID.txt`, under the user's Temp folder | File | Machine-identifier files written by PowerPlayer and PDFDoc | standalone | contested | IN |
 | `Dragon Boss Solutions LLC` | Signer | Chromnius, Chromstera Browser, Artificius Browser, World Wide Web | standalone | low, but check the escalation rows | HU |
 | `\Program Files (x86)\Chromstera Browser\` | Folder | Chromstera Browser | standalone | low | HU |
+| `\Program Files (x86)\Chromstera Browser Solutions\Chromstera Browser`, `\Program Files (x86)\Artificius Browser Solutions\Artificius Browser` | Folder | Where the sources table of executables places `ChromsteraUpdater.exe` and `ArtificiusUpdater.exe`. Read in Review 008 | standalone | low | HU |
 | `\World Wide Solutions\World Wide Web\` | Folder | World Wide Web | standalone | low | HU |
 | `ChromsteraUpdater.exe`, `ArtificiusUpdater.exe` | Process name | Chromstera Browser, Artificius Browser | standalone | low | HU |
-| `WorldWideWeb.exe`, `UniversalUpdater.exe` | Process name | World Wide Web | pair | low | HU |
-| `WinDefenseThree.exe`, `WinDefenseFive.exe`, `WinSupportFive.exe`, `WaveTownFive.exe`, `SistemaTownOne.exe`, `TableBoatTwo.exe`, `RaceCarTwo.exe`, `ProductSetupTwo.exe` | Process name | Dragon Boss updaters under other brand names. Each sits in a folder of the same name under `\Program Files (x86)\`, for example `\WinDefenseThreeSolutions\WinDefenseThree\` or `\TableBoatTwoWorkstation\TableBoatTwo\`. Read once, in Review 007 | standalone | low, but check the escalation rows | HU |
+| `WorldWideWeb.exe` | Process name | World Wide Web. Sits in `\World Wide Solutions\World Wide Web\` | pair with the folder | low | HU |
+| `UniversalUpdater.exe` | Process name | Dragon Boss updater that sits in `\Program Files (x86)\Web Genius Solutions\Web Genius\`. Corrected in Review 008: this row used to pair it with World Wide Web | pair with the folder | low | HU |
+| `WinDefenseThree.exe`, `WinDefenseFive.exe`, `WinSupportFive.exe`, `WaveTownFive.exe`, `SistemaTownOne.exe`, `TableBoatTwo.exe`, `RaceCarTwo.exe`, `ProductSetupTwo.exe` | Process name | Dragon Boss updaters under other brand names. Each sits in a folder of the same name under `\Program Files (x86)\`, for example `\WinDefenseThreeSolutions\WinDefenseThree\` or `\TableBoatTwoWorkstation\TableBoatTwo\`. Read in Reviews 007 and 008. Review 008 also read `ReadySpaceThree.exe`, in `\FutureSpaceThreeSolutions\FutureSpaceThree\` | standalone | low, but check the escalation rows | HU |
 | `OneLaunch.exe` | Process name | OneLaunch (H001) | standalone | low | SG |
 | `Bright VPN.exe`, `brightvpn_installer.exe` | Process name | Bright VPN (H005) | standalone | low | AR |
 | `Bright SDK`, `Luminati SDK` | Version-information product | Bright SDK component inside any host app (H005) | standalone | low | FF, AM |
@@ -388,7 +390,7 @@ On the contested rows: PDFDoc and PowerPlayer belong to the family Intezer calls
 - **GS:** [GridinSoft file analysis of `PDFSparkWare_286830.exe`](https://gridinsoft.com/online-virus-scanner/id/edcd5b2a5419ae6860ac92ffe0be86ee28857adde13420a7f972dbc0883e7eb3), analysis dated 24 Nov 2025. Opened in Review 006.
 - **GT:** [Google Threat Intelligence on disrupting the IPIDEA proxy network](https://cloud.google.com/blog/ja/topics/threat-intelligence/disrupting-largest-residential-proxy-network?hl=ja), first published 29 Jan 2026. Read in the Japanese edition dated 4 Feb 2026.
 - **HE:** [Heimdal on Shift Browser](https://heimdalsecurity.com/blog/shift-browser-signed-adware-fingerprints-endpoint-before-payload/), 3 Sep 2026.
-- **HU:** [Huntress, "When PUPs Grow Fangs"](https://www.huntress.com/blog/pups-grow-fangs), 14 Apr 2026. Re-read in Review 007.
+- **HU:** [Huntress, "When PUPs Grow Fangs"](https://www.huntress.com/blog/pups-grow-fangs), 14 Apr 2026. Re-read in Reviews 007 and 008.
 - **IN:** [Intezer, "Two Trojan Families Trotting in Through Google Search Ads"](https://research.intezer.com/blog/2026/07/two-trojan-families/), 27 Jul 2026. Read three times, the last to the end of its indicator table.
 - **JS:** [Joe Sandbox analysis of the `sparkonsoft[.]com` download page](https://www.joesandbox.com/analysis/1787620/0/html). Search text.
 - **MA:** [Mallory entry for OneBrowser](https://mallory.ai/malware/019e6578-e975-70a3-b191-59e9b29bb8e7), summarising the analysis under RK. Search text.
@@ -438,15 +440,16 @@ On the contested rows: PDFDoc and PowerPlayer belong to the family Intezer calls
 | H010: Advanced Uninstaller page for Honeygain 0.7.0.0 (AG) | Opened from search results. `Honeygain.exe` and `HoneygainUpdater.exe` in `\AppData\Roaming\Honeygain\`. Written 26 Sep 2020, so old. |
 | H012: file.net page for `uTorrent.exe` (FU) | Opened from search results. Main location `\AppData\Roaming\uTorrent\`, publisher BitTorrent. Undated. It does not show `C:\Program Files (x86)\uTorrent\`. |
 | H009: Sophos on Hola (SH) | Opened from search results. Both paths, the service name and the SHA-256 in H009 match. The page shows no date. News coverage of it is dated 5 Jun 2026 (search text). It gives no Hola process name or signer. |
+| H007: Huntress (HU) | Opened from search results after this entry was first pushed. The signer, the five task names, both WMI consumers, both scripts and the `WMILoad` folder match the pack and the sheet. The table of executables matches the folders in the pack. See correction 5. |
 | H009, H010: Gen Digital figures | Not confirmed. Searching found a different Gen Digital article, dated 11 Jun 2026, with no figure per provider. A direct fetch of the register's link needs an approval nobody is here to give. |
 | New leads | GridinSoft on the OfferCore detection (GF), GridinSoft on CHIP Downloader (GC) and an Advanced Uninstaller page for Pawns.app (AW), all opened from search results. |
-| Not opened | PaysFair and the Honeygain support page. The PDF Polish sandbox report and the Rabbit Knight analysis behind E002. The Team-IT case behind E001 (a search did not find it). The Malwarebytes forum thread and the Microsoft page behind H012. The file.net pages for `DriverPack.exe` and `DriverUpdater.exe` (a direct fetch needs approval). The vendor download and press pages. Lumen and the GridinSoft PacketShare entry. Every source Run 06 added to H001, H003, H004 and H005. Huntress, Unit 42, Intezer, G DATA and the OneBrowser guide were not re-read: Reviews 003 to 007 read them. |
+| Not opened | PaysFair and the Honeygain support page. The PDF Polish sandbox report and the Rabbit Knight analysis behind E002. The Team-IT case behind E001 (a search did not find it). The Malwarebytes forum thread and the Microsoft page behind H012. The file.net pages for `DriverPack.exe` and `DriverUpdater.exe` (a direct fetch needs approval). The vendor download and press pages. Lumen and the GridinSoft PacketShare entry. Every source Run 06 added to H001, H003, H004 and H005. Unit 42, Intezer, G DATA and the OneBrowser guide were not re-read: Reviews 003 to 007 read them. |
 
 All new values were read once, through one page fetch each.
 
 **What changed in this file**
 
-- *Verified sweep sheet*: rows for H010 to H014, Pawns.app and CHIP Downloader under "Unwanted software", one ManualFinder task under "Escalate on match", nine source keys.
+- *Verified sweep sheet*: rows for H010 to H014, Pawns.app and CHIP Downloader under "Unwanted software", one ManualFinder task under "Escalate on match", nine source keys. One correction: `UniversalUpdater.exe` belongs to the Web Genius folder, not to World Wide Web. The second Chromstera folder is added.
 - *Lead queue*: E001, E002, E003, L3, L4, L5 and L7 marked taken. New leads L9, L10 and L11. A note on L8.
 - *Standing guidance* 9 is new. It says this is the last review and that a new pack needs dated evidence, not only a live download page.
 
@@ -456,7 +459,7 @@ All new values were read once, through one page fetch each.
 2. **H013:** the standalone row rests on a path this review could not see in the cited report. Quote the report's line for it in the footnote, or mark the row unconfirmed. Add the signer `Outbyte Computing Pty Ltd` as a standalone row (GB).
 3. **H014:** `DriverPack.exe` is marked standalone, but the cited log shows it only in a temporary self-extraction folder. Say so in the row. Add `DriverPackNotifier.exe` with its two folders, the task `DRPNPS` and the key `HKCU\SOFTWARE\DRPSU` (MP).
 4. **H009 and H010:** quote the Gen Digital sentence that gives each figure, with its date. If it cannot be quoted, change the tier from A to B. Add `\AppData\Roaming\Honeygain\Honeygain.exe` to H010 (AG).
-5. **H007:** the pack gives `C:\Program Files (x86)\Chromstera Browser Solutions\Chromstera Browser` and assigns `UniversalUpdater.exe` to "Web Genius". The sweep sheet, from two reviewer readings of Huntress, has `\Program Files (x86)\Chromstera Browser\` and pairs `UniversalUpdater.exe` with World Wide Web. Re-read Huntress and state which table each value comes from. Until then the signer and the two browser updater names are the rows to rely on.
+5. **H007:** settled by a re-read of Huntress after this entry was first pushed. The pack is right and the sweep sheet was wrong. Huntress's table of executables places `ChromsteraUpdater.exe` in `C:\Program Files (x86)\Chromstera Browser Solutions\Chromstera Browser` and `UniversalUpdater.exe` in `C:\Program Files (x86)\Web Genius Solutions\Web Genius`. Its indicator table also lists `C:\Program Files (x86)\Chromstera Browser\`, so both Chromstera folders are valid. One change for the pack: Huntress never calls Web Genius a product, so label that row by its folder. `ReadySpaceThree.exe` can be added from the same table.
 
 **Final ranking**
 
@@ -470,7 +473,7 @@ Ranked by likelihood of a hit and recency. The two lists stay separate. No preva
 
 *Low-severity packs*
 
-1. **H007 Dragon Boss.** The only pack with measured, product-specific activity: 14 Apr 2026, 2,223 UK addresses in one day. Signer and updater names read twice.
+1. **H007 Dragon Boss.** The only pack with measured, product-specific activity: 14 Apr 2026, 2,223 UK addresses in one day. Signer and updater names read in three reviews.
 2. **H008 Infatica P2B.** A vendor detection from January 2026 and reports updated 11 Aug 2026. Signer, process names and folder read in Review 006.
 3. **H010 Honeygain.** Live product. Process names and folder read this review, on an old page. The measured figure is unconfirmed.
 4. **H009 Hola.** Live product with incident reporting from June 2026. Only the folder is verified. No process name or signer yet.
@@ -486,12 +489,12 @@ H004 RelevantKnowledge is not ranked. Its status is Incomplete.
 
 **Run these first**
 
-Identifiers are copied from the *Verified sweep sheet*. Reviews 003 to 007 read them at source. This review did not re-read them.
+Identifiers are copied from the *Verified sweep sheet*. Reviews 003 to 007 read them at source. This review re-read the H007 rows and no others.
 
 | Pack | Verified identifiers | A match means |
 | --- | --- | --- |
 | **E001** PDF Spark and OneBrowser | Signer: `Mainstay Crypto LLC`, `Crowd Sync LLC`, `Chickadee Digital`, `Riya Software`, `Eman Group, LLC`, `WORK PRODUCT INC`. Version-information product: `PDF_Spark`. Process: `PDFSparkOnSoft_*.exe`, `PDFSparkWare_*.exe`, `OneBUpdateService.exe`, `OBUpdateService.exe`, `oibrowser.exe`. Folder: `\AppData\Local\Programs\PDF_Spark\PDFSpark.exe`, `\AppData\Local\OB\OneBUpdate\`. Scheduled task: `OBUpdate`, `OneBUpdate`. Service: `onebupdate`, `obupdate`, `oibupdate`. Registry: `HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\OneBrowser.exe`, `PDF_Spark_is1` under the user's `Uninstall` key. | Incident lead. On a machine that had PDF Spark, any OneBrowser row means the reported second stage is present. |
-| **H007** Dragon Boss | Signer: `Dragon Boss Solutions LLC`. Process: `ChromsteraUpdater.exe`, `ArtificiusUpdater.exe`, `WinDefenseThree.exe`, `WinDefenseFive.exe`, `WinSupportFive.exe`, `WaveTownFive.exe`, `SistemaTownOne.exe`, `TableBoatTwo.exe`, `RaceCarTwo.exe`, `ProductSetupTwo.exe`. Pair only: `WorldWideWeb.exe`, `UniversalUpdater.exe` with `\World Wide Solutions\World Wide Web\`. Escalate on: tasks `ClockSetupWmiAtBoot`, `DisableClockServicesFirst`, `DisableClockAtStartup`, `RemoveClockAtLogon`, `RemoveClockPeriodic`, files `ClockRemoval.ps1`, `ClockRemoval-WmiBoot.ps1`, WMI consumers `MbRemovalMbSetupKillConsumer`, `MbRemovalMbSetupKillConsumerTrace`, folder `\Windows\System32\config\systemprofile\AppData\Local\WMILoad\`. | Unwanted software, low severity. Any "escalate on" row means the antivirus-removal payload reached the machine: incident. |
+| **H007** Dragon Boss | Signer: `Dragon Boss Solutions LLC`. Process: `ChromsteraUpdater.exe`, `ArtificiusUpdater.exe`, `WinDefenseThree.exe`, `WinDefenseFive.exe`, `WinSupportFive.exe`, `WaveTownFive.exe`, `SistemaTownOne.exe`, `TableBoatTwo.exe`, `RaceCarTwo.exe`, `ProductSetupTwo.exe`. Pair only: `WorldWideWeb.exe` with `\World Wide Solutions\World Wide Web\`, `UniversalUpdater.exe` with `\Web Genius Solutions\Web Genius\`. Escalate on: tasks `ClockSetupWmiAtBoot`, `DisableClockServicesFirst`, `DisableClockAtStartup`, `RemoveClockAtLogon`, `RemoveClockPeriodic`, files `ClockRemoval.ps1`, `ClockRemoval-WmiBoot.ps1`, WMI consumers `MbRemovalMbSetupKillConsumer`, `MbRemovalMbSetupKillConsumerTrace`, folder `\Windows\System32\config\systemprofile\AppData\Local\WMILoad\`. | Unwanted software, low severity. Any "escalate on" row means the antivirus-removal payload reached the machine: incident. |
 | **E003** CL-UNK-1090 document tools | Signer: `Chrono Orion LTD`, `GOLD HARMONY LTD`, `TAU CENTAURI LTD`, `G.R.CIGAR. LTD`, `VAST LAKE LTD`, `LONG SOUND LTD`, `AMARYLLIS SIGNAL LTD`, `BLUE TAKIN LTD`, `RED ROOT LTD`, `LIGHTNER TOK LTD`, then the other 30 names in the sheet. Scheduled task: `Crystal_updater`, `ConvertMateTask`, `Easy2ConvertTask`, `UpdateTaskZT`, `Zapdf`, `PDC_Update`. Process: `PowerDoc.exe`, `CrystalPDF.exe`. Folder: `\AppData\Local\pwrDoc\`. File: `\SagePdf\SageId.txt`, `\ConvertyFile\CFInfo.txt`, `\O\OZInfo.txt`, `\FMCR\userId.txt`. | Incident lead. Identify the signed file, then look for the downloader or stealer behaviour the sources describe. |
 
 Then run H008 and H010 from the "Unwanted software" rows.
@@ -506,7 +509,9 @@ No review follows this one. These hold until the owner says otherwise.
 4. Leads, in order: L9, L10, L11. Take L8 only with proof that PacketShare still runs after January 2026. Apply standing guidance 8 to every new pack.
 5. Keep the two lists separate, keep H004 as Incomplete until it has recent real-world evidence, and never mark a row standalone when its source shows it only in a temporary folder.
 
-**Not done this review:** the sources listed under "Not opened" were not checked, so E002's PDF Polish rows, the Run 06 tables for H001, H003, H004 and H005, and the vendor dates in H009 to H014 rest on the research run's own reading. The H007 folder difference in correction 5 is not resolved.
+**Not done this review:** the sources listed under "Not opened" were not checked, so E002's PDF Polish rows, the Run 06 tables for H001, H003, H004 and H005, and the vendor dates in H009 to H014 rest on the research run's own reading.
+
+**Amended 2026-11-13 07:58 GMT:** correction 5, the H007 row under *Run these first* and three sweep sheet rows were changed after a re-read of Huntress. The first version of this entry is commit `c6e9939`.
 
 ## Review 007 · 2026-11-13 02:46 GMT
 
