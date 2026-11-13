@@ -187,12 +187,12 @@ Honeygain, Driver Booster, µTorrent, Outbyte and DriverPack were taken in Runs 
 - **First identifiers:** `CHIP-Downloader.exe`, and file names that end `- CHIP-Downloader.exe`, such as `Free PDF to Word Doc Converter - CHIP-Downloader(2).exe`. The guide mentions the detection name `PUA:Win32/DNDownloader.F`. Still to find: the signer and the version information.
 - **Severity:** low.
 
-### L11 · Pawns.app (IPRoyal) · open
-- **What:** a payout app that shares the machine's bandwidth. Carried over from L7.
-- **Why likely now:** not yet shown. The identifier page is from 31 May 2025. Gen Digital names IPRoyal Pawns as an example of this kind of app on 11 Jun 2026, without a figure.
-- **Evidence:** [Advanced Uninstaller page for version 1.23.4](https://www.advanceduninstaller.com/Pawns_app-1_23_4-36259ad20e4e014b2c68d68c42c15472-application.htm) (AW). [Gen Digital, "Who's Really Using Your Home Internet Connection?"](https://www.gendigital.com/blog/insights/research/residential-proxies), 11 Jun 2026.
-- **First identifiers:** `Pawns.app.exe` in `C:\Program Files\Pawns.app\`, publisher IPRoyal.
-- **Severity:** low. Take it only with a dated source from the last 12 months that shows it on machines.
+### L11 · Pawns.app (IPRoyal), NetNut and PacketStream software · open
+- **What:** software tied to three more proxy providers in Gen Digital's count. Pawns.app is IPRoyal's payout app. Carried over from L7.
+- **Why likely now:** measured. Gen Digital counted active Windows users between 1 and 15 Sep 2026: NetNut about 474,000, IPRoyal 7.9K, PacketStream 5.3K. The counts come from Gen's own user base and leave out SDKs embedded in other applications.
+- **Evidence:** [Gen Digital, "Your IP, Their Traffic"](https://www.gendigital.com/blog/insights/research/residential-proxy-networks), 30 Sep 2026 (GE). [Advanced Uninstaller page for Pawns.app 1.23.4](https://www.advanceduninstaller.com/Pawns_app-1_23_4-36259ad20e4e014b2c68d68c42c15472-application.htm), written 31 May 2025 (AW).
+- **First identifiers:** `Pawns.app.exe` in `C:\Program Files\Pawns.app\`, publisher IPRoyal. Still to find: which Windows application accounts for the NetNut count, and the PacketStream process and folder names.
+- **Severity:** low for a payout app the user installed. Establish what the NetNut software is before filing it.
 
 ### Escalation only
 These are prevalent and arrive the same way, but public reporting classes them as malware. They never go in the low-severity list. After E001 they can be written as escalation packs, at most one per run.
@@ -296,7 +296,7 @@ These are not low severity. Public reporting classes them as malware or as a mal
 | `\PwrId\PwrId.txt`, `\DocID\DocID.txt`, under the user's Temp folder | File | Machine-identifier files written by PowerPlayer and PDFDoc | standalone | contested | IN |
 | `Dragon Boss Solutions LLC` | Signer | Chromnius, Chromstera Browser, Artificius Browser, World Wide Web | standalone | low, but check the escalation rows | HU |
 | `\Program Files (x86)\Chromstera Browser\` | Folder | Chromstera Browser | standalone | low | HU |
-| `\Program Files (x86)\Chromstera Browser Solutions\Chromstera Browser`, `\Program Files (x86)\Artificius Browser Solutions\Artificius Browser` | Folder | Where the sources table of executables places `ChromsteraUpdater.exe` and `ArtificiusUpdater.exe`. Read in Review 008 | standalone | low | HU |
+| `\Program Files (x86)\Chromstera Browser Solutions\Chromstera Browser`, `\Program Files (x86)\Artificius Browser Solutions\Artificius Browser` | Folder | Where Huntress's table of executables places `ChromsteraUpdater.exe` and `ArtificiusUpdater.exe`. Read in Review 008 | standalone | low | HU |
 | `\World Wide Solutions\World Wide Web\` | Folder | World Wide Web | standalone | low | HU |
 | `ChromsteraUpdater.exe`, `ArtificiusUpdater.exe` | Process name | Chromstera Browser, Artificius Browser | standalone | low | HU |
 | `WorldWideWeb.exe` | Process name | World Wide Web. Sits in `\World Wide Solutions\World Wide Web\` | pair with the folder | low | HU |
@@ -383,6 +383,7 @@ On the contested rows: PDFDoc and PowerPlayer belong to the family Intezer calls
 - **GB:** [GridinSoft file analysis of the Outbyte Driver Updater installer](https://gridinsoft.com/online-virus-scanner/id/d567b038197b308d90bea2c10217842a557b384df4bec6e68086e705a697911b), analysis dated 8 Feb 2025.
 - **GC:** [GridinSoft on the CHIP Downloader wrapper](https://blog.gridinsoft.com/chip-downloader-pup/), 6 Jul 2026, updated 16 Jul 2026.
 - **GD:** [G DATA on Projextor](https://blog.gdatasoftware.com/2026/08/38468-projextor-abusing-electron), 17 Aug 2026.
+- **GE:** [Gen Digital, "Your IP, Their Traffic"](https://www.gendigital.com/blog/insights/research/residential-proxy-networks), 30 Sep 2026. Counts of active Windows users by proxy provider for 1 to 15 Sep 2026. No identifiers.
 - **GF:** [GridinSoft on the OfferCore detection](https://blog.gridinsoft.com/puadimanagerwin32-offercore-removal-guide/), first published 21 Jun 2024, updated 6 Nov 2026.
 - **GK:** [GridinSoft file analysis of `PacketShare.exe`](https://gridinsoft.com/online-virus-scanner/id/f6fd8ef9f6e6bb2acf929fa6efe6e16f1821449159746f58d590bce089c36f45), analysis dated 7 Mar 2025.
 - **GL:** [GridinSoft file analysis of `DigitalPulseService.exe`](https://gridinsoft.com/online-virus-scanner/id/d49ac298eb6fd619e9e209454762e4b73c76d9def3e47c6587288ee1c5490674), analysis dated 29 Jul 2024.
@@ -413,7 +414,7 @@ On the contested rows: PDFDoc and PowerPlayer belong to the family Intezer calls
 
 **Reviewed:** register at commit `d01a695` (Run 08; active H001, H003, H004, H005, H007 to H014; E001, E002, E003). This is the last scheduled review. No review landed between Review 007 and this one, so Runs 04 to 08 (`4fa2dca`, `df25da1`, `e4f8af1`, `2baeb02`, `d01a695`) are reviewed here in one pass: structure, follow-through and integrity in full, sources in part (see the table and *Not done*).
 
-**Verdict:** The research run read Review 007 before every run and actioned all of it. The register now holds eleven low-severity packs marked finished and three escalation packs, in two separate lists, each with a typed identifier table. The weak point is the evidence of "likely now": H011 to H014 rest on live download pages and on artefacts from 2018 to 2025, and this review could not confirm the measured figures behind H009 and H010. The escalation packs and H007 have the best evidence and the best-checked identifiers.
+**Verdict:** The research run read Review 007 before every run and actioned all of it. The register now holds eleven low-severity packs marked finished and three escalation packs, in two separate lists, each with a typed identifier table. The weak point is the evidence of "likely now" for H011 to H014, which rest on live download pages and on artefacts from 2018 to 2025. The strongest dated evidence in the low-severity list is Gen Digital's count of active Windows users for September 2026, confirmed at source in this review. It also covers Bright Data and Infatica, which the register has not yet used for H005 and H008. The escalation packs and H007 have the best-checked identifiers.
 
 **Follow-through on earlier reviews**
 
@@ -441,7 +442,7 @@ On the contested rows: PDFDoc and PowerPlayer belong to the family Intezer calls
 | H012: file.net page for `uTorrent.exe` (FU) | Opened from search results. Main location `\AppData\Roaming\uTorrent\`, publisher BitTorrent. Undated. It does not show `C:\Program Files (x86)\uTorrent\`. |
 | H009: Sophos on Hola (SH) | Opened from search results. Both paths, the service name and the SHA-256 in H009 match. The page shows no date. News coverage of it is dated 5 Jun 2026 (search text). It gives no Hola process name or signer. |
 | H007: Huntress (HU) | Opened from search results after this entry was first pushed. The signer, the five task names, both WMI consumers, both scripts and the `WMILoad` folder match the pack and the sheet. The table of executables matches the folders in the pack. See correction 5. |
-| H009, H010: Gen Digital figures | Not confirmed. Searching found a different Gen Digital article, dated 11 Jun 2026, with no figure per provider. A direct fetch of the register's link needs an approval nobody is here to give. |
+| H009, H010, H005, H008: Gen Digital, "Your IP, Their Traffic", 30 Sep 2026 (GE) | Opened from search results, on a second search after this entry was first pushed. Active Windows users seen between 1 and 15 Sep 2026: Bright Data about 1.47 million, Hola about 664,000, NetNut about 474,000, Honeygain about 68,000, Infatica about 56,000, SOAX 10K, IPRoyal 7.9K, Tuxler 6.3K, PacketStream 5.3K, TraffMonetizer 3.0K. The counts come from Gen's own Windows user base, are not a census, and leave out SDKs embedded in other applications. The article gives no file names or signers. The Hola and Honeygain figures in the register match. |
 | New leads | GridinSoft on the OfferCore detection (GF), GridinSoft on CHIP Downloader (GC) and an Advanced Uninstaller page for Pawns.app (AW), all opened from search results. |
 | Not opened | PaysFair and the Honeygain support page. The PDF Polish sandbox report and the Rabbit Knight analysis behind E002. The Team-IT case behind E001 (a search did not find it). The Malwarebytes forum thread and the Microsoft page behind H012. The file.net pages for `DriverPack.exe` and `DriverUpdater.exe` (a direct fetch needs approval). The vendor download and press pages. Lumen and the GridinSoft PacketShare entry. Every source Run 06 added to H001, H003, H004 and H005. Unit 42, Intezer, G DATA and the OneBrowser guide were not re-read: Reviews 003 to 007 read them. |
 
@@ -449,8 +450,8 @@ All new values were read once, through one page fetch each.
 
 **What changed in this file**
 
-- *Verified sweep sheet*: rows for H010 to H014, Pawns.app and CHIP Downloader under "Unwanted software", one ManualFinder task under "Escalate on match", nine source keys. One correction: `UniversalUpdater.exe` belongs to the Web Genius folder, not to World Wide Web. The second Chromstera folder is added.
-- *Lead queue*: E001, E002, E003, L3, L4, L5 and L7 marked taken. New leads L9, L10 and L11. A note on L8.
+- *Verified sweep sheet*: rows for H010 to H014, Pawns.app and CHIP Downloader under "Unwanted software", one ManualFinder task under "Escalate on match", ten source keys. One correction: `UniversalUpdater.exe` belongs to the Web Genius folder, not to World Wide Web. The second Chromstera folder is added.
+- *Lead queue*: E001, E002, E003, L3, L4, L5 and L7 marked taken. New leads L9, L10 and L11. L11 also covers NetNut and PacketStream. A note on L8.
 - *Standing guidance* 9 is new. It says this is the last review and that a new pack needs dated evidence, not only a live download page.
 
 **Corrections**
@@ -458,12 +459,14 @@ All new values were read once, through one page fetch each.
 1. **H012:** fix the index link. Write the heading as "H012: uTorrent Classic for Windows" or link to `#h012-µtorrent-classic-for-windows`.
 2. **H013:** the standalone row rests on a path this review could not see in the cited report. Quote the report's line for it in the footnote, or mark the row unconfirmed. Add the signer `Outbyte Computing Pty Ltd` as a standalone row (GB).
 3. **H014:** `DriverPack.exe` is marked standalone, but the cited log shows it only in a temporary self-extraction folder. Say so in the row. Add `DriverPackNotifier.exe` with its two folders, the task `DRPNPS` and the key `HKCU\SOFTWARE\DRPSU` (MP).
-4. **H009 and H010:** quote the Gen Digital sentence that gives each figure, with its date. If it cannot be quoted, change the tier from A to B. Add `\AppData\Roaming\Honeygain\Honeygain.exe` to H010 (AG).
+4. **H009 and H010:** the Gen Digital figures are confirmed. Give the measurement window, 1 to 15 Sep 2026, in the footnote. Add `\AppData\Roaming\Honeygain\Honeygain.exe` to H010 (AG).
 5. **H007:** settled by a re-read of Huntress after this entry was first pushed. The pack is right and the sweep sheet was wrong. Huntress's table of executables places `ChromsteraUpdater.exe` in `C:\Program Files (x86)\Chromstera Browser Solutions\Chromstera Browser` and `UniversalUpdater.exe` in `C:\Program Files (x86)\Web Genius Solutions\Web Genius`. Its indicator table also lists `C:\Program Files (x86)\Chromstera Browser\`, so both Chromstera folders are valid. One change for the pack: Huntress never calls Web Genius a product, so label that row by its folder. `ReadySpaceThree.exe` can be added from the same table.
+6. **H005:** the same Gen Digital article counts about 1.47 million active Windows users with Bright Data software, the largest provider in its data. Add it as the newest evidence and move the tier to A (provider-level). Say that the count leaves out SDKs embedded in other applications, so it supports the Bright VPN rows more than the SDK rows. Add EarnApp identifiers if a source gives them.
+7. **H008:** add the Infatica count from the same article, about 56,000, as the newest evidence, in the same way.
 
 **Final ranking**
 
-Ranked by likelihood of a hit and recency. The two lists stay separate. No prevalence figure is implied.
+Ranked by likelihood of a hit and recency. The two lists stay separate. The counts quoted are the sources' own. They are not estimates for any estate.
 
 *Escalation packs (a match is an incident lead)*
 
@@ -473,15 +476,15 @@ Ranked by likelihood of a hit and recency. The two lists stay separate. No preva
 
 *Low-severity packs*
 
-1. **H007 Dragon Boss.** The only pack with measured, product-specific activity: 14 Apr 2026, 2,223 UK addresses in one day. Signer and updater names read in three reviews.
-2. **H008 Infatica P2B.** A vendor detection from January 2026 and reports updated 11 Aug 2026. Signer, process names and folder read in Review 006.
-3. **H010 Honeygain.** Live product. Process names and folder read this review, on an old page. The measured figure is unconfirmed.
-4. **H009 Hola.** Live product with incident reporting from June 2026. Only the folder is verified. No process name or signer yet.
-5. **H011 IObit Driver Booster.** Current product. Path and tasks read this review, from a 2019 log. The folder name includes the version number.
-6. **H012 µTorrent Classic.** Live download. `uTorrent.exe` in `\AppData\Roaming\uTorrent\` read this review on an undated page.
-7. **H013 Outbyte Driver Updater.** Removal guide from July 2026. Signer and installer version information read this review. The runtime path is unconfirmed.
-8. **H014 DriverPack.** Live download only. Every identifier comes from a 2018 log.
-9. **H005 Bright SDK.** Current partner programme. Identifiers from a 2023 report.
+1. **H005 Bright Data software (Bright VPN, Bright SDK).** The largest measured population: about 1.47 million active Windows users in Gen Digital's count for September 2026. The count is by provider and leaves out embedded SDKs. Identifiers come from 2023 and 2025 reports.
+2. **H009 Hola.** About 664,000 in the same count, and incident reporting from June 2026. Only the folder is verified. No process name or signer yet.
+3. **H007 Dragon Boss.** The only product-specific measurement: 14 Apr 2026, 2,223 UK addresses in one day. The best-verified identifiers, read in three reviews.
+4. **H010 Honeygain.** About 68,000 in the Gen Digital count. Process names and folder read this review, on an old page.
+5. **H008 Infatica P2B.** About 56,000 in the Gen Digital count, and a vendor detection from January 2026. Signer, process names and folder read in Review 006.
+6. **H011 IObit Driver Booster.** Current product. Path and tasks read this review, from a 2019 log. The folder name includes the version number.
+7. **H012 µTorrent Classic.** Live download. `uTorrent.exe` in `\AppData\Roaming\uTorrent\` read this review on an undated page.
+8. **H013 Outbyte Driver Updater.** Removal guide from July 2026. Signer and installer version information read this review. The runtime path is unconfirmed.
+9. **H014 DriverPack.** Live download only. Every identifier comes from a 2018 log.
 10. **H003 Web Companion.** Live download. Business sightings from 2023. Not re-read by a reviewer.
 11. **H001 OneLaunch.** Downloads withdrawn, so remnants only. Last sighting 27 Mar 2026.
 
@@ -494,24 +497,24 @@ Identifiers are copied from the *Verified sweep sheet*. Reviews 003 to 007 read 
 | Pack | Verified identifiers | A match means |
 | --- | --- | --- |
 | **E001** PDF Spark and OneBrowser | Signer: `Mainstay Crypto LLC`, `Crowd Sync LLC`, `Chickadee Digital`, `Riya Software`, `Eman Group, LLC`, `WORK PRODUCT INC`. Version-information product: `PDF_Spark`. Process: `PDFSparkOnSoft_*.exe`, `PDFSparkWare_*.exe`, `OneBUpdateService.exe`, `OBUpdateService.exe`, `oibrowser.exe`. Folder: `\AppData\Local\Programs\PDF_Spark\PDFSpark.exe`, `\AppData\Local\OB\OneBUpdate\`. Scheduled task: `OBUpdate`, `OneBUpdate`. Service: `onebupdate`, `obupdate`, `oibupdate`. Registry: `HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\OneBrowser.exe`, `PDF_Spark_is1` under the user's `Uninstall` key. | Incident lead. On a machine that had PDF Spark, any OneBrowser row means the reported second stage is present. |
+| **H005** Bright Data software | Process: `Bright VPN.exe`, `brightvpn_installer.exe`. Version-information product: `Bright SDK`, `Luminati SDK`. File: `lum_sdk32.dll`, `lum_sdk64.dll`. Pair only: `net_updater32.exe`, `net_updater64.exe` with the version information above, or with `--install win_` in the command line. | Unwanted software, low severity. A match shows the component is present. It does not show that traffic was relayed. |
 | **H007** Dragon Boss | Signer: `Dragon Boss Solutions LLC`. Process: `ChromsteraUpdater.exe`, `ArtificiusUpdater.exe`, `WinDefenseThree.exe`, `WinDefenseFive.exe`, `WinSupportFive.exe`, `WaveTownFive.exe`, `SistemaTownOne.exe`, `TableBoatTwo.exe`, `RaceCarTwo.exe`, `ProductSetupTwo.exe`. Pair only: `WorldWideWeb.exe` with `\World Wide Solutions\World Wide Web\`, `UniversalUpdater.exe` with `\Web Genius Solutions\Web Genius\`. Escalate on: tasks `ClockSetupWmiAtBoot`, `DisableClockServicesFirst`, `DisableClockAtStartup`, `RemoveClockAtLogon`, `RemoveClockPeriodic`, files `ClockRemoval.ps1`, `ClockRemoval-WmiBoot.ps1`, WMI consumers `MbRemovalMbSetupKillConsumer`, `MbRemovalMbSetupKillConsumerTrace`, folder `\Windows\System32\config\systemprofile\AppData\Local\WMILoad\`. | Unwanted software, low severity. Any "escalate on" row means the antivirus-removal payload reached the machine: incident. |
-| **E003** CL-UNK-1090 document tools | Signer: `Chrono Orion LTD`, `GOLD HARMONY LTD`, `TAU CENTAURI LTD`, `G.R.CIGAR. LTD`, `VAST LAKE LTD`, `LONG SOUND LTD`, `AMARYLLIS SIGNAL LTD`, `BLUE TAKIN LTD`, `RED ROOT LTD`, `LIGHTNER TOK LTD`, then the other 30 names in the sheet. Scheduled task: `Crystal_updater`, `ConvertMateTask`, `Easy2ConvertTask`, `UpdateTaskZT`, `Zapdf`, `PDC_Update`. Process: `PowerDoc.exe`, `CrystalPDF.exe`. Folder: `\AppData\Local\pwrDoc\`. File: `\SagePdf\SageId.txt`, `\ConvertyFile\CFInfo.txt`, `\O\OZInfo.txt`, `\FMCR\userId.txt`. | Incident lead. Identify the signed file, then look for the downloader or stealer behaviour the sources describe. |
 
-Then run H008 and H010 from the "Unwanted software" rows.
+Then run E003 from its rows under "Escalate on match". After that H009, which has one verified row (the folder `\Program Files\Hola\`), then H010 and H008 from the "Unwanted software" rows.
 
 **Next run (08:00 and every later run)**
 
 No review follows this one. These hold until the owner says otherwise.
 
 1. In the run log, name Review 008 and record each item below as actioned or declined, with the reason.
-2. Fix corrections 1 to 5 before anything else. Then put both indexes in the order of the *Final ranking*, unless new dated evidence changes it, and say what changed.
+2. Fix corrections 1 to 7 before anything else. Then put both indexes in the order of the *Final ranking*, unless new dated evidence changes it, and say what changed.
 3. Add a pack only when a source from the last 12 months shows the software on machines: a detection release, an incident write-up or a measured figure. A live download page is not enough by itself. At most one new pack per run. If nothing qualifies, add nothing and strengthen an existing pack.
-4. Leads, in order: L9, L10, L11. Take L8 only with proof that PacketShare still runs after January 2026. Apply standing guidance 8 to every new pack.
+4. Leads, in order: L11, which now has a measured figure, then L9 and L10. Take L8 only with proof that PacketShare still runs after January 2026. Apply standing guidance 8 to every new pack.
 5. Keep the two lists separate, keep H004 as Incomplete until it has recent real-world evidence, and never mark a row standalone when its source shows it only in a temporary folder.
 
 **Not done this review:** the sources listed under "Not opened" were not checked, so E002's PDF Polish rows, the Run 06 tables for H001, H003, H004 and H005, and the vendor dates in H009 to H014 rest on the research run's own reading.
 
-**Amended 2026-11-13 07:58 GMT:** correction 5, the H007 row under *Run these first* and three sweep sheet rows were changed after a re-read of Huntress. The first version of this entry is commit `c6e9939`.
+**Amended twice after the first push (commit `c6e9939`).** At 07:58 GMT, after a re-read of Huntress: correction 5, the H007 row under *Run these first* and three sweep sheet rows. At 08:02 GMT, after a second search found the Gen Digital article: the verdict, corrections 4, 6 and 7, the low-severity ranking, *Run these first* (H005 replaces E003, which is now next in line), lead L11 and the lead order in *Next run*.
 
 ## Review 007 · 2026-11-13 02:46 GMT
 
