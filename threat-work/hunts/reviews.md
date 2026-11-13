@@ -86,12 +86,13 @@ Applies to every run until a later review changes it.
 6. **Quote what a pivot rests on.** For any path, argument or service name taken from a sandbox report, record the exact string as shown and where in the report it appears. Two detonations of one file hash are one sample.
 7. **Build packs around what has already hit.** Siblings of a confirmed hit are the strongest leads: other products from the same publisher, installer framework or advertising route. Where several share those, write one pack with a per-product identifier table, each identifier sourced. A pack counts as one candidate. A product the owner already knows is calibration and goes in the already-covered table, not into a pack as new.
 8. **Check the signer before calling anything low severity.** The signer table from Unit 42's May 2026 research is copied into the sweep sheet under "Escalate on match". A product whose signer is in it goes in the escalation list, whatever another source calls it. Record the disagreement in the pack.
+9. **After the last review.** Review 008 on 13 November 2026 is the last review. Its *Next run* list holds for every later run. A new pack needs a source from the last 12 months that shows the software on machines. A live download page is not enough by itself.
 
 ## Lead queue
 
 Researched leads for the research run to take from, best first. The reviews maintain this list. A lead is a direction with a dated source, not a finished card: verify it, source every identifier yourself, and write it up as a pack. Take leads in order unless a review says otherwise. Status is `open`, `taken (Hxxx)` or `dropped: reason`. Hostnames are defanged.
 
-### E001 · PDF Spark and OneBrowser cluster · open (escalation pack)
+### E001 · PDF Spark and OneBrowser cluster · taken (E001)
 - **What:** PDF Spark is a confirmed previous hit. Public reporting places its signers in a malware-grade cluster and describes a second stage called OneBrowser.
 - **Why likely now:** it has already been found once, and a vendor detection aimed at its signer was released on 24 September 2026.
 - **Evidence:** Unit 42, May 2026 (U42). Sophos KBA-000043676, 24 Sep 2026 (SO). Analysis of the installers and of OneBrowser, about Nov 2025 (RK, MA). Run 03 also cites a Team-IT case dated 26 Aug 2026. The keys are in the *Verified sweep sheet*.
@@ -99,7 +100,7 @@ Researched leads for the research run to take from, best first. The reviews main
 - **First identifiers:** the PDF Spark and OneBrowser rows under "Escalate on match" in the sweep sheet.
 - **Severity:** not low. A match is an incident lead. The pack must say what to check on a machine that already had PDF Spark.
 
-### E002 · `Jia Hao` family around PDF Polish · open (escalation pack)
+### E002 · `Jia Hao` family around PDF Polish · taken (E002)
 - **What:** PDF Polish is a confirmed previous hit. Its company metadata matches Doc Convert Wizard, and public analysis groups those two with FoodFormula and ProfessionalConverter. That group is reported as the Projextor malware cluster.
 - **Why likely now:** it is the sibling family of a confirmed hit, with analysis from April 2026 and reporting from August 2026.
 - **Evidence:** keys DW, PX and AP in the *Verified sweep sheet*. Review 005 sets out what is and is not shown.
@@ -107,7 +108,7 @@ Researched leads for the research run to take from, best first. The reviews main
 - **First identifiers:** the `Jia Hao` rows under "Escalate on match" in the sweep sheet.
 - **Severity:** not low, pending a source that names PDF Polish itself. A match is an incident lead.
 
-### E003 · CL-UNK-1090 document-tool cluster, replacing H006 · open (escalation pack)
+### E003 · CL-UNK-1090 document-tool cluster, replacing H006 · taken (E003)
 - **What:** SagePDF, PowerDoc, PowerPlayer and PDFDoc (now in H006), with ConvertyFile, OneZip and CrystalPDF. The downloader products Convert Mate, Easy 2 Convert, PDF Skills, Zip This and Zap PDF can be added as rows. One pack, one identifier row per value.
 - **Why likely now:** the same search-advert route as the confirmed hits, reported in May and July 2026, with SagePDF found in January 2026.
 - **Evidence:** Unit 42, 20 May 2026 (U42): the signers of SagePDF, PowerDoc, ConvertyFile, OneZip and CrystalPDF are all in its CL-UNK-1090 group, and it places these applications in the malware category. Intezer, 27 Jul 2026 (IN): the text calls the browser-changing products unwanted software, but the indicator table labels ConvertyFile and OneZip as stealers. Controlware, Dec 2025 (CW): treats CrystalPDF and PowerDoc as malware.
@@ -129,7 +130,7 @@ Researched leads for the research run to take from, best first. The reviews main
 - **First identifiers:** signers `TAU CENTAURI LTD`, `G.R.CIGAR. LTD`, `VAST LAKE LTD`, `LONG SOUND LTD`, `GOLD HARMONY LTD`, `Chrono Orion LTD`, `TAMARISK INTERACTIVE LTD`. Scheduled task `Crystal_updater`. Folders `%LocalAppData%\pwrDoc\`, `%AppData%\FMCR\`, `%TEMP%\ConvertyFile\`, `%TEMP%\SagePdf\`. Files `PowerDoc.exe`, `native.exe`, `CrystalPDF.exe`.
 - **Severity:** contested. Intezer calls this family PUA. Controlware (Dec 2025, linked in L1) says CrystalPDF and PowerDoc should be treated as malware, citing persistence, regular encrypted traffic, a fake uninstaller and revoked certificates. The card must state both and set the escalation line.
 
-### L3 · Dragon Boss Solutions pack · open
+### L3 · Dragon Boss Solutions pack · taken (H007)
 - **What:** Chromnius, Chromstera Browser, Artificius Browser and "World Wide Web", all signed by one publisher.
 - **Why likely now:** dated prevalence. A sinkhole received check-ins from 23,565 unique IP addresses in 24 hours across 124 countries, with the UK among the five largest.
 - **Evidence:** [Huntress, "When PUPs Grow Fangs"](https://www.huntress.com/blog/pups-grow-fangs), 14 Apr 2026.
@@ -137,7 +138,7 @@ Researched leads for the research run to take from, best first. The reviews main
 - **Severity:** presence is adware or PUP grade, which is how vendors classed it before. Huntress documents an update channel that delivered a tool to remove antivirus products (scheduled tasks `ClockSetupWmiAtBoot`, `RemoveClockPeriodic`; scripts `ClockRemoval.ps1`). Those artefacts are the escalation line. Decide whether the pack clears the low-severity bar. If it does not, put it in the already-covered table with the reason.
 - **Added by Review 007:** Huntress re-read. Of the 23,565 addresses seen in the 24 hours, 2,223 were in the UK. It says vendors have classed the software as adware or unwanted software, which supports a low-severity pack for presence, with the antivirus-removal artefacts as the escalation line. Eight more updater names, a second WMI consumer and the payload folder are in the sweep sheet.
 
-### L4 · Infatica P2B bandwidth-sharing component · open
+### L4 · Infatica P2B bandwidth-sharing component · taken (H008)
 - **What:** a peer-to-business proxy component that arrives inside free software. A different vendor from H005.
 - **Why likely now:** a vendor PUA detection was released in January 2026 and user reports continued through summer 2026.
 - **Evidence:** [Sophos KBA-000043735](https://support.sophos.com/support/s/article/KBA-000043735?language=en_US), 8 Jan 2026: detection named "Infatica P2B in Non-Standard Location". [GridinSoft](https://blog.gridinsoft.com/k-lite-codec-pack-infatica-removal/), 10 Jun 2026, updated 11 Aug 2026: reports of Infatica or "Digital Pulse" services after codec-pack installs.
@@ -145,7 +146,7 @@ Researched leads for the research run to take from, best first. The reviews main
 - **Severity:** low when limited to the component on a machine without approval.
 - **Added by Review 007:** "Digital Pulse" has one identifier so far, `DigitalPulseService.exe` (GL), and no source read links it to Infatica. ASEC (AH, July 2025) reports DigitalPulse installed without consent by a loader, so leave it out of the low-severity pack or mark it contested. Malwarebytes detects Infatica as `PUP.Optional.Infatica` and says it may arrive with a bundler (MI). The Infatica service name is still not found.
 
-### L5 · Hola Browser and Hola VPN · open
+### L5 · Hola Browser and Hola VPN · taken (H009)
 - **What:** consumer browser and VPN built on peer routing.
 - **Why likely now:** 2026 reporting of an unexpected component shipped through its update pipeline.
 - **Evidence:** [Sophos, "You do surprise me.exe"](https://www.sophos.com/blog/you-do-surprise-me-exe-an-unexpected-executable-in-hola-browser), 2026 (the page shows no day or month).
@@ -160,6 +161,7 @@ Researched leads for the research run to take from, best first. The reviews main
 - **First identifiers:** the IPIDEA signer and hostname rows in the sweep sheet. Google links a fuller indicator collection. Still to find: the PacketShare process, folder and service names.
 - **Severity:** low for a payout app the user installed. Google also reports trojanized Windows programs posing as OneDriveSync or Windows Update. Those are the escalation line. The network was disrupted in January 2026, so the pack must say whether the software still runs or is a remnant.
 - **Added by Review 007:** first PacketShare identifiers, now in the sweep sheet: `PacketShare.exe` in `C:\Program Files (x86)\PacketShare\`, version-information product `PacketShare`, and `DATALABS LIMITED` as the publisher in the uninstall record (AU, GK). Both pages date from spring 2025, before the disruption. Still to find: a service or task name, and evidence that the software still runs after January 2026.
+- **Added by Review 008:** Runs 07 and 08 declined this lead because nothing shows PacketShare still running after the January 2026 disruption. They cite Lumen (24 Jul 2026) for the recovery of the network and a GridinSoft file entry dated 12 Sep 2026 for a PacketShare sample. No reviewer has read either. The lead stays open.
 
 ### L6 · Renamed WinRAR installers from PDF-themed advert pages · open
 - **What:** a genuine signed WinRAR installer delivered under rotating fake PDF-tool names.
@@ -168,8 +170,29 @@ Researched leads for the research run to take from, best first. The reviews main
 - **First identifiers:** landing host `pdf-flows[.]com`. A file whose name is a PDF tool and whose signer and version information say WinRAR.
 - **Severity:** low. The delivered software is genuine.
 
-### L7 · Carried over from Review 001, not yet sourced by a review · open
-uTorrent and BitTorrent clients. Honeygain, Pawns.app, PacketStream, Repocket, Grass. Driver Booster, DriverPack, Outbyte, Fortect. Take these only after L1 to L6, and only with dated evidence.
+### L7 · Carried over from Review 001 · taken (H010 to H014)
+Honeygain, Driver Booster, µTorrent, Outbyte and DriverPack were taken in Runs 05, 07 and 08. Pawns.app is now L11. Still unsourced, and open only with dated evidence from the last 12 months: the BitTorrent client, PacketStream, Repocket, Grass, Fortect.
+
+### L9 · Bundled installers and download managers found by detection name (OfferCore, InstallCore) · open
+- **What:** installers and download managers that add offers beside the application the user wanted. Microsoft Defender names them `PUADlManager:Win32/OfferCore` and `PUADlManager:Win32/InstallCore`. A hunt on the detection name finds whichever bundler is in circulation without knowing the product first, and each hit yields a file name and a signer for a product row.
+- **Why likely now:** a removal guide for the OfferCore detection was updated on 6 Nov 2026. That shows continued interest, not a prevalence figure.
+- **Evidence:** [GridinSoft](https://blog.gridinsoft.com/puadimanagerwin32-offercore-removal-guide/), first published 21 Jun 2024, updated 6 Nov 2026 (GF).
+- **First identifiers:** the two detection names. The pack must name the Log Analytics table and column that hold antivirus detection names in the workspace, and must separate a block from an install.
+- **Severity:** low. The guide also lists trojan names that can appear beside the detection. Those are not part of this pack.
+
+### L10 · CHIP Downloader wrapper · open
+- **What:** a download-portal wrapper that sits between the user and the application they wanted, and offers extras.
+- **Why likely now:** a removal guide published on 6 Jul 2026 and updated on 16 Jul 2026 says it arrives through searches for free converters and through download-portal installers. That is the habit behind the confirmed hits, by a different route.
+- **Evidence:** [GridinSoft](https://blog.gridinsoft.com/chip-downloader-pup/) (GC).
+- **First identifiers:** `CHIP-Downloader.exe`, and file names that end `- CHIP-Downloader.exe`, such as `Free PDF to Word Doc Converter - CHIP-Downloader(2).exe`. The guide mentions the detection name `PUA:Win32/DNDownloader.F`. Still to find: the signer and the version information.
+- **Severity:** low.
+
+### L11 · Pawns.app (IPRoyal) · open
+- **What:** a payout app that shares the machine's bandwidth. Carried over from L7.
+- **Why likely now:** not yet shown. The identifier page is from 31 May 2025. Gen Digital names IPRoyal Pawns as an example of this kind of app on 11 Jun 2026, without a figure.
+- **Evidence:** [Advanced Uninstaller page for version 1.23.4](https://www.advanceduninstaller.com/Pawns_app-1_23_4-36259ad20e4e014b2c68d68c42c15472-application.htm) (AW). [Gen Digital, "Who's Really Using Your Home Internet Connection?"](https://www.gendigital.com/blog/insights/research/residential-proxies), 11 Jun 2026.
+- **First identifiers:** `Pawns.app.exe` in `C:\Program Files\Pawns.app\`, publisher IPRoyal.
+- **Severity:** low. Take it only with a dated source from the last 12 months that shows it on machines.
 
 ### Escalation only
 These are prevalent and arrive the same way, but public reporting classes them as malware. They never go in the low-severity list. After E001 they can be written as escalation packs, at most one per run.
@@ -259,6 +282,7 @@ These are not low severity. Public reporting classes them as malware or as a mal
 | `NTService.exe` in `\AppData\Local\Microsoft\Performance\` | Process name | The same proxy program | pair with the folder | EX |
 | `DefragDiskCleanup` | Scheduled task | Loader that installs DigitalPulse or Honeygain proxy components without consent. Reported in July 2025, so older than 12 months | standalone | AH |
 | `FastCleanPlus.exe`, `NetworkSpeedStatus.exe`, `KB8241660.ps1`, `KB3457229.ps1` | File | The same loader chain | standalone | AH |
+| `ManualFinderTask` | Scheduled task | ManualFinder, one of the lures already excluded from the low-severity list. Reported by Expel in August 2025 and read in a news summary, so older than 12 months | standalone | CH |
 
 ### Unwanted software
 
@@ -291,6 +315,21 @@ These are not low severity. Public reporting classes them as malware or as a mal
 | `\Program Files (x86)\PacketShare\` | Folder | PacketShare (lead L8). Also holds `unins000.exe` | standalone | low | AU |
 | `PacketShare` (product), `PacketShare.exe` (original file name) | Version information | PacketShare (lead L8). In the sample read, the company field was empty and the file was unsigned | standalone | low | GK |
 | `DATALABS LIMITED` | Publisher in the uninstall record | PacketShare (lead L8). Not confirmed as the signer of the file. The same name is in Google's signer list under "Escalate on match" | pair with a PacketShare row | low | AU, GT |
+| `DriverBooster.exe` in `\Program Files (x86)\IObit\Driver Booster\<version>\` | Folder and process name | IObit Driver Booster (H011). Read for version 6.3.0, where the folder is `\Driver Booster\6.3.0\` | standalone | low | MD |
+| `Scheduler.exe`, `DBDownloader.exe`, `AutoUpdate.exe` | Process name | IObit Driver Booster (H011) | pair with the folder above | low | MD |
+| `Driver Booster Scheduler`, `Driver Booster SkipUAC (<username>)` | Scheduled task | IObit Driver Booster (H011). From a log dated 12 Mar 2019 | standalone | low | MD |
+| `Driver Booster_is1` under the 32-bit `Uninstall` key | Registry key | IObit Driver Booster (H011) | standalone | low | MD |
+| `DriverPackNotifier.exe` in `\Program Files (x86)\DriverPack Notifier\` or `\AppData\Roaming\DriverPack Notifier\` | Folder and process name | DriverPack Notifier (H014). From a log dated 6 May 2018 | standalone | low | MP |
+| `DRIVERPACK NOTIFIER`, `DRPNPS` | Scheduled task | DriverPack (H014). Same 2018 log | standalone | low | MP |
+| `\AppData\Roaming\DRPSu\` | Folder | DriverPack (H014) | standalone | low | MP |
+| `HKCU\SOFTWARE\DRPSU`, `HKLM\SOFTWARE\WOW6432NODE\DRPSU` | Registry key | DriverPack (H014) | standalone | low | MP |
+| `DriverPack.exe` in `\AppData\Local\Temp\7ZipSfx.000\` | Process name | DriverPack Online run from its self-extracting package (H014) | pair with the folder | low | MP |
+| `Outbyte Computing Pty Ltd` | Signer | Outbyte Driver Updater installer (H013). Valid signature dated 28 Nov 2024 | standalone | low | GB |
+| `Outbyte` (company), `Driver Updater` (product), `Outbyte Driver Updater Installation File` (description), `Outbyte-driver-updater-setup.exe` (original file name) | Version information | Outbyte Driver Updater installer (H013) | company and description standalone, product pair with the company | low | GB |
+| `Honeygain.exe`, `HoneygainUpdater.exe` in `\AppData\Roaming\Honeygain\` | Folder and process name | Honeygain (H010). Read for version 0.7.0.0 on a page written in 2020 | `Honeygain.exe` standalone, the updater pair with the folder | low | AG |
+| `uTorrent.exe` in `\AppData\Roaming\uTorrent\` | Folder and process name | µTorrent (H012). Undated page | standalone | low | FU |
+| `Pawns.app.exe` in `\Program Files\Pawns.app\` | Folder and process name | Pawns.app by IPRoyal (lead L11). Version 1.23.4, page written 31 May 2025 | standalone | low | AW |
+| `CHIP-Downloader.exe`, and file names ending `- CHIP-Downloader.exe` | Process name, installer stage | CHIP Downloader wrapper (lead L10) | standalone | low | GC |
 
 On the contested rows: PDFDoc and PowerPlayer belong to the family Intezer calls unwanted software, and their signer is not in Unit 42's table. Review 006 moved the family's other products to "Escalate on match": Unit 42 lists their signers in a cluster it classes as malware, Controlware treats CrystalPDF and PowerDoc as malware, and Intezer's own indicator table labels ConvertyFile and OneZip as stealers while its text calls the family unwanted software. Look closer on any match.
 
@@ -318,6 +357,7 @@ On the contested rows: PDFDoc and PowerPlayer belong to the family Intezer calls
 
 "Search text" means the page was read as the text a web search returned, not opened in full.
 
+- **AG:** [Advanced Uninstaller page for Honeygain 0.7.0.0](https://www.advanceduninstaller.com/Honeygain-16ae40c2512eccc17b600d83e7abcecd-application.htm), written 26 Sep 2020.
 - **AH:** [ASEC on proxy software spread through a video-download site](https://asec.ahnlab.com/en/89574/), 29 Jul 2025.
 - **AI:** [ANY.RUN report of `Infatica P2B.rar`](https://any.run/report/aee70e50638b79f410bdca412763f51aee6ab78f5ea77d47329b93d61705a7dc/c859e7dc-08ff-45a9-994d-840110eb9faf), 22 Jun 2025. Process name only.
 - **AM:** [ANY.RUN report of a third-party app carrying the SDK](https://any.run/report/ac6b186d8971f71d8a2d9477d71526fc8a0e5f7d03772c9e134813bce4fb2c89/6329de9f-12e9-4564-bdb7-db6dd99d68ad), 29 Jun 2023. Search text for the command line. Opened in Review 006 for the process name, PID and date only.
@@ -325,7 +365,9 @@ On the contested rows: PDFDoc and PowerPlayer belong to the family Intezer calls
 - **AR:** [ANY.RUN report of the Bright VPN installer](https://any.run/report/1929fa577e90828053bfa6e9524837b75ddc2bb8c00578d7ef6754cef37e25ac/1a0281d9-ccbb-42c6-ab9f-30d742d5e5a2), 6 Nov 2025. Process names only.
 - **AS:** [ANY.RUN report of `PDFSparkOnSoft_683918.exe`](https://any.run/report/717c2728b957a7faecb7d1ac057bb03053f6397bbc369092c493daf6d45dc67c/76cba640-dabd-420e-bda4-1ae186bb1fe7). Search text.
 - **AU:** [Advanced Uninstaller page for PacketShare 2.0.6](https://www.advanceduninstaller.com/PacketShare-version-2_0_6-70a259424444c3d6628e4d006a09b8d7-application.htm), written 17 Apr 2025.
+- **AW:** [Advanced Uninstaller page for Pawns.app 1.23.4](https://www.advanceduninstaller.com/Pawns_app-1_23_4-36259ad20e4e014b2c68d68c42c15472-application.htm), written 31 May 2025.
 - **BS:** [Bright SDK Windows integration guide](https://help.bright-sdk.com/hc/en-us/articles/16679042461329-Windows-SDK-Integration-Guide-C-C). Search text.
+- **CH:** [Cybersecurity News on Expel's ManualFinder research](https://cybersecuritynews.com/hackers-using-pup-advertisements/), 25 Aug 2025.
 - **CN:** [Cybersecurity News on the Unit 42 research](https://cybersecuritynews.com/tamperedchef-malware-uses-signed-productivity-apps/amp/), May 2026. Search text.
 - **CW:** [Controlware CSIRT report](https://www.controlware.de/fileadmin/controlware/sonstiges/dokumente/Security_Hinweise/Controlware_Beyond_Potentially_Unwanted_Apps_2025.pdf), Dec 2025.
 - **DW:** ["The FlipFormat_# Illusion: The Magic of the Doc Convert Wizard"](https://medium.com/@rabbit_knight/the-flipformat-illusion-the-magic-of-the-doc-convert-wizard-10036623d0e8), about Apr 2026. Search text.
@@ -334,8 +376,12 @@ On the contested rows: PDFDoc and PowerPlayer belong to the family Intezer calls
 - **FE:** [Field Effect on signed installers](https://fieldeffect.com/blog/potentially-unwanted-applications), Sep 2025. Search text.
 - **FF:** [FreeFixer file page for `net_updater32.exe`](https://freefixer.com/library/file/net_updater32.exe-315883). Search text.
 - **FN:** [file.net page for `infatica-service-app.exe`](https://www.file.net/process/infatica-service-app.exe.html).
+- **FU:** [file.net page for `uTorrent.exe`](https://www.file.net/process/utorrent.exe.html). Undated.
 - **FX:** [FreeFixer file page for `infatica-service-app.exe`](https://www.freefixer.com/library/file/infatica-service-app.exe-308773).
+- **GB:** [GridinSoft file analysis of the Outbyte Driver Updater installer](https://gridinsoft.com/online-virus-scanner/id/d567b038197b308d90bea2c10217842a557b384df4bec6e68086e705a697911b), analysis dated 8 Feb 2025.
+- **GC:** [GridinSoft on the CHIP Downloader wrapper](https://blog.gridinsoft.com/chip-downloader-pup/), 6 Jul 2026, updated 16 Jul 2026.
 - **GD:** [G DATA on Projextor](https://blog.gdatasoftware.com/2026/08/38468-projextor-abusing-electron), 17 Aug 2026.
+- **GF:** [GridinSoft on the OfferCore detection](https://blog.gridinsoft.com/puadimanagerwin32-offercore-removal-guide/), first published 21 Jun 2024, updated 6 Nov 2026.
 - **GK:** [GridinSoft file analysis of `PacketShare.exe`](https://gridinsoft.com/online-virus-scanner/id/f6fd8ef9f6e6bb2acf929fa6efe6e16f1821449159746f58d590bce089c36f45), analysis dated 7 Mar 2025.
 - **GL:** [GridinSoft file analysis of `DigitalPulseService.exe`](https://gridinsoft.com/online-virus-scanner/id/d49ac298eb6fd619e9e209454762e4b73c76d9def3e47c6587288ee1c5490674), analysis dated 29 Jul 2024.
 - **GO:** [GridinSoft OneBrowser removal guide](https://blog.gridinsoft.com/onebrowser-removal/), 25 Jun 2026, updated 4 Nov 2026.
@@ -347,17 +393,120 @@ On the contested rows: PDFDoc and PowerPlayer belong to the family Intezer calls
 - **JS:** [Joe Sandbox analysis of the `sparkonsoft[.]com` download page](https://www.joesandbox.com/analysis/1787620/0/html). Search text.
 - **MA:** [Mallory entry for OneBrowser](https://mallory.ai/malware/019e6578-e975-70a3-b191-59e9b29bb8e7), summarising the analysis under RK. Search text.
 - **MB:** [Malwarebytes PUP.Optional.SparkOnSoft](https://www.malwarebytes.com/blog/detections/pup-optional-sparkonsoft).
+- **MD:** [Malwarebytes PUP.Optional.iObitDriverBooster](https://www.malwarebytes.com/blog/detections/pup-optional-iobitdriverbooster), removal log dated 12 Mar 2019, page modified 4 Oct 2023.
 - **MI:** [Malwarebytes PUP.Optional.Infatica](https://www.malwarebytes.com/blog/detections/pup-optional-infatica), page modified 27 May 2025. No identifiers.
+- **MP:** [Malwarebytes PUP.Optional.DriverPack](https://www.malwarebytes.com/blog/detections/pup-optional-driverpack), removal log dated 6 May 2018, page modified 28 Sep 2023.
 - **PX:** [TheCyberDef on the Projextor cluster](https://thecyberdef.com/projextor-malware-hides-in-fake-pdf-tools-meal-planners-via-electron-apps/), about Aug 2026. Search text.
 - **RC:** [Red Canary Intelligence Insights, November 2025](https://www.zscaler.com/blogs/cybersecurity-best-practices/intelligence-insights-november-2025), with lure names from the December 2025 edition. Search text.
 - **RK:** ["The Spark or the Smoke: Looking into the PDF SparkOnSoft and OneBrowser Malware"](https://medium.com/@rabbit_knight/the-spark-or-the-smoke-looking-into-the-pdf-sparkonsoft-and-onebrowser-malware-3a7a19dafdba), about Nov 2025. Search text.
 - **RR:** this repository's own research note, `threat-work/research/2026/2026-09-02-shift-browser-security-assessment.md`.
 - **SG:** [SigmaHQ OneLaunch rule](https://github.com/SigmaHQ/sigma/blob/master/rules/windows/dns_query/dns_query_win_onelaunch_update_service.yml).
-- **SH:** [Sophos on Hola Browser](https://www.sophos.com/blog/you-do-surprise-me-exe-an-unexpected-executable-in-hola-browser), 2026. The page shows no day or month. Re-read in Review 007.
+- **SH:** [Sophos on Hola Browser](https://www.sophos.com/blog/you-do-surprise-me-exe-an-unexpected-executable-in-hola-browser), 2026. The page shows no day or month. Re-read in Reviews 007 and 008. News coverage of it is dated 5 Jun 2026 (search text).
 - **SO:** [Sophos KBA-000043676](https://support.sophos.com/support/s/article/KBA-000043676?language=en_US), 24 Sep 2026. Search text.
 - **U42:** [Unit 42, "Tracking TamperedChef Clusters via Certificate and Code Reuse"](https://unit42.paloaltonetworks.com/tracking-tampered-chef-clusters/), 20 May 2026. Opened in Review 006 in its markdown edition. The signer table was transcribed twice with the same result.
 
 <!-- New reviews go directly below this line, newest first. -->
+
+## Review 008 · 2026-11-13 07:57 GMT
+
+**Reviewed:** register at commit `d01a695` (Run 08; active H001, H003, H004, H005, H007 to H014; E001, E002, E003). This is the last scheduled review. No review landed between Review 007 and this one, so Runs 04 to 08 (`4fa2dca`, `df25da1`, `e4f8af1`, `2baeb02`, `d01a695`) are reviewed here in one pass: structure, follow-through and integrity in full, sources in part (see the table and *Not done*).
+
+**Verdict:** The research run read Review 007 before every run and actioned all of it. The register now holds eleven low-severity packs marked finished and three escalation packs, in two separate lists, each with a typed identifier table. The weak point is the evidence of "likely now": H011 to H014 rest on live download pages and on artefacts from 2018 to 2025, and this review could not confirm the measured figures behind H009 and H010. The escalation packs and H007 have the best evidence and the best-checked identifiers.
+
+**Follow-through on earlier reviews**
+
+| Item | Result |
+| --- | --- |
+| Run log names the review read | Yes, in all five runs: Review 007, with its time, the commit it reviewed and the file hash. It was the newest review each time. |
+| Review 007 next 1 to 5 | Actioned in Run 04. H006 retired and re-filed as E003, E001 written, H007 from L3, H008 from L4, signer check recorded. |
+| Review 006 corrections 1 to 4, Review 005 corrections 1 to 3 | Actioned in Runs 04 and 06. Unit 42 and Shift wording corrected, H005 link fixed, typed tables added to H001, H003, H004 and H005, PDF Polish row qualified. |
+| Review 007 correction 2 | Followed. Digital Pulse is not treated as Infatica. |
+| Plan by run | Followed. E002 in Run 05, H009 and H010 at 04:00, no new packs at 05:00, H011 and H012 at 06:00, H013 and H014 at 07:00. |
+| Declined, with reasons | L8 twice (nothing shows PacketShare running after January 2026) and L6 twice (the source would not open). Both are fair. |
+
+**Integrity:** 77 footnotes defined, 77 referenced, none orphaned. The header (Run 08, twelve H packs, three E packs) matches the index and the run log. The research commits changed only the register. H006 was removed with a run-log note. Two faults: the index link `#h012-torrent-classic-for-windows` does not resolve because the heading starts with `µ`, and the OneStart row in the already-covered table was shortened in Run 04 without a run-log note.
+
+**Verified against source this review**
+
+| Item | Result |
+| --- | --- |
+| H011: Malwarebytes page for IObit Driver Booster (MD) | Opened from search results. `C:\Program Files (x86)\IObit\Driver Booster\6.3.0\DriverBooster.exe`, both task names and the log date of 12 Mar 2019 match. The same folder also holds `Scheduler.exe`, `DBDownloader.exe` and `AutoUpdate.exe`. Uninstall key `Driver Booster_is1`. Page modified 4 Oct 2023. |
+| H014: Malwarebytes page for DriverPack (MP) | Opened from search results. The task-cache key, `\AppData\Roaming\DRPSu\` and the log date of 6 May 2018 match. `DriverPack.exe` appears only under `\AppData\Local\Temp\7ZipSfx.000\`. New: `DriverPackNotifier.exe` in two folders, task `DRPNPS`, key `HKCU\SOFTWARE\DRPSU`, host `drp[.]su`. |
+| H013: GridinSoft file page for the Outbyte installer (GB) | Opened from search results. Valid signature by `Outbyte Computing Pty Ltd`, signed 28 Nov 2024. Company `Outbyte`, product `Driver Updater`. Malwarebytes verdict `PUP.Optional.Outbyte`. Analysis dated 8 Feb 2025. |
+| H013: ANY.RUN report of 17 May 2025 | Opened from search results. Date and file name match. The page text served to this reviewer showed only the installer process: no `C:\Program Files (x86)\Outbyte\Driver Updater\DriverUpdater.exe`, no company or description field. Not confirmed. |
+| H013: GridinSoft removal guide | Opened from search results. Published 3 Jul 2026, updated 7 Jul 2026. It gives detection names only, no path, task or service. |
+| H010: Advanced Uninstaller page for Honeygain 0.7.0.0 (AG) | Opened from search results. `Honeygain.exe` and `HoneygainUpdater.exe` in `\AppData\Roaming\Honeygain\`. Written 26 Sep 2020, so old. |
+| H012: file.net page for `uTorrent.exe` (FU) | Opened from search results. Main location `\AppData\Roaming\uTorrent\`, publisher BitTorrent. Undated. It does not show `C:\Program Files (x86)\uTorrent\`. |
+| H009: Sophos on Hola (SH) | Opened from search results. Both paths, the service name and the SHA-256 in H009 match. The page shows no date. News coverage of it is dated 5 Jun 2026 (search text). It gives no Hola process name or signer. |
+| H009, H010: Gen Digital figures | Not confirmed. Searching found a different Gen Digital article, dated 11 Jun 2026, with no figure per provider. A direct fetch of the register's link needs an approval nobody is here to give. |
+| New leads | GridinSoft on the OfferCore detection (GF), GridinSoft on CHIP Downloader (GC) and an Advanced Uninstaller page for Pawns.app (AW), all opened from search results. |
+| Not opened | PaysFair and the Honeygain support page. The PDF Polish sandbox report and the Rabbit Knight analysis behind E002. The Team-IT case behind E001 (a search did not find it). The Malwarebytes forum thread and the Microsoft page behind H012. The file.net pages for `DriverPack.exe` and `DriverUpdater.exe` (a direct fetch needs approval). The vendor download and press pages. Lumen and the GridinSoft PacketShare entry. Every source Run 06 added to H001, H003, H004 and H005. Huntress, Unit 42, Intezer, G DATA and the OneBrowser guide were not re-read: Reviews 003 to 007 read them. |
+
+All new values were read once, through one page fetch each.
+
+**What changed in this file**
+
+- *Verified sweep sheet*: rows for H010 to H014, Pawns.app and CHIP Downloader under "Unwanted software", one ManualFinder task under "Escalate on match", nine source keys.
+- *Lead queue*: E001, E002, E003, L3, L4, L5 and L7 marked taken. New leads L9, L10 and L11. A note on L8.
+- *Standing guidance* 9 is new. It says this is the last review and that a new pack needs dated evidence, not only a live download page.
+
+**Corrections**
+
+1. **H012:** fix the index link. Write the heading as "H012: uTorrent Classic for Windows" or link to `#h012-µtorrent-classic-for-windows`.
+2. **H013:** the standalone row rests on a path this review could not see in the cited report. Quote the report's line for it in the footnote, or mark the row unconfirmed. Add the signer `Outbyte Computing Pty Ltd` as a standalone row (GB).
+3. **H014:** `DriverPack.exe` is marked standalone, but the cited log shows it only in a temporary self-extraction folder. Say so in the row. Add `DriverPackNotifier.exe` with its two folders, the task `DRPNPS` and the key `HKCU\SOFTWARE\DRPSU` (MP).
+4. **H009 and H010:** quote the Gen Digital sentence that gives each figure, with its date. If it cannot be quoted, change the tier from A to B. Add `\AppData\Roaming\Honeygain\Honeygain.exe` to H010 (AG).
+5. **H007:** the pack gives `C:\Program Files (x86)\Chromstera Browser Solutions\Chromstera Browser` and assigns `UniversalUpdater.exe` to "Web Genius". The sweep sheet, from two reviewer readings of Huntress, has `\Program Files (x86)\Chromstera Browser\` and pairs `UniversalUpdater.exe` with World Wide Web. Re-read Huntress and state which table each value comes from. Until then the signer and the two browser updater names are the rows to rely on.
+
+**Final ranking**
+
+Ranked by likelihood of a hit and recency. The two lists stay separate. No prevalence figure is implied.
+
+*Escalation packs (a match is an incident lead)*
+
+1. **E001 PDF Spark and OneBrowser.** A confirmed previous hit, a signer-level vendor detection from 24 Sep 2026 and a removal guide updated 4 Nov 2026. Identifiers read in four sources.
+2. **E003 CL-UNK-1090 document tools.** The same advert route as the confirmed hits, reported in May and July 2026. The widest set of exact signer names, transcribed twice.
+3. **E002 `Jia Hao` family around PDF Polish.** A confirmed previous hit with a sibling family reported as malware on 17 Aug 2026. Third because the PDF Polish values were read as search text only and no source names PDF Polish as part of Projextor.
+
+*Low-severity packs*
+
+1. **H007 Dragon Boss.** The only pack with measured, product-specific activity: 14 Apr 2026, 2,223 UK addresses in one day. Signer and updater names read twice.
+2. **H008 Infatica P2B.** A vendor detection from January 2026 and reports updated 11 Aug 2026. Signer, process names and folder read in Review 006.
+3. **H010 Honeygain.** Live product. Process names and folder read this review, on an old page. The measured figure is unconfirmed.
+4. **H009 Hola.** Live product with incident reporting from June 2026. Only the folder is verified. No process name or signer yet.
+5. **H011 IObit Driver Booster.** Current product. Path and tasks read this review, from a 2019 log. The folder name includes the version number.
+6. **H012 µTorrent Classic.** Live download. `uTorrent.exe` in `\AppData\Roaming\uTorrent\` read this review on an undated page.
+7. **H013 Outbyte Driver Updater.** Removal guide from July 2026. Signer and installer version information read this review. The runtime path is unconfirmed.
+8. **H014 DriverPack.** Live download only. Every identifier comes from a 2018 log.
+9. **H005 Bright SDK.** Current partner programme. Identifiers from a 2023 report.
+10. **H003 Web Companion.** Live download. Business sightings from 2023. Not re-read by a reviewer.
+11. **H001 OneLaunch.** Downloads withdrawn, so remnants only. Last sighting 27 Mar 2026.
+
+H004 RelevantKnowledge is not ranked. Its status is Incomplete.
+
+**Run these first**
+
+Identifiers are copied from the *Verified sweep sheet*. Reviews 003 to 007 read them at source. This review did not re-read them.
+
+| Pack | Verified identifiers | A match means |
+| --- | --- | --- |
+| **E001** PDF Spark and OneBrowser | Signer: `Mainstay Crypto LLC`, `Crowd Sync LLC`, `Chickadee Digital`, `Riya Software`, `Eman Group, LLC`, `WORK PRODUCT INC`. Version-information product: `PDF_Spark`. Process: `PDFSparkOnSoft_*.exe`, `PDFSparkWare_*.exe`, `OneBUpdateService.exe`, `OBUpdateService.exe`, `oibrowser.exe`. Folder: `\AppData\Local\Programs\PDF_Spark\PDFSpark.exe`, `\AppData\Local\OB\OneBUpdate\`. Scheduled task: `OBUpdate`, `OneBUpdate`. Service: `onebupdate`, `obupdate`, `oibupdate`. Registry: `HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\OneBrowser.exe`, `PDF_Spark_is1` under the user's `Uninstall` key. | Incident lead. On a machine that had PDF Spark, any OneBrowser row means the reported second stage is present. |
+| **H007** Dragon Boss | Signer: `Dragon Boss Solutions LLC`. Process: `ChromsteraUpdater.exe`, `ArtificiusUpdater.exe`, `WinDefenseThree.exe`, `WinDefenseFive.exe`, `WinSupportFive.exe`, `WaveTownFive.exe`, `SistemaTownOne.exe`, `TableBoatTwo.exe`, `RaceCarTwo.exe`, `ProductSetupTwo.exe`. Pair only: `WorldWideWeb.exe`, `UniversalUpdater.exe` with `\World Wide Solutions\World Wide Web\`. Escalate on: tasks `ClockSetupWmiAtBoot`, `DisableClockServicesFirst`, `DisableClockAtStartup`, `RemoveClockAtLogon`, `RemoveClockPeriodic`, files `ClockRemoval.ps1`, `ClockRemoval-WmiBoot.ps1`, WMI consumers `MbRemovalMbSetupKillConsumer`, `MbRemovalMbSetupKillConsumerTrace`, folder `\Windows\System32\config\systemprofile\AppData\Local\WMILoad\`. | Unwanted software, low severity. Any "escalate on" row means the antivirus-removal payload reached the machine: incident. |
+| **E003** CL-UNK-1090 document tools | Signer: `Chrono Orion LTD`, `GOLD HARMONY LTD`, `TAU CENTAURI LTD`, `G.R.CIGAR. LTD`, `VAST LAKE LTD`, `LONG SOUND LTD`, `AMARYLLIS SIGNAL LTD`, `BLUE TAKIN LTD`, `RED ROOT LTD`, `LIGHTNER TOK LTD`, then the other 30 names in the sheet. Scheduled task: `Crystal_updater`, `ConvertMateTask`, `Easy2ConvertTask`, `UpdateTaskZT`, `Zapdf`, `PDC_Update`. Process: `PowerDoc.exe`, `CrystalPDF.exe`. Folder: `\AppData\Local\pwrDoc\`. File: `\SagePdf\SageId.txt`, `\ConvertyFile\CFInfo.txt`, `\O\OZInfo.txt`, `\FMCR\userId.txt`. | Incident lead. Identify the signed file, then look for the downloader or stealer behaviour the sources describe. |
+
+Then run H008 and H010 from the "Unwanted software" rows.
+
+**Next run (08:00 and every later run)**
+
+No review follows this one. These hold until the owner says otherwise.
+
+1. In the run log, name Review 008 and record each item below as actioned or declined, with the reason.
+2. Fix corrections 1 to 5 before anything else. Then put both indexes in the order of the *Final ranking*, unless new dated evidence changes it, and say what changed.
+3. Add a pack only when a source from the last 12 months shows the software on machines: a detection release, an incident write-up or a measured figure. A live download page is not enough by itself. At most one new pack per run. If nothing qualifies, add nothing and strengthen an existing pack.
+4. Leads, in order: L9, L10, L11. Take L8 only with proof that PacketShare still runs after January 2026. Apply standing guidance 8 to every new pack.
+5. Keep the two lists separate, keep H004 as Incomplete until it has recent real-world evidence, and never mark a row standalone when its source shows it only in a temporary folder.
+
+**Not done this review:** the sources listed under "Not opened" were not checked, so E002's PDF Polish rows, the Run 06 tables for H001, H003, H004 and H005, and the vendor dates in H009 to H014 rest on the research run's own reading. The H007 folder difference in correction 5 is not resolved.
 
 ## Review 007 · 2026-11-13 02:46 GMT
 
