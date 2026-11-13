@@ -27,7 +27,84 @@ Applies to every run until a later review changes it.
 6. **Quote what a pivot rests on.** For any path, argument or service name taken from a sandbox report, record the exact string as shown and where in the report it appears. Two detonations of one file hash are one sample.
 7. **Build packs around what has already hit.** Siblings of a confirmed hit are the strongest leads: other products from the same publisher, installer framework or advertising route. Where several share those, write one pack with a per-product identifier table, each identifier sourced. A pack counts as one candidate. A product the owner already knows is calibration and goes in the already-covered table, not into a pack as new.
 
+## Lead queue
+
+Researched leads for the research run to take from, best first. The reviews maintain this list. A lead is a direction with a dated source, not a finished card: verify it, source every identifier yourself, and write it up as a pack. Take leads in order unless a review says otherwise. Status is `open`, `taken (Hxxx)` or `dropped: reason`. Hostnames are defanged.
+
+### L1 · PDF Spark signer pack · open
+- **What:** other software signed by the publishers behind a confirmed hit. PDF Spark itself stays calibration.
+- **Why likely now:** it is the sibling of a confirmed hit, and a vendor released a detection on 24 September 2026 that targets the signer, not one product, saying the certificate had been used across several applications.
+- **Evidence:** [Sophos KBA-000043676](https://support.sophos.com/support/s/article/KBA-000043676?language=en_US), 24 Sep 2026. [Controlware CSIRT report](https://www.controlware.de/fileadmin/controlware/sonstiges/dokumente/Security_Hinweise/Controlware_Beyond_Potentially_Unwanted_Apps_2025.pdf), Dec 2025: two PDFSpark builds under two signers. [Malwarebytes PUP.Optional.SparkOnSoft](https://www.malwarebytes.com/blog/detections/pup-optional-sparkonsoft), page modified 24 Oct 2025.
+- **First identifiers:** signers `Mainstay Crypto LLC` and `Crowd Sync LLC`. Installer names `PDFSparkWare_*.exe`, `pdfsetup.exe`, `PDFSparkOnSoft.exe`. Hosts `pdfsparkware[.]com`, `sparkonsoft[.]com`, `pdfsetup[.]com`, `pdfsparkapi[.]com`.
+- **Severity:** Sophos and Malwarebytes class it as PUA. Controlware treats the group it studied as malware, while noting PDFSpark differs from the rest. State both.
+
+### L2 · Fake utility pack promoted through search adverts ("HollowMare") · open
+- **What:** ConvertyFile, OneZip, CrystalPDF, PowerDoc, SagePDF, PDFDoc and PowerPlayer. Installers that force a browser extension or change the default search, with no working application behind them.
+- **Why likely now:** same route and same disguise as the confirmed hits (free PDF and file tools from search adverts), reported in July 2026, with the newest product found in January 2026.
+- **Evidence:** [Intezer, "Two Trojan Families Trotting in Through Google Search Ads"](https://research.intezer.com/blog/2026/07/two-trojan-families/), 27 Jul 2026.
+- **First identifiers:** signers `TAU CENTAURI LTD`, `G.R.CIGAR. LTD`, `VAST LAKE LTD`, `LONG SOUND LTD`, `GOLD HARMONY LTD`, `Chrono Orion LTD`, `TAMARISK INTERACTIVE LTD`. Scheduled task `Crystal_updater`. Folders `%LocalAppData%\pwrDoc\`, `%AppData%\FMCR\`, `%TEMP%\ConvertyFile\`, `%TEMP%\SagePdf\`. Files `PowerDoc.exe`, `native.exe`, `CrystalPDF.exe`.
+- **Severity:** contested. Intezer calls this family PUA. Controlware (Dec 2025, linked in L1) says CrystalPDF and PowerDoc should be treated as malware, citing persistence, regular encrypted traffic, a fake uninstaller and revoked certificates. The card must state both and set the escalation line.
+
+### L3 · Dragon Boss Solutions pack · open
+- **What:** Chromnius, Chromstera Browser, Artificius Browser and "World Wide Web", all signed by one publisher.
+- **Why likely now:** dated prevalence. A sinkhole received check-ins from 23,565 unique IP addresses in 24 hours across 124 countries, with the UK among the five largest.
+- **Evidence:** [Huntress, "When PUPs Grow Fangs"](https://www.huntress.com/blog/pups-grow-fangs), 14 Apr 2026.
+- **First identifiers:** signer `Dragon Boss Solutions LLC`. Paths `C:\Program Files (x86)\Chromstera Browser\` and `C:\Program Files (x86)\World Wide Solutions\World Wide Web\`. Files `ChromsteraUpdater.exe`, `ArtificiusUpdater.exe`, `WorldWideWeb.exe`, `UniversalUpdater.exe`.
+- **Severity:** presence is adware or PUP grade, which is how vendors classed it before. Huntress documents an update channel that delivered a tool to remove antivirus products (scheduled tasks `ClockSetupWmiAtBoot`, `RemoveClockPeriodic`; scripts `ClockRemoval.ps1`). Those artefacts are the escalation line. Decide whether the pack clears the low-severity bar. If it does not, put it in the already-covered table with the reason.
+
+### L4 · Infatica P2B bandwidth-sharing component · open
+- **What:** a peer-to-business proxy component that arrives inside free software. A different vendor from H005.
+- **Why likely now:** a vendor PUA detection was released in January 2026 and user reports continued through summer 2026.
+- **Evidence:** [Sophos KBA-000043735](https://support.sophos.com/support/s/article/KBA-000043735?language=en_US), 8 Jan 2026: detection named "Infatica P2B in Non-Standard Location". [GridinSoft](https://blog.gridinsoft.com/k-lite-codec-pack-infatica-removal/), 10 Jun 2026, updated 11 Aug 2026: reports of Infatica or "Digital Pulse" services after codec-pack installs.
+- **First identifiers:** none sourced yet. Find the service, process and path names.
+- **Severity:** low when limited to the component on a machine without approval.
+
+### L5 · Hola Browser and Hola VPN · open
+- **What:** consumer browser and VPN built on peer routing.
+- **Why likely now:** 2026 reporting of an unexpected component shipped through its update pipeline.
+- **Evidence:** [Sophos, "You do surprise me.exe"](https://www.sophos.com/blog/you-do-surprise-me-exe-an-unexpected-executable-in-hola-browser), 2026 (the page shows no day or month).
+- **First identifiers:** `C:\Program Files\Hola\`. Escalation artefacts from the Sophos report: `me.exe`, `HolaMonitorService.exe`, service `hola_monitor_svc`.
+- **Severity:** unapproved software when it is only the product. The three artefacts above are reported as a coin miner and are the escalation line. Establish whether Hola is distinct enough from H005 to stand alone.
+
+### L6 · Renamed WinRAR installers from PDF-themed advert pages · open
+- **What:** a genuine signed WinRAR installer delivered under rotating fake PDF-tool names.
+- **Why likely now:** same advert route as the confirmed hits. One dated public analysis only, so lower confidence.
+- **Evidence:** [Joe Sandbox analysis of `PDFFlows-Setup-v3.2.26.exe`](https://www.joesandbox.com/joereverser/analysis/download/1b20274b-4670-4d02-b0d3-4c13a87ec46b?type=html), about July 2026.
+- **First identifiers:** landing host `pdf-flows[.]com`. A file whose name is a PDF tool and whose signer and version information say WinRAR.
+- **Severity:** low. The delivered software is genuine.
+
+### L7 · Carried over from Review 001, not yet sourced by a review · open
+uTorrent and BitTorrent clients. Honeygain, Pawns.app, PacketStream, Repocket, Grass. Driver Booster, DriverPack, Outbyte, Fortect. Take these only after L1 to L6, and only with dated evidence.
+
+### Not for this register
+These are prevalent and arrive the same way, but public reporting classes them as malware, so they are not low severity. Do not add them as PUP candidates. The owner can ask for a separate pack.
+- **JustAskJacky lures** (ManualReaderPro, AllManualsReader, AskBettyHow, pdfblitz): Red Canary describes them as malicious NodeJS applications that run commands in memory, and ranked the family first in its monthly prevalence list in [November 2025](https://redcanary.com/blog/threat-intelligence/intelligence-insights-november-2025/) and back in the top ten for [July 2026](https://redcanary.com/blog/threat-intelligence/intelligence-insights-august-2026/).
+- **"SilentMare"** (PDF Skills, Zip This, Easy 2 Convert, Convert Mate, Rapid Doc, ZapPDF): Intezer (linked in L2) describes a downloader that waits for an operator payload.
+- **TamperedChef, AppSuite PDF Editor, ManualFinder, OneStart, EpiBrowser:** already excluded in the register.
+
 <!-- New reviews go directly below this line, newest first. -->
+
+## Review 003 · 2026-11-13 01:02 GMT
+
+**Reviewed:** no new run yet. Register still at commit `b8153a2`. This entry adds the *Lead queue* above. Reviews 001 and 002 still stand.
+
+**Verified against source this review**
+
+| Item | Result |
+| --- | --- |
+| Intezer, 27 Jul 2026 | Opened. Product lists, signers, paths, tasks and hosts as recorded in L2 and under "Not for this register". |
+| Huntress, 14 Apr 2026 | Opened. Products, paths, tasks and sinkhole figures as recorded in L3. |
+| Controlware CSIRT, Dec 2025 | Opened. PDFSpark signers and hosts as recorded in L1. CrystalPDF and PowerDoc judged malicious. |
+| Sophos on Hola Browser, 2026 | Opened. Artefacts as recorded in L5. |
+| GridinSoft on Infatica, Jun 2026 | Opened. No file or service names given. |
+| Sophos KBA-000043676 and KBA-000043735 | Read as search-result text only. The pages did not load in full. |
+| PDF Polish | No public reporting found under that name. |
+
+**Next run**
+
+1. Take **L1** and **L2** first, each as a pack. Then L3, L4 and L5 in that order on later runs.
+2. For PDF Polish, find the publisher and signer. If nothing public exists, say so in the already-covered table. Do not guess.
+3. Keep everything under "Not for this register" out unless the owner asks for it.
 
 ## Review 002 · 2026-11-13 00:56 GMT
 
