@@ -1,8 +1,8 @@
 # High-probability, low-severity threat hunts
 
 **Last researched:** 13 November 2026  
-**Latest research run:** 04 — two low-severity packs, a new escalation pack, and one corrective reclassification  
-**Active candidates:** Six low-severity H packs (H001, H003, H004, H005, H007, H008), and two escalation E packs (E001, E003). H002 and H006 retired.  
+**Latest research run:** 05 — two low-severity packs H009/H010 and E002 Jia Hao / Projextor escalation pack
+**Active candidates:** Eight low-severity H packs (H001, H003, H004, H005, H007, H008, H009, H010), and three escalation E packs (E001, E002, E003). H002 and H006 retired.
 **Scheduled research:** Hourly through the final scheduled run at 08:00 Europe/London on 14 November 2026  
 **Execution surface:** Microsoft Sentinel / Log Analytics workspaces only  
 **Status:** Researched hunt hypotheses; no client queries have been run or results claimed.
@@ -25,7 +25,7 @@ The likelihood of a hit across clients is not yet measured. Selection below uses
 | OneStart / BaoLoader-associated activity | Not suitable for a routine low-severity PUP entry. [^excluded-onestart] |
 | H006 HollowMare | Retired from the low-severity list in Run 04, re-filed as E003 after the Unit 42 signer evidence. This historical ID is not reused. [^hollow][^pdf-signer] |
 
-Retired IDs are not reused. Six active low-severity packs are indexed below; H006 was reclassified as E003, not counted as new.
+Retired IDs are not reused. Eight active low-severity packs are indexed below; H006 was reclassified as E003, not counted as new.
 
 ## Hunt index — low-severity packs
 
@@ -33,6 +33,8 @@ Retired IDs are not reused. Six active low-severity packs are indexed below; H00
 
 | ID | Candidate | Tier | Newest dated evidence | Added | Status |
 | --- | --- | --- | --- | --- | --- |
+| [H009](#h009-hola-browser-and-desktop-vpn) | Hola Browser / desktop VPN | **A (provider-level)** | 30 Sep 2026: ~664k provider-associated active Windows users; live downloads 13 Nov | Run 05 (L5) | Finished: branded presence, miner escalates |
+| [H010](#h010-honeygain-windows-bandwidth-sharing-app) | Honeygain Windows bandwidth-sharing | **A (provider-level)** | 30 Sep 2026: ~68k active Windows users; vendor support 22 Oct | Run 05 (L7) | Finished: branded execution, relay unproven |
 | [H007](#h007-dragon-boss-solutions-browser-updaters) | Dragon Boss Solutions browser/updater family | **A** | 14 Apr 2026: 23,565 source IPs, of which 2,223 UK | Run 04 (L3) | Finished: presence only; check malware escalation |
 | [H008](#h008-infatica-p2b-proxy-component) | Infatica P2B component | **B** | 11 Aug 2026: published consumer-install follow-up | Run 04 (L4) | Finished: product execution; relaying unproven |
 | [H001](#h001-onelaunch) | OneLaunch | **B** | 27 Mar 2026 corporate report | Run 01 | Incomplete: typed identifier table |
@@ -237,6 +239,40 @@ Intentional approved panel participation is a real alternative explanation, cons
 
 **Hunt:** Confirm observed process execution within 30 retained days, identify the host software and program path, then correlate available process-attributed traffic, startup or service creation. A process plus distinctive path establishes component execution **not proven third-party proxy relay**. Intentional opt-in software and authorised research tools are possible benign explanations; client approval is separate. Escalate corroborated covert traffic relaying, installed loader or related compromise. **Declined unsupported identifiers:** DigitalPulseService.exe is not proven Infatica; the service name and infatica_agent.exe variant are unverified here; the Sophos support page and FreeFixer pages did not open fully.
 
+## H009: Hola Browser and desktop VPN
+
+**Hypothesis, tier A (provider-level, L5):** Hola's Windows Browser and desktop VPN remain available on **13 November 2026**. Gen Digital published **30 September 2026** measurements of about **664,000 active Windows users with software associated with Hola** in its September snapshot. This is *not* Hola Browser-specific execution, client/UK-estate prevalence, or proof of relayed traffic; the research excludes embedded SDKs. This branded Windows-product hunt is distinct from H005's embedded Bright SDK despite the related proxy business model. [^r05-gen][^r05-hola-vendor]
+
+**Exact identifier table** — original Sophos “Here's looking at me.exe” analysis, Hola product listing and an older installer sample; a source-observed path is not a fleet-level installation count.
+
+| Product | Type | Exact value | Log Analytics table.column | Match rule | Source |
+| --- | --- | --- | --- | --- | --- |
+| Hola Windows branded app | folder used by running program | `C:\Program Files\Hola\` | `DeviceProcessEvents.FolderPath` | **standalone** path-specific family execution lead, validate version/product and child process | [^r05-hola-sophos] |
+| Hola Browser | advertised Windows version | `1.258.330` | `DeviceProcessEvents.ProcessVersionInfoProductVersion` **when populated** | pair with Hola executable/path; website's version is **not** independently observed process metadata | [^r05-hola-vendor] |
+| Hola Browser | installer file | `Hola-Browser.exe` | `DeviceProcessEvents.FileName` or `DeviceFileEvents.FileName` | pair with product and ancestry; **installer-stage only**, old sample | [^r05-hola-installer] |
+| **Escalation** | miner-specific file hash | `e3541caf708c075f0bb22fc68b03acd8457fea7cf0732ea935b1eb016d1c7721` | `DeviceProcessEvents.SHA256` / `DeviceFileEvents.SHA256` where populated | **standalone sample hash**, not every Hola version | [^r05-hola-sophos] |
+| **Escalation** | unexpected service binary path | `C:\Program Files\Hola\HolaMonitorService.exe` | `DeviceProcessEvents.FolderPath` | **standalone combined path+file** miner-stage lead | [^r05-hola-sophos] |
+| **Escalation** | registered service | `hola_monitor_svc` | collected Windows Service-install event fields or `DeviceEvents.AdditionalFields` if ingested | **standalone** malicious-chain *creation event* lead; not proof current service state | [^r05-hola-sophos] |
+
+**Hunt:** Across available Sentinel process creation events, find executed Hola-folder processes and corroborate the branded application against the client's software policy. Free Hola may offer peer contribution; Premium usage need not—do not infer relay or maliciousness from branded software alone. **Separate incident pivot:** Sophos documented an unexpected signed-delivery-pipeline component, later identified as a cryptominer, which added a Defender exclusion and registered `hola_monitor_svc`; Hola told Sophos the distribution problem was fixed. A matching miner hash/service or control tampering warrants escalation, not a low-severity PUP outcome. Intentional authorised consumer VPN use can be benign. [^r05-hola-vendor][^r05-hola-sophos]
+
+## H010: Honeygain Windows bandwidth-sharing app
+
+**Hypothesis, tier A (provider-level, L7):** Gen Digital's **September 2026** Windows protection dataset found approximately **68,000 active users with software associated with Honeygain**; neither client prevalence nor confirmed proxy relaying is measured. Honeygain's Windows app was still available **13 November 2026**; the vendor updated its support page **22 October 2026**. It is a distinct user-facing product, not an H005/H008 SDK alias. [^r05-gen][^r05-hg-vendor]
+
+**Exact identifier table** — product-specific files from PaysFair's **24 September 2026** “What the Honeygain installer puts on your PC” static extraction; **a competitor's report, no sample execution**. Folder/key from Honeygain's official “Clean reinstall” steps. The strings are useful seeds, not proven executed processes until seen in an ingested workspace.
+
+| Product | Type | Exact value | Log Analytics table.column | Match rule | Source |
+| --- | --- | --- | --- | --- | --- |
+| Honeygain UI | installed executable name in file table | `Honeygain.exe` | `DeviceProcessEvents.FileName` | **standalone** branded runtime candidate; confirm actual process/product | [^r05-hg-static] |
+| Honeygain updater | executable name in file table | `HoneygainUpdater.exe` | `DeviceProcessEvents.FileName` | pair with Honeygain product identity/path; updater not relay | [^r05-hg-static] |
+| Honeygain engine | DLL name in installer | `hgwin.dll` | `DeviceFileEvents.FileName` | pair with Honeygain product folder; file event is not DLL-load evidence | [^r05-hg-static] |
+| Honeygain | installer file | `Honeygain_install.exe` | `DeviceProcessEvents.FileName` or `DeviceFileEvents.FileName` | **standalone installer lead**, not runtime proof | [^r05-hg-static][^r05-hg-sample] |
+| Honeygain | local folder | `%localappdata%\Honeygain`; `%appdata%\Honeygain` | `DeviceFileEvents.FolderPath` or `DeviceProcessEvents.FolderPath` when appropriate events exist | pair with process; vendor describes **leftovers** too | [^r05-hg-vendor] |
+| Honeygain | user registry key | `HKEY_CURRENT_USER\Software\Honeygain` | `DeviceRegistryEvents.RegistryKey` where collected | pair with process; a change event is not current inventory | [^r05-hg-vendor] |
+
+**Hunt:** Confirm execution of branded software via Sentinel process telemetry in a 30-day window, identify the user/authorised installation, and optionally correlate network, file and registry events if ingested. `Honeygain.exe` execution establishes product use, **not** that `hgwin.dll` loaded or that third-party traffic flowed. Escalate covert installation, demonstrated traffic relay inconsistent with client policy, or independently evidenced malware. A knowingly authorised earning app could be benign under policy. PaysFair's installer and the public sandbox sample have the **same hash**, so they are not two builds or two observed infections. [^r05-hg-static][^r05-hg-sample]
+
 ## Same route, not low severity — escalation packs
 
 These are **incident leads**, separate from the low-severity H list; neither a PUP label nor a shared search-advert route proves a host is infected.
@@ -244,6 +280,7 @@ These are **incident leads**, separate from the low-severity H list; neither a P
 | ID | Pack | Newest dated source | Added | Status |
 | --- | --- | --- | --- | --- |
 | [E001](#e001-pdf-spark-and-onebrowser) | PDF Spark / OneBrowser signer overlap | OneBrowser guide updated 4 Nov 2026 | Run 04 | Finished: qualified signer/process/task pivots |
+| [E002](#e002-jia-hao-document-utility-siblings-and-projextor-comparison) | Jia Hao / PDF Polish sibling context and Projextor | G DATA 17 Aug 2026; PDF Polish 10 Apr 2026 | Run 05 | Finished: malware-grade investigation; attribution qualified |
 | [E003](#e003-cl-unk-1090-and-hollowmare-document-tools) | CL-UNK-1090 / HollowMare document tools | Intezer 27 Jul 2026, SagePDF observed Jan 2026 | Run 04 reclassification of H006 | Finished: sample and installer stages separated |
 
 ### E001: PDF Spark and OneBrowser
@@ -267,6 +304,29 @@ These are **incident leads**, separate from the low-severity H list; neither a P
 | OneBrowser | registry | HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\OneBrowser.exe | DeviceRegistryEvents.RegistryKey | standalone registration-event lead, not live inventory | [^r04-onebrowser] |
 
 **Hunt:** On an endpoint with past PDF Spark, first search exact OneBrowser process, service, scheduled-task and registry paths over whatever Log Analytics retention exists. Then correlate actual execution with the earlier installer tree, signer and downstream payloads. Changes to the root certificate store are an **investigative idea, not a source-verified OneBrowser-specific IOC**; pursue only with supporting telemetry. An installer file, signer, blocked download or OneBrowser registry remnant alone does not prove a currently malicious stage. Confirmed OneBrowser deployment plus anomalous persistence, credential or second-stage access requires incident assessment. Sophos KBA-000043676 returned only a loading shell, so it was not used for new identifiers.
+
+### E002: Jia Hao document-utility siblings and Projextor comparison
+
+**Rationale — escalation, not routine PUP:** PDF Polish is a **confirmed previous hit**. A **10 April 2026** ANY.RUN sample executed `PDF Polish.exe` under `\AppData\Roaming\PDFPolish\` and showed **Jia Hao** in *process version company metadata*, **not independently verified digital-signature identity**. Rabbit Knight's **4 April 2026** sample of Doc Convert Wizard has `doc-wizard.exe` with the same company metadata and references a shared `main.js` hash across `DocConvertWizard`, `FoodFormula`, `ProfessionalConverter` and `PDFPolish`. G DATA's independent **17 August 2026** report classifies DocConvertWizard, Food/Meal Formula, Kitchen Canvas and PDF-tool installers as **Projextor malware**. **G DATA never identifies PDF Polish, Jia Hao or ProfessionalConverter as Projextor:** code/metadata similarity is an investigation lead, not proven attribution. [^pdf-polish][^r05-jia][^r05-gdata]
+
+**Exact identifier table:** ANY.RUN “General Info”, “Process information” and “Registry activity”; Rabbit Knight “Files analyzed”/“Living Off the Land”; G DATA “Installation and Infection Chain”/“IOCs”. Names/hashes are sample-specific; do not conflate separate installer builds.
+
+| Product | Type | Exact value | Log Analytics table.column | Match rule | Source |
+| --- | --- | --- | --- | --- | --- |
+| PDF Polish | installed runtime path, example username | `C:\Users\admin\AppData\Roaming\PDFPolish\PDF Polish.exe` | `DeviceProcessEvents.FolderPath` | **standalone sample-specific combined path**; generalise user profile when hunting | [^r05-polish-sample] |
+| PDF Polish / Doc Wizard | version company, **not signer** | `Jia Hao` | `DeviceProcessEvents.ProcessVersionInfoCompanyName` | pair with `PDF Polish.exe` / `doc-wizard.exe` and product path | [^r05-polish-sample][^r05-jia] |
+| PDF Polish | runtime executable | `PDF Polish.exe` | `DeviceProcessEvents.FileName` | pair with `\AppData\Roaming\PDFPolish\` | [^r05-polish-sample] |
+| PDF Polish | installer file | `PDFImage_519340.exe` | `DeviceProcessEvents.FileName` / `DeviceFileEvents.FileName` | **standalone installer-stage lead**, no durable installation inference | [^r05-polish-sample] |
+| PDF Polish | registration key | `HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\PDFPolish` | `DeviceRegistryEvents.RegistryKey` when ingested | **standalone** registration **write-event** lead, not current inventory | [^r05-polish-sample] |
+| Doc Convert Wizard | product process | `doc-wizard.exe` | `DeviceProcessEvents.FileName` | pair with company `Jia Hao` and product `Doc Convert Wizard` | [^r05-jia] |
+| Doc Convert Wizard | install-stage filename | `FlipFormat_947850.exe` | `DeviceProcessEvents.FileName` or `DeviceFileEvents.FileName` | **standalone installer lead**; different from G DATA `FlipFormat_610220.exe` | [^r05-jia][^r05-gdata] |
+| Related document-utility contexts | observed directories | `DocConvertWizard`; `FoodFormula`; `ProfessionalConverter`; `PDFPolish` | `DeviceProcessEvents.FolderPath` | pair with company metadata or matching `main.js`; generic folder alone not attribution | [^r05-jia] |
+| Projextor | first-stage sample SHA256 (file `PDFGrip_646990.exe`) | `71656539cc644513396f56100ffb56f9ef9eaa5b7a16b0773d6e5d370a912a88` | `DeviceFileEvents.SHA256` / `DeviceProcessEvents.SHA256` where populated | **standalone malicious sample hash**; install-stage only | [^r05-gdata] |
+| Projextor | named installer files | `FoodFormula_822670.exe`; `KitchenCanvas_748343.exe` | `DeviceFileEvents.FileName` or `DeviceProcessEvents.FileName` | **standalone** install-stage leads; verify hashes/stages | [^r05-gdata] |
+| Projextor | download URL | `conv.doceditorinc.com/latest/part` | `DeviceNetworkEvents.RemoteUrl` or proxy full-URL field when present | pair with relevant installer process; URL-only not proof of payload | [^r05-gdata] |
+| Doc Convert Wizard | installer download URL | `tool.securedocumentinstaller.com/appsectools` | `DeviceNetworkEvents.RemoteUrl` / collected proxy full URL when present | pair with Doc Wizard installer; endpoint is not proof of successful delivery | [^r05-jia] |
+
+**Hunt on a known PDF Polish host:** Check retained process/registry evidence for PDFPolish, `Jia Hao`-branded document tools and siblings; trace installer ancestry and any downloads, script/module content if separately collected, persistence, new binaries and suspicious network events. Separately look for G DATA's *specific* Projextor files/hashes; a shared six-digit installer suffix also appears on PDF Spark and is **not a family identifier**. Rabbit Knight's proposed DLL sideload via `libEGL.dat` is explicitly **unverified**; a standard Nativefier `main.js` is not itself malicious proof. A confirmed executable, hash or implant provides an **incident lead**, not proof of one actor, credential theft or execution of the hypothesised payload. [^r05-jia][^r05-gdata]
 
 ### E003: CL-UNK-1090 and HollowMare document tools
 
@@ -328,6 +388,7 @@ For each run, record the number of workspaces and endpoints actually covered, th
 | 03 | 2026-11-13 | H006 HollowMare document/browser-change pack (one candidate; one evidence-based shortfall) | **Review 003 · 2026-11-13 01:02 GMT**, reviewed register `b8153a2`, reviews.md SHA `a30fbcd586b720a60c26d2110b1ee3f429143ed9` read before research; itemised action/decline record below. No client data accessed. |
 
 | 04 | 2026-11-13 | H007 Dragon Boss, H008 Infatica, E001 PDF Spark/OneBrowser, reclassified H006 into E003 | Read **Review 007 · 2026-11-13 02:46 GMT**, reviewed register commit 05a9a36, review-file SHA 33247266896ac3f03072ddac0980a64ac1e6adff. Detailed action/decline record below. Six active H packs, two E packs; no client queries. |
+| 05 | 2026-11-13 | H009 Hola, H010 Honeygain, E002 Jia Hao/Projextor | Review 007 followed; existing fixes verified, 04:00 E002 carryover actioned, two recent measured/provider-level leads chosen, L8 deferred; details below. No client queries. |
 
 ### Run 03: review actions, corrections and deliberate shortfall
 
@@ -353,6 +414,19 @@ For each run, record the number of workspaces and endpoints actually covered, th
 - **Next #4 — actioned:** added **H007 from L3** using the Huntress research and 23,565 unique IPs/2,223 UK; added **H008 from L4** with Infatica component and dated 11 Aug report. Both are low severity **only for confirmed unauthorised presence without separate malicious behaviour**.
 - **Next #5 / Standing guidance 8 — actioned:** checked the signers **Dragon Boss Solutions LLC** and **Infatica pte ltd** against the opened Unit 42 May 2026 Table 1: neither appears. Infatica signer remains **unverified** and is not relied on as a code-certificate IOC. Absence from the signer list does not prove safety; Huntress's AV-killer artefacts mandate escalation.
 - **Declined unsupported leads:** no Digital Pulse=Infatica alias; no guessed Infatica service name; no unconfirmed FreeFixer or Sophos-KBA identifiers (the linked pages did not open). E002 is next-review work, not silently dropped. Existing incomplete H001/H003/H004/H005 remain on the index; no padding or fabricated client results. Typed tables here describe *where to match if ingested*, not queries run or live inventories.
+
+### Run 05: Review 007 follow-through, E002 and two evidence-ranked leads
+
+**Mandatory pre-research review:** **Review 007 · 2026-11-13 02:46 GMT**, reviewing register commit **`05a9a36`**, `reviews.md` blob **`33247266896ac3f03072ddac0980a64ac1e6adff`**. Read **The brief, Orders until 08:00, Standing guidance, Lead queue, Verified sweep sheet and newest review** before any new candidate research; rechecked SHA before write. `reviews.md` unmodified.
+
+- **Next #1 — ACTIONED:** Named exact review/commit/SHA. Review 007 had found no 02:00 commit; no reliable cause for that missed run, so no invented explanation. Run 04 subsequently landed.
+- **Next #2 / Review 006 Corrections 1–4 — ALREADY ACTIONED in Run 04:** H006 retired/re-filed as E003, the installer-stage TEMP paths labelled, Unit 42/PDF Spark signer relation qualified, Shift date/marketing wording corrected. Verified present; did not reword settled cards.
+- **Next #3 — E001 ALREADY ACTIONED in Run 04; E002 ACTIONED NOW:** The explicit 04:00 carryover from Review 007 is E002, built as the run's **one new escalation pack** using G DATA, Rabbit Knight and PDF Polish ANY.RUN. Declined unsupported attribution of PDF Polish to Projextor and generic numeric-suffix linkage. [^r05-gdata][^r05-jia][^r05-polish-sample]
+- **Next #4 — L3/L4 ALREADY ACTIONED in Run 04:** H007 and H008 indexed. For 04:00's **two best open leads**, chose **L5 Hola → H009** and **L7 Honeygain → H010** over more historical leads, because Gen's September 2026 Windows-active provider data and currently live vendor downloads meet the *likely now* standard. Counts are **provider-associated** and not confirmed app-process execution or Chorus hit rates. Distinct branded products, not rebranded Bright SDK or Infatica. [^r05-gen][^r05-hola-vendor][^r05-hg-vendor]
+- **L8 PacketShare/IPIDEA — DEFERRED:** Google's **28 January 2026** takedown makes current functioning uncertain; earlier PacketShare file evidence alone doesn't show post-takedown activity. L6 and remaining L7 torrent/driver tools deferred because this run focused on better-evidenced contemporary distributions. [^r05-ipidea]
+- **Next #5 / Standing guidance 8 — ACTIONED:** Checked new H identifiers against Unit 42's 20 May 2026 malware-grade signer set in the review sweep sheet. Neither H009 nor H010 uses a listed signer as a positive; absence is **not** evidence of safety. Sophos's miner/AV-exclusion chain is a distinct **escalation**, not reclassified as PUP.
+- **Review 005 corrections 1–3 — ALREADY/PARTIALLY ACTIONED:** H005 anchor and PDF Polish uncertainty corrected previously. H005 still **incomplete** (SDK-specific contemporary prevalence and typed table); no false “finished” declaration.
+- **Format, integrity and scope — ACTIONED:** New H cards share existing “Applies to every card” policy; each has a source-backed no-command-line standalone seed, table/column, positive/negative interpretation and severity branch. Retained existing IDs and footnotes; no client workspaces were accessed, no KQL was generated and no client results were asserted.
 
 ## Sources
 
@@ -404,3 +478,14 @@ All sources reviewed on **13 November 2026**. Undated pages are not represented 
 [^r04-teamit]: Team-IT Group, [SparkOnSoft and OneBrowser SOC case](https://www.team-it-group.de/blog/sparkonsoft-onebrowser-malware-soc-fallstudie), **26 Aug 2026**, opened 13 Nov, reports software on two RDS servers. Does not establish every PDF Spark installer delivers OneBrowser.
 [^r04-onebrowser]: GridinSoft, [OneBrowser Removal: Delete OneBUpdate and OB Leftovers](https://blog.gridinsoft.com/onebrowser-removal/), updated **4 Nov 2026**, opened 13 Nov. Exact names from “Quick answer”, “Stop OneBrowser updater services and tasks”, “Files and folders”, “Registry keys”. Third-party cleanup artefacts, not proof of live tenant deployment.
 [^r04-gdata]: G DATA, [Projextor: Abusing Electron in Trojanized Productivity Applications](https://blog.gdatasoftware.com/2026/08/38468-projextor-abusing-electron), **17 Aug 2026**, opened 13 Nov, names DocConvertWizard, Food/Meal Formula and Kitchen Canvas, but does **not** name PDF Polish or Jia Hao. Packaging (NSIS, Squirrel, Inno Setup) and numbered installer suffixes alone cannot establish family identity.
+[^r05-gen]: Gen Digital, [“Your IP, Their Traffic”](https://www.gendigital.com/blog/insights/research/residential-proxy-networks), published **30 Sep 2026**, reports **September 2026** protected Windows active users with software associated with a provider: Hola ~664k, Honeygain ~68k. Does **not** quantify specific branded executables, enterprise-only installations, active relay or embedded SDKs. Opened in Run 05.
+[^r05-hola-vendor]: Hola official [Windows product downloads](https://hola.org/products/shared-dc), offering Browser and Windows desktop builds **1.258.330** when opened **13 Nov 2026**; [Hola Browser](https://hola.org/browser) and [FAQ](https://hola.org/faq) describe the free peer-resource versus Premium arrangement. Advertised version is not verified endpoint process metadata. Opened in Run 05.
+[^r05-hola-sophos]: Sophos X-Ops, [“You do surprise me.exe: An unexpected executable in Hola Browser”](https://www.sophos.com/en-us/blog/you-do-surprise-me-exe-an-unexpected-executable-in-hola-browser), published **4 Jun 2026** per [publisher's author listing](https://www.sophos.com/en-gb/author/sophos-x-ops). “Here's looking at me.exe” and “Patching the pipeline”: SHA256, miner, copied process, service and vendor's fix claim. Does not implicate every Hola version. Opened in Run 05.
+[^r05-hola-installer]: ANY.RUN, [`Hola-Browser.exe`](https://any.run/report/6f8dcbf79c942763ee42eaa733dc4e6d468bea5a4a0f739a9bf23084bac21294/650c037a-96d8-401c-8487-5a212760d6d3), **23 Feb 2025**, General Info; historic installer sample only, no current enterprise-prevalence claim. Automated loader verdict is sample-specific. Opened in Run 05.
+[^r05-hg-vendor]: Honeygain, [official downloads](https://www.honeygain.com/download/), live **13 Nov 2026**; [“Windows: installation problems”](https://support.honeygain.com/hc/en-us/articles/30688446564636-Windows-installation-problems), updated **22 Oct 2026**, “Clean reinstall” lists Honeygain folders and HKCU key; these can be remnants. Opened in Run 05.
+[^r05-hg-static]: PaysFair (commercial rival), [“What is inside Honeygain”](https://paysfair.com/blog/whats-inside-honeygain/), updated **24 Sep 2026**, “What we did” and installer's file table. Static study of `Honeygain_install.exe`, SHA256 `eaf6cf8841c168fa3d3a2d2e2d0b9c06693998415d125969824b987247fdad7c`; **no program execution or traffic observed**. Biased source disclosed and treated as identifier evidence only. Opened in Run 05.
+[^r05-hg-sample]: ANY.RUN, [`Honeygain_install.exe`](https://any.run/report/eaf6cf8841c168fa3d3a2d2e2d0b9c06693998415d125969824b987247fdad7c/b798a2ed-c077-410f-8dd4-9aef21d3a917), **13 Mar 2026**, General Info, same SHA256 as static study: **one sample/build, not two infections**. Opened in Run 05.
+[^r05-gdata]: G DATA, [“Projextor: Abusing Electron in Trojanized Productivity Applications”](https://blog.gdatasoftware.com/2026/08/38468-projextor-abusing-electron), **17 Aug 2026**; “Installation and Infection Chain” and “IOCs”. Names/hashes/URL copied from original. It **does not name PDF Polish or Jia Hao**. Opened in Run 05.
+[^r05-jia]: Rabbit Knight, [“The FlipFormat_# Illusion: The Magic of the Doc Convert Wizard”](https://medium.com/@rabbit_knight/the-flipformat-illusion-the-magic-of-the-doc-convert-wizard-10036623d0e8), **4 Apr 2026**, “Files analyzed”, “Living Off the Land”, downloader and hypothetical DLL sideload. `Jia Hao` is *version metadata*, not independently verified signer. Opened in Run 05.
+[^r05-polish-sample]: ANY.RUN, [`PDFImage_519340.exe` / PDF Polish](https://any.run/report/aedc27e467ca25aee298b4bc85ee57d83bceb049ce751c06dac50cc20aea6712/44d19d08-5913-4254-8cc3-84c56759f670), **10 Apr 2026**, “General Info”, “Process information” and “Registry activity”. The user `admin` is a *sandbox example*, not fixed hunting predicate. Opened in Run 05.
+[^r05-ipidea]: Google Threat Intelligence Group, [“No Place Like Home Network: Disrupting the World's Largest Residential Proxy Network”](https://cloud.google.com/blog/topics/threat-intelligence/disrupting-largest-residential-proxy-network), **28 Jan 2026**, original takedown report; disruption does not establish every PacketShare binary stopped. Opened Run 05.
