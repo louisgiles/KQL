@@ -1,8 +1,8 @@
 # High-probability, low-severity threat hunts
 
 **Last researched:** 13 November 2026  
-**Latest research run:** 03 — one new pack and one evidence-based shortfall  
-**Active candidates:** Five; H002 retired as already known  
+**Latest research run:** 04 — two low-severity packs, a new escalation pack, and one corrective reclassification  
+**Active candidates:** Six low-severity H packs (H001, H003, H004, H005, H007, H008), and two escalation E packs (E001, E003). H002 and H006 retired.  
 **Scheduled research:** Hourly through the final scheduled run at 08:00 Europe/London on 14 November 2026  
 **Execution surface:** Microsoft Sentinel / Log Analytics workspaces only  
 **Status:** Researched hunt hypotheses; no client queries have been run or results claimed.
@@ -20,23 +20,27 @@ The likelihood of a hit across clients is not yet measured. Selection below uses
 | Subject | Decision |
 | --- | --- |
 | PC App Store and VeryFast-related pivots | Already well known, confirmed by the user on 13 November 2026. H002 retired; do not propose aliases or minor variants as new candidates. Web Companion replaces its slot in Run 01. |
-| PDF Polish, PDF Spark, Shift Browser | **Confirmed previous hits.** PDF Polish sample metadata identifies `Jia Hao` but no verified code signer; PDF Spark samples signed under Mainstay Crypto LLC and Crowd Sync LLC; authentic Shift publisher is Shift Technologies Inc. Advertising similarity is not common ownership. [^pdf-polish][^pdf-spark][^pdf-control][^shift] |
+| PDF Polish, PDF Spark, Shift Browser | **Confirmed previous hits.** PDF Polish version metadata identifies Jia Hao; an analysis of Doc Convert Wizard links the same company field to PDFPolish, FoodFormula and ProfessionalConverter folders. G DATA reports DocConvertWizard and Food/Meal Formula as Projextor malware, **but does not name PDF Polish**: this is a lead, not proven family attribution. PDF Spark has Mainstay Crypto LLC and Crowd Sync LLC publisher identities; Unit 42 lists both under OneBrowser Signers without naming PDF Spark. Authentic Shift is Shift Technologies Inc. Advertising similarity does not prove shared ownership. [^pdf-polish][^pdf-spark][^pdf-control][^shift][^pdf-signer][^r04-gdata] |
 | Wave Browser, ClickFix | Already known; excluded as new. |
-| OneStart / BaoLoader-associated activity | Not suitable for a routine low-severity PUP entry on the evidence reviewed. Preserve the distinction between product presence and malicious activity. [^excluded-onestart] |
+| OneStart / BaoLoader-associated activity | Not suitable for a routine low-severity PUP entry. [^excluded-onestart] |
+| H006 HollowMare | Retired from the low-severity list in Run 04, re-filed as E003 after the Unit 42 signer evidence. This historical ID is not reused. [^hollow][^pdf-signer] |
 
-Retired IDs are not reused. The active candidates below total five: two from corrected Run 01, two from Run 02 and one new Run 03 pack.
+Retired IDs are not reused. Six active low-severity packs are indexed below; H006 was reclassified as E003, not counted as new.
 
-## Hunt index
+## Hunt index — low-severity packs
 
-**Likelihood tiers are evidence categories, not hit-rate forecasts:** **A** means measured active software prevalence within 12 months; **B** means a dated organisational sighting or observed recent distribution/sample, but no measured relevant population; **C** means mainly historic/undated evidence. A later paper date is not an installation date. Index ordered B before C; no active card has robust A-grade prevalence.
+**Likelihood tiers are evidence categories, not client hit-rate predictions.** A = measured contemporary activity across a real population; B = a recent dated observation, distribution account or sample without a reliable population denominator; C = mostly historical or undated distribution. An article's publication date is not an installation date. Ordered by strength and recency.
 
-| ID | Candidate | Tier | Newest dated presence evidence | Added | Status |
+| ID | Candidate | Tier | Newest dated evidence | Added | Status |
 | --- | --- | --- | --- | --- | --- |
-| [H001](#h001-onelaunch) | OneLaunch | **B** | 27 Mar 2026 corporate hunt report | Run 01 | Not run |
-| [H005](#h005-bright-sdk-luminati-sdk-in-host-apps) | Bright/Luminati SDK across host apps | **B (tentative)** | 31 Jan 2026 second detonation of Nov 2025 sample (one hash) | Run 02; expanded Run 03 | Not run |
-| [H006](#h006-hollowmare-document-tool-browser-change-pack) | HollowMare browser-change pack | **B (tentative)** | Jan 2026 variant discussed in Jul 2026 research | Run 03 | Not run |
-| [H004](#h004-relevantknowledge) | RelevantKnowledge | **C** | 8 Dec 2025 sandbox sample, no measured corporate rate | Run 02 | Not run |
-| [H003](#h003-adaware-web-companion) | Adaware Web Companion | **C** | 2023 company sightings; newer product guidance undated | Run 01 correction | Not run |
+| [H007](#h007-dragon-boss-solutions-browser-updaters) | Dragon Boss Solutions browser/updater family | **A** | 14 Apr 2026: 23,565 source IPs, of which 2,223 UK | Run 04 (L3) | Finished: presence only; check malware escalation |
+| [H008](#h008-infatica-p2b-proxy-component) | Infatica P2B component | **B** | 11 Aug 2026: published consumer-install follow-up | Run 04 (L4) | Finished: product execution; relaying unproven |
+| [H001](#h001-onelaunch) | OneLaunch | **B** | 27 Mar 2026 corporate report | Run 01 | Incomplete: typed identifier table |
+| [H005](#h005-bright-sdk--luminati-sdk-in-host-apps) | Bright/Luminati SDK in host apps | **B (tentative)** | 31 Jan 2026 repeat detonation of one 2025 installer | Run 02, widened Run 03 | Incomplete: current corporate prevalence and typed table |
+| [H004](#h004-relevantknowledge) | RelevantKnowledge | **C** | 8 Dec 2025 public sandbox execution | Run 02 | Incomplete: evidence of current real-world distribution |
+| [H003](#h003-adaware-web-companion) | Adaware Web Companion | **C** | 2023 company sightings | Run 01 replacement | Incomplete: recent dated organisational evidence |
+
+**Status:** Finished means sourced, product-specific standalone identifier without command lines, typed table and explicit match meaning. It does not mean verified tenant execution. No tenant data queried in any run.
 
 **Applies to every card:** Start with 30 days of **actually ingested** Windows process events in **Sentinel Log Analytics** (streamed `DeviceProcessEvents` or collected Windows 4688 / Sysmon 1). Extend to 90 days only where retained. Confirm product identity beyond a filename; version metadata is not a validated signer. File/registry/certificate/network/security-product data are optional where ingested. Distinguish installer, prevented execution, ongoing runtime, historical residue and verified traffic. Low severity refers only to a software-policy finding *without separate malicious behaviour*. Apply each client's approval policy. No client results have been queried or claimed.
 
@@ -192,20 +196,104 @@ Intentional approved panel participation is a real alternative explanation, cons
 
 **Noise/escalation:** Approved consumer software may be benign. A vendor domain, updater, service or PUA flag alone does not establish malicious proxy operation. Escalate independently verified malware execution, harmful outbound usage or sensitive-data exposure.
 
-## H006: HollowMare document-tool browser-change pack
+## H007: Dragon Boss Solutions browser updaters
 
-**Added:** Run 03 from **Review 003 lead L2**. **B tentative.** **Hypothesis:** misleading search advertisements for PDF, archive and media tools lead to deceptive installers that covertly change search engines or install extensions. Intezer's **27 July 2026** research calls the **HollowMare browser-changing subset PUA**, describing the newer **SagePDF** variant in **January 2026**. This is an *advertising-route* sibling of confirmed PDF-related hits; there is **no established common publisher, signer or November distribution**. [^hollow]
-**Per-product pivot table, exact strings from Intezer's Hollow Mare IOC section** (not sandbox process descriptions):
+**Hypothesis, tier A (L3):** Huntress reported on **14 April 2026** that Dragon Boss Solutions-signed browsers/updaters were active in real environments. Its 24-hour sinkhole received connections from **23,565 unique IPs across 124 countries, 2,223 UK**. IP counts are not device or estate prevalence. Vendors had called the software PUP/adware, **but Huntress also observed security-tool removal via malicious updates**; the latter is an incident, not routine PUP presence. [^r04-huntress]
 
-| Sibling | Source-backed identifier | Interpretation |
-| --- | --- | --- |
-| **SagePDF** | `%TEMP%\SagePdf\SageId.txt`; sample signing subject `Chrono Orion LTD`; SHA-256 `287a3a052ff0b2c495658fa90c5a9bd76f16d832d82138f6f8e87f9e2f578ab1` | Sample/artifact; **not runtime proof**. |
-| **PowerDoc** | `%LocalAppData%\pwrDoc\PowerDoc.exe`; `%LocalAppData%\pwrDoc\pwrDoc.txt`; signing subject `GOLD HARMONY LTD` | Specific program/file markers; corroborate process execution. |
-| **PowerPlayer** | `%TEMP%\PowerPlayer\NativePowerPlayer.exe`; signing subject `TAMARISK INTERACTIVE LTD` | Temporary launcher, not guaranteed long-term persistence. |
+**Exact identifier table.** Huntress sections “Variations of executables” Table 7, “File system artifacts”, “Code signing”, “Scheduled tasks” and “WMI artifacts”. An exact filename is a seed; verify path/signer where possible.
 
-**High-level Sentinel hunt:** Search collected process events for exact named applications, corroborate their paths/product identity and any available signer; correlate browser search/extension changes with file/registry telemetry **only where ingested**. Record installer-only vs active execution vs proven browser change, and check client approval.
-**Noise and severity dispute:** Unrelated search redirects and old installer files are not product hits. **Controlware Dec 2025 judged related CrystalPDF/PowerDoc samples malware**, citing persistence and communications; Intezer's broader report contains **stealer/exfiltration** entries for ConvertyFile/OneZip and **downloader/backdoor SilentMare**. **Keep those high-severity behaviours outside this low-severity pack**, and escalate observed malware execution, unauthorised persistence or data access. [^hollow][^pdf-control]
-**Likelihood limitation:** A July research publication and January observed variant do not prove active distribution in November. Re-rate downward if newer enterprise evidence cannot be found.
+| Product | Identifier type | Exact source value | Log Analytics table.column | Condition | Source |
+| --- | --- | --- | --- | --- | --- |
+| Family | certificate signer | Dragon Boss Solutions LLC | DeviceFileCertificateInfo.Signer linked on SHA1 to DeviceProcessEvents | standalone family identifier; requires certificate ingestion | [^r04-huntress] |
+| Chromstera Browser | process name | ChromsteraUpdater.exe | DeviceProcessEvents.FileName | standalone seed; validate software identity | [^r04-huntress] |
+| Chromstera Browser | folder | C:\Program Files (x86)\Chromstera Browser Solutions\Chromstera Browser | DeviceProcessEvents.FolderPath | pair with ChromsteraUpdater.exe | [^r04-huntress] |
+| Artificius Browser | process name | ArtificiusUpdater.exe | DeviceProcessEvents.FileName | standalone seed; validate identity | [^r04-huntress] |
+| Artificius Browser | folder | C:\Program Files (x86)\Artificius Browser Solutions\Artificius Browser | DeviceProcessEvents.FolderPath | pair with ArtificiusUpdater.exe | [^r04-huntress] |
+| World Wide Web | process name | WorldWideWeb.exe | DeviceProcessEvents.FileName | standalone seed; validate identity | [^r04-huntress] |
+| World Wide Web | folder | C:\Program Files (x86)\World Wide Solutions\World Wide Web\ | DeviceProcessEvents.FolderPath | pair with WorldWideWeb.exe | [^r04-huntress] |
+| Web Genius | process name | UniversalUpdater.exe | DeviceProcessEvents.FileName | pair with Web Genius folder (generic name) | [^r04-huntress] |
+| Web Genius | folder | C:\Program Files (x86)\Web Genius Solutions\Web Genius | DeviceProcessEvents.FolderPath | pair with UniversalUpdater.exe | [^r04-huntress] |
+| Additional updaters | process names | WinDefenseThree.exe; RaceCarTwo.exe; TableBoatTwo.exe | DeviceProcessEvents.FileName | pair with source-described corresponding program folder or signer | [^r04-huntress] |
+| **Malware escalation** | scheduled tasks | ClockSetupWmiAtBoot; RemoveClockPeriodic | DeviceEvents.AdditionalFields when ActionType=ScheduledTaskCreated, or ingested task events | standalone malicious-chain lead | [^r04-huntress] |
+| **Malware escalation** | WMI consumers | MbRemovalMbSetupKillConsumer; MbRemovalMbSetupKillConsumerTrace | DeviceEvents.AdditionalFields when ActionType=WmiBindEventFilterToConsumer | standalone malicious-chain lead | [^r04-huntress] |
+| **Malware escalation** | scripts | ClockRemoval.ps1; ClockRemoval-WmiBoot.ps1 | DeviceFileEvents.FileName | standalone malicious-chain lead with contextual verification | [^r04-huntress] |
+| **Malware escalation** | folder | %SystemRoot%\System32\config\systemprofile\AppData\Local\WMILoad\ | DeviceFileEvents.FolderPath | pair with task, script or WMI lead | [^r04-huntress] |
+
+**Hunt:** Look for process execution in the 30-day retained window, validate publisher/product or distinctive folder, then inspect any collected task, WMI, AV-exclusion, file and installer events. Process names alone do not demonstrate a current install; browser cache files and DNS-only traffic are not positives. **A confirmed matched process proves family presence, not that the endpoint received the AV killer.** The ClockRemoval/WMI/Defender-disable chain is escalation-grade. Legitimate intentional third-party browser adoption is possible, subject to client approval, but does not make security-control disabling benign.
+
+## H008: Infatica P2B proxy component
+
+**Hypothesis, tier B (L4):** Infatica SDK/P2B may be installed alongside consumer software. Malwarebytes classifies it as a potentially unwanted proxy service that may be bundled. GridinSoft **updated an account on 11 August 2026** describing reports following codec installs, but this is not measured enterprise prevalence or proof the official K-Lite package bundles it. [^r04-infatica-mb][^r04-infatica-grid]
+
+**Exact identifier table.** File.net “File information” gives the executable, product names and example directories. The digital signer was **not independently verified**; do not treat the claimed publisher as a certificate value.
+
+| Product | Identifier type | Exact source value | Log Analytics table.column | Condition | Source |
+| --- | --- | --- | --- | --- | --- |
+| Infatica SDK/P2B | process name | infatica-service-app.exe | DeviceProcessEvents.FileName | standalone distinctive executable seed; corroborate host path | [^r04-infatica-file] |
+| Infatica SDK/P2B | folder | C:\Program Files (x86)\Infatica P2B\ | DeviceProcessEvents.FolderPath | pair with infatica-service-app.exe | [^r04-infatica-file] |
+| Infatica-m | sample folder | C:\Users\Eldar\AppData\Local\Infatica-m\ | DeviceProcessEvents.FolderPath | pair with infatica-service-app.exe; Eldar is an example username, not a fixed user predicate | [^r04-infatica-file] |
+| Infatica | product label | Infatica SDK; Infatica-m; Infatica Service | DeviceProcessEvents.ProcessVersionInfoProductName where present | pair with the Infatica executable; file.net gives the labels but not exact field mapping | [^r04-infatica-file] |
+| Infatica | vendor detection | PUP.Optional.Infatica | Ingested DeviceEvents.AdditionalFields or SecurityAlert.ExtendedProperties when label is present | standalone **detection** lead, not confirmed runtime | [^r04-infatica-mb] |
+
+**Hunt:** Confirm observed process execution within 30 retained days, identify the host software and program path, then correlate available process-attributed traffic, startup or service creation. A process plus distinctive path establishes component execution **not proven third-party proxy relay**. Intentional opt-in software and authorised research tools are possible benign explanations; client approval is separate. Escalate corroborated covert traffic relaying, installed loader or related compromise. **Declined unsupported identifiers:** DigitalPulseService.exe is not proven Infatica; the service name and infatica_agent.exe variant are unverified here; the Sophos support page and FreeFixer pages did not open fully.
+
+## Same route, not low severity — escalation packs
+
+These are **incident leads**, separate from the low-severity H list; neither a PUP label nor a shared search-advert route proves a host is infected.
+
+| ID | Pack | Newest dated source | Added | Status |
+| --- | --- | --- | --- | --- |
+| [E001](#e001-pdf-spark-and-onebrowser) | PDF Spark / OneBrowser signer overlap | OneBrowser guide updated 4 Nov 2026 | Run 04 | Finished: qualified signer/process/task pivots |
+| [E003](#e003-cl-unk-1090-and-hollowmare-document-tools) | CL-UNK-1090 / HollowMare document tools | Intezer 27 Jul 2026, SagePDF observed Jan 2026 | Run 04 reclassification of H006 | Finished: sample and installer stages separated |
+
+### E001: PDF Spark and OneBrowser
+
+**Why check now:** PDF Spark is a confirmed previous hit. Malwarebytes identifies Mainstay Crypto LLC as PDF Spark publisher; Unit 42's **20 May 2026** signer table lists **Mainstay Crypto LLC** and **Crowd Sync LLC** under **OneBrowser Signers** but **does not name PDF Spark**. A German SOC case dated **26 Aug 2026** describes SparkOnSoft and OneBrowser on two RDS servers. GridinSoft's OneBrowser guide updated **4 Nov 2026** gives specific updater persistence. **Shared signer-group membership is not proof every PDF Spark installer dropped OneBrowser.** [^pdf-spark][^pdf-signer][^r04-teamit][^r04-onebrowser]
+
+**Identifier table** — exact strings from Unit 42 Table 1 and GridinSoft's “Quick answer”, “Stop OneBrowser updater services and tasks” and “Registry keys”.
+
+| Product | Type | Exact value | Log Analytics table.column | Condition | Source |
+| --- | --- | --- | --- | --- | --- |
+| PDF Spark / overlap | signer | Mainstay Crypto LLC | DeviceFileCertificateInfo.Signer linked by SHA1 to DeviceProcessEvents | standalone signer lead; corroborate product | [^pdf-spark][^pdf-signer] |
+| PDF Spark / overlap | signer | Crowd Sync LLC | DeviceFileCertificateInfo.Signer linked by SHA1 to DeviceProcessEvents | standalone signer lead; corroborate product | [^pdf-signer] |
+| OneBrowser group | signer | WORK PRODUCT, INC. | DeviceFileCertificateInfo.Signer linked by SHA1 to DeviceProcessEvents | standalone signer lead; verify file | [^pdf-signer] |
+| OneBrowser group | signer | Chickadee Digital; Riya Software; Eman Group, LLC | DeviceFileCertificateInfo.Signer linked by SHA1 to DeviceProcessEvents | standalone family lead; verify file | [^pdf-signer] |
+| OneBrowser | updater path/process | %LocalAppData%\OB\OneBUpdate\OneBUpdateService.exe | DeviceProcessEvents.FolderPath | standalone combined path/process match | [^r04-onebrowser] |
+| OneBrowser | updater process | OBUpdateService.exe | DeviceProcessEvents.FileName | standalone distinctive updater seed; verify path | [^r04-onebrowser] |
+| OIBrowser | process | oibrowser.exe | DeviceProcessEvents.FileName | standalone distinctive process; verify product | [^r04-onebrowser] |
+| OneBrowser | scheduled task | OBUpdate | DeviceEvents.AdditionalFields for ActionType=ScheduledTaskCreated, or collected Windows task events | standalone persistence lead | [^r04-onebrowser] |
+| OneBrowser | scheduled task | OneBUpdate | DeviceEvents.AdditionalFields for ActionType=ScheduledTaskCreated, or collected Windows task events | standalone persistence lead | [^r04-onebrowser] |
+| OneBrowser | service | onebupdate; obupdate; oibupdate | DeviceEvents.AdditionalFields for ActionType=ServiceInstalled or collected service events | standalone persistence lead; verify service executable | [^r04-onebrowser] |
+| OneBrowser | registry | HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\OneBrowser.exe | DeviceRegistryEvents.RegistryKey | standalone registration-event lead, not live inventory | [^r04-onebrowser] |
+
+**Hunt:** On an endpoint with past PDF Spark, first search exact OneBrowser process, service, scheduled-task and registry paths over whatever Log Analytics retention exists. Then correlate actual execution with the earlier installer tree, signer and downstream payloads. Changes to the root certificate store are an **investigative idea, not a source-verified OneBrowser-specific IOC**; pursue only with supporting telemetry. An installer file, signer, blocked download or OneBrowser registry remnant alone does not prove a currently malicious stage. Confirmed OneBrowser deployment plus anomalous persistence, credential or second-stage access requires incident assessment. Sophos KBA-000043676 returned only a loading shell, so it was not used for new identifiers.
+
+### E003: CL-UNK-1090 and HollowMare document tools
+
+**Re-filed from H006, not a new H ID.** Intezer's **27 Jul 2026** prose calls part of HollowMare PUA, yet its IOC table labels ConvertyFile / OneZip as stealers and CrystalPDF as stealer/installer. Unit 42's **20 May 2026** Table 1 groups signers for SagePDF, PowerDoc, ConvertyFile, OneZip and CrystalPDF under CL-UNK-1090, treated as malware-grade. **TAMARISK INTERACTIVE LTD**, associated by Intezer with PDFDoc / PowerPlayer, is **absent** from Unit 42's list, so those are contested associations. [^hollow][^pdf-signer]
+
+**Identifier table** — exact strings from Intezer “Hollow Mare” IOC section and Unit 42 signer table. TEMP values are *installer-stage traces*, not durable installation proof.
+
+| Product | Type | Exact value | Log Analytics table.column | Condition | Source |
+| --- | --- | --- | --- | --- | --- |
+| SagePDF | signer | Chrono Orion LTD | DeviceFileCertificateInfo.Signer joined by SHA1 to process/file | standalone signer lead | [^hollow][^pdf-signer] |
+| SagePDF | installer-stage file | %TEMP%\SagePdf\SageId.txt | DeviceFileEvents.FolderPath + FileName | standalone file-artifact lead, not runtime | [^hollow] |
+| PowerDoc | signer | GOLD HARMONY LTD | DeviceFileCertificateInfo.Signer joined by SHA1 to process/file | standalone signer lead | [^hollow][^pdf-signer] |
+| PowerDoc | installed process/path | %LocalAppData%\pwrDoc\PowerDoc.exe | DeviceProcessEvents.FolderPath | standalone combined path/process | [^hollow] |
+| PowerDoc | persisted file | %LocalAppData%\pwrDoc\pwrDoc.txt | DeviceFileEvents.FolderPath + FileName | standalone file-artifact lead | [^hollow] |
+| ConvertyFile | signer | TAU CENTAURI LTD | DeviceFileCertificateInfo.Signer joined by SHA1 to process/file | standalone signer lead | [^hollow][^pdf-signer] |
+| ConvertyFile | installer-stage file | %TEMP%\ConvertyFile\CFInfo.txt | DeviceFileEvents.FolderPath + FileName | standalone installer lead | [^hollow] |
+| OneZip | signer | G.R.CIGAR. LTD | DeviceFileCertificateInfo.Signer joined by SHA1 to process/file | standalone signer lead | [^hollow][^pdf-signer] |
+| OneZip | installer-stage file | %TEMP%\O\OZInfo.txt | DeviceFileEvents.FolderPath + FileName | standalone installer lead | [^hollow] |
+| CrystalPDF | signer | VAST LAKE LTD | DeviceFileCertificateInfo.Signer joined by SHA1 to process/file | standalone signer lead | [^hollow][^pdf-signer] |
+| CrystalPDF | embedded signer | LONG SOUND LTD | DeviceFileCertificateInfo.Signer joined by SHA1 to process/file | standalone signer lead | [^hollow][^pdf-signer] |
+| CrystalPDF | task | Crystal_updater | DeviceEvents.AdditionalFields for ActionType=ScheduledTaskCreated or collected task event | standalone persistence lead | [^hollow] |
+| PDFDoc | installer-stage file | %TEMP%\DocID\DocID.txt | DeviceFileEvents.FolderPath + FileName | standalone installer lead | [^hollow] |
+| PDFDoc / PowerPlayer | signer not in Unit 42 table | TAMARISK INTERACTIVE LTD | DeviceFileCertificateInfo.Signer joined by SHA1 to process/file | standalone contested signer lead; identify product | [^hollow] |
+| PowerPlayer | installer-stage file | %TEMP%\PwrId\PwrId.txt | DeviceFileEvents.FolderPath + FileName | standalone installer lead | [^hollow] |
+| PowerPlayer | installer-stage process | NativePowerPlayer.exe under %TEMP%\PowerPlayer\ | DeviceProcessEvents.FileName + FolderPath | standalone combined path/name, not durable installed software | [^hollow] |
+
+**Hunt:** Prefer signer-backed product execution, the exact PowerDoc runtime, and Crystal_updater where available; TEMP paths are historical installer leads. Correlate downstream processes, browser data access, related file writes and network events before attributing exfiltration. A certificate, product presence or stage file does not itself prove theft. Escalate independently supported stealer, loader, remote payload or exfiltration. Shared search-advert route with PDF Polish / Spark is not verified shared ownership. Do not label all PDFDoc / PowerPlayer samples CL-UNK-1090 merely by proximity.
 
 ## Recording a result
 
@@ -239,11 +327,13 @@ For each run, record the number of workspaces and endpoints actually covered, th
 | 02 | 2026-11-13 | H004 RelevantKnowledge; H005 Bright VPN | Added two distinct product-specific hunts, including approval/consent checks and strict limits on claims about data collection or actual relaying. No client queries run. |
 | 03 | 2026-11-13 | H006 HollowMare document/browser-change pack (one candidate; one evidence-based shortfall) | **Review 003 · 2026-11-13 01:02 GMT**, reviewed register `b8153a2`, reviews.md SHA `a30fbcd586b720a60c26d2110b1ee3f429143ed9` read before research; itemised action/decline record below. No client data accessed. |
 
+| 04 | 2026-11-13 | H007 Dragon Boss, H008 Infatica, E001 PDF Spark/OneBrowser, reclassified H006 into E003 | Read **Review 007 · 2026-11-13 02:46 GMT**, reviewed register commit 05a9a36, review-file SHA 33247266896ac3f03072ddac0980a64ac1e6adff. Detailed action/decline record below. Six active H packs, two E packs; no client queries. |
+
 ### Run 03: review actions, corrections and deliberate shortfall
 
 **Read first:** **Review 003 · 2026-11-13 01:02 GMT**, reviewed register commit `b8153a2`, review-file blob `a30fbcd586b720a60c26d2110b1ee3f429143ed9`. Standing guidance and the updated lead queue followed; `reviews.md` was not modified.
 
-- **Review 003 Next #1 / L1 — researched, DECLINED a new low-severity ID.** Verified PDF Spark signers **Mainstay Crypto LLC** and **Crowd Sync LLC** and source-linked OneBrowser/software under those signers. Public original research by Unit 42 describes this ecosystem as **TamperedChef-style malware** with arbitrary-payload, stealer/RAT capability; a **26 Aug 2026** SOC case describes malicious software on two RDS servers. This makes a **high-priority separate malware hunt**, not a safe “low-severity PUA” pack. Sophos signer-specific KBA (dated **24 Sep 2026** in the review) could not be opened in full. Relevant installer/brand names `PDFSparkWare_*.exe`, `PDFSparkOnSoft.exe`, `pdfsetup.exe` and `OneBrowser` are **research context**, not approved low-severity pivots. **Shortfall deliberately accepted**. [^pdf-signer]
+- **Review 003 Next #1 / L1 — researched, DECLINED a new low-severity ID.** Verified PDF Spark signers **Mainstay Crypto LLC** and **Crowd Sync LLC** and source-linked OneBrowser/software under those signers. Public original research by Unit 42 describes this ecosystem as **TamperedChef-style malware** with arbitrary-payload, stealer/RAT capability; a **26 Aug 2026** SOC case describes malicious software on two RDS servers. This makes a **high-priority separate malware hunt**, not a safe “low-severity PUA” pack. **Run 04 correction:** Unit 42 itself links the signer names to OneBrowser, not to PDF Spark by product; PDF Spark's separate publisher evidence is from Malwarebytes and the Controlware report. Sophos signer-specific KBA (dated **24 Sep 2026** in the review) could not be opened in full. Relevant installer/brand names `PDFSparkWare_*.exe`, `PDFSparkOnSoft.exe`, `pdfsetup.exe` and `OneBrowser` are **research context**, not approved low-severity pivots. **Shortfall deliberately accepted**. [^pdf-signer]
 - **Review 003 Next #1 / L2 — ACTIONED:** H006 includes SagePDF, PowerDoc and PowerPlayer browser-change indicators, shared search-ad route but not a falsely shared signer. **DECLINED** treating ConvertyFile/OneZip stealer evidence, SilentMare or documented malicious CrystalPDF cases as low severity. [^hollow][^pdf-control]
 - **Review 003 Next #2 — ACTIONED with limit:** Found PDF Polish dated **10 Apr 2026** process version field `Company: Jia Hao` and a Nullsoft installer. **Actual code signer not verified**; no documented same-publisher new product. Already-covered entry says so rather than guessing. [^pdf-polish]
 - **Review 003 Next #3 — ACTIONED:** No JustAskJacky, SilentMare, TamperedChef, tampered OneBrowser/AppSuite or other malware reclassified as low-severity.
@@ -251,6 +341,18 @@ For each run, record the number of workspaces and endpoints actually covered, th
 - **Review 001 corrections 1–4 — ACTIONED:** Corrected H001 27 March 2026 publication date and assessment, not installation date; corrected **one Bright installer hash analysed twice**; labelled prior `\Bright VPN\`/`win_brightvpn.com` path/argument **unconfirmed** and added installer-stage `brightvpn_installer.exe`; separated index `Added` from uniform `Not run` status.
 - **Review 001 Next 1–2 — ACTIONED:** Added tier definitions and expanded existing H005 from a Bright VPN name-only hunt to Bright/Luminati **SDK across any host path**, with exact SDK command and source report section. The vendor guide redirects to login; full text **not** claimed to be read. EarnApp remains host context, not new ID.
 - **Review 001 Next 4–5 — ACTIONED:** Added one compact new pack and shared `Applies to every card` guidance. **A single defensible pack beats a forced second**; L1 needs separate higher-severity treatment. Later runs should research L3 then L4 then L5. No workspaces queried and no field results claimed.
+
+### Run 04: Review 007 corrections and Next run account
+
+**Read before research:** Review 007 · **2026-11-13 02:46 GMT**; reviewed register commit **05a9a36**; reviews.md blob **33247266896ac3f03072ddac0980a64ac1e6adff**. Read the brief, orders, Standing guidance, lead queue, sweep sheet and newest review. This run did not edit reviews.md. Reviewer reported no 02:00 commit; whether that run attempted and failed cannot be established, so no cause is invented.
+
+- **Next #1 — actioned:** named the review, its timestamp, reviewed commit and SHA; recorded no verified 02:00 completion.
+- **Next #2 / Review 006 Corrections #1–4 — actioned:** retired H006; moved its sourced content into E003, including installer-stage versus installed markers; corrected the count and indexes. Corrected the Unit 42 signer-only wording (including old Run 03 note) and Shift's manuals/recipes/templates wording and 18 Aug 2025 page date.
+- **Review 005 Corrections #1–3 — actioned/partial:** fixed H005 index anchor. E003 has a typed identifier table; H005 is explicitly **incomplete** pending a similarly typed table and firmer current-prevalence evidence, instead of falsely claiming finish. Added the Jia Hao/DocConvertWizard/Projextor relationship to already-covered PDF Polish, clearly marking that G DATA never names PDF Polish itself.
+- **Next #3 — actioned:** added **E001** for PDF Spark/OneBrowser with source-linked Task/Service/Updater pivots and a no-direct-family-link caveat. **E002 declined for this run / deferred** under Review 007's explicit 04:00 instruction and the maximum one *new* E pack per run. E003 is a correction, not a new E discovery.
+- **Next #4 — actioned:** added **H007 from L3** using the Huntress research and 23,565 unique IPs/2,223 UK; added **H008 from L4** with Infatica component and dated 11 Aug report. Both are low severity **only for confirmed unauthorised presence without separate malicious behaviour**.
+- **Next #5 / Standing guidance 8 — actioned:** checked the signers **Dragon Boss Solutions LLC** and **Infatica pte ltd** against the opened Unit 42 May 2026 Table 1: neither appears. Infatica signer remains **unverified** and is not relied on as a code-certificate IOC. Absence from the signer list does not prove safety; Huntress's AV-killer artefacts mandate escalation.
+- **Declined unsupported leads:** no Digital Pulse=Infatica alias; no guessed Infatica service name; no unconfirmed FreeFixer or Sophos-KBA identifiers (the linked pages did not open). E002 is next-review work, not silently dropped. Existing incomplete H001/H003/H004/H005 remain on the index; no padding or fabricated client results. Typed tables here describe *where to match if ingested*, not queries run or live inventories.
 
 ## Sources
 
@@ -289,8 +391,16 @@ All sources reviewed on **13 November 2026**. Undated pages are not represented 
 [^pdf-polish]: ANY.RUN, [PDFImage_519340.exe / PDF Polish](https://any.run/report/aedc27e467ca25aee298b4bc85ee57d83bceb049ce751c06dac50cc20aea6712/44d19d08-5913-4254-8cc3-84c56759f670), **10 Apr 2026**: **Process information** `"C:\Users\admin\AppData\Roaming\PDFPolish\PDF Polish.exe"`, product metadata `Company: Jia Hao`; **General Info** Nullsoft installer. Signer not independently verified.
 [^pdf-spark]: Malwarebytes, [PUP.Optional.SparkOnSoft](https://www.malwarebytes.com/blog/detections/pup-optional-sparkonsoft), updated **24 Oct 2025**, PDF Spark branding/Mainstay Crypto LLC.
 [^pdf-control]: Controlware, [Beyond Potentially Unwanted Apps](https://www.controlware.de/fileadmin/controlware/sonstiges/dokumente/Security_Hinweise/Controlware_Beyond_Potentially_Unwanted_Apps_2025.pdf), **Dec 2025** PDF tooling investigation, **Oct 2025** customer observations, PDF Spark certs for Mainstay Crypto LLC/Crowd Sync LLC and significantly malicious other converter activity.
-[^shift]: Malwarebytes, [PUP.Optional.ShiftBrowser](https://www.malwarebytes.com/blog/detections/pup-optional-shiftbrowser), undated PDF/manual/recipe misleading ads; authentic Shift Technologies Inc. identity documented in [repo September 2026 Shift report](../research/2026/2026-09-02-shift-browser-security-assessment.md).
-[^pdf-signer]: Palo Alto Networks Unit 42, [Tracking TamperedChef Clusters via Certificate and Code Reuse](https://unit42.paloaltonetworks.com/tracking-tampered-chef-clusters/), **2026**, names Mainstay Crypto LLC/Crowd Sync LLC in OneBrowser signer group and describes distinct malware clusters, loaders/infostealers/RAT risk. Team-IT Group, [SparkOnSoft & OneBrowser corporate SOC case](https://www.team-it-group.de/blog/sparkonsoft-onebrowser-malware-soc-fallstudie), **26 Aug 2026**, two RDS servers. Sophos [KBA-000043676](https://support.sophos.com/support/s/article/KBA-000043676?language=en_US), **24 Sep 2026** per review, full content unavailable in this run.
+[^shift]: Malwarebytes, [PUP.Optional.ShiftBrowser](https://www.malwarebytes.com/blog/detections/pup-optional-shiftbrowser), page modified **18 August 2025**, confusing advertising for **manuals, recipes and templates** (not specifically PDF); authentic Shift Technologies Inc. identity documented in [repo September 2026 Shift report](../research/2026/2026-09-02-shift-browser-security-assessment.md).
+[^pdf-signer]: Palo Alto Networks Unit 42, [Tracking TamperedChef Clusters via Certificate and Code Reuse](https://unit42.paloaltonetworks.com/tracking-tampered-chef-clusters/), **20 May 2026**, Table 1 lists Mainstay Crypto LLC / Crowd Sync LLC in **OneBrowser Signers** but **never names PDF Spark**; this is a signer link only. It describes several distinct malware clusters and stealer/RAT risk. Team-IT Group, [SparkOnSoft & OneBrowser corporate SOC case](https://www.team-it-group.de/blog/sparkonsoft-onebrowser-malware-soc-fallstudie), **26 Aug 2026**, two RDS servers. Sophos [KBA-000043676](https://support.sophos.com/support/s/article/KBA-000043676?language=en_US), **24 Sep 2026** per review, full content unavailable in this run.
 [^hollow]: Intezer Research, [Two Trojan Families Trotting in Through Google Search Ads](https://research.intezer.com/blog/2026/07/two-trojan-families/), **27 Jul 2026**, HollowMare section and **Hollow Mare IOC table**, lists SagePDF/PowerDoc/PowerPlayer signatures/paths and distinguishes serious stealer/downloader findings.
 [^sdk-guide]: Bright SDK, [Windows SDK Integration Guide (C/C++)](https://help.bright-sdk.com/hc/en-us/articles/16679042461329-Windows-SDK-Integration-Guide-C-C), complete guide currently redirects to authenticated support.
 [^sdk-mouse]: ANY.RUN, [Mouse Server / Luminati SDK](https://any.run/report/ac6b186d8971f71d8a2d9477d71526fc8a0e5f7d03772c9e134813bce4fb2c89/6329de9f-12e9-4564-bdb7-db6dd99d68ad), **29 Jun 2023**, **Process information** PID 2228 exact command; **Modules** `lum_sdk32.dll`, one sample.
+
+[^r04-huntress]: Huntress, [When PUPs Grow Fangs](https://www.huntress.com/blog/pups-grow-fangs), **14 April 2026**, opened **13 Nov 2026**. Identifier transcriptions: “Variations of executables” Table 7; “Code signing”; “File system artifacts”; “Scheduled tasks”; “WMI artifacts”. Sinkhole: 23,565 unique source IPs, 2,223 UK, not unique devices or client hit rate.
+[^r04-infatica-file]: file.net, [infatica-service-app.exe](https://www.file.net/process/infatica-service-app.exe.html), “File information” section opened **13 Nov 2026**. Descriptive file metadata, not independently verified Authenticode evidence; no current presence date is asserted.
+[^r04-infatica-grid]: GridinSoft, [K-Lite Infatica Removal](https://blog.gridinsoft.com/k-lite-codec-pack-infatica-removal/), page last updated **11 Aug 2026**, opened 13 Nov. Reports of Infatica after codec installs, not quantified estate prevalence or proof the official codec pack bundles it.
+[^r04-infatica-mb]: Malwarebytes, [PUP.Optional.Infatica](https://www.malwarebytes.com/blog/detections/pup-optional-infatica), opened 13 Nov. Classifies a proxy-service PUP potentially arriving in bundles; no novel executable/path supplied.
+[^r04-teamit]: Team-IT Group, [SparkOnSoft and OneBrowser SOC case](https://www.team-it-group.de/blog/sparkonsoft-onebrowser-malware-soc-fallstudie), **26 Aug 2026**, opened 13 Nov, reports software on two RDS servers. Does not establish every PDF Spark installer delivers OneBrowser.
+[^r04-onebrowser]: GridinSoft, [OneBrowser Removal: Delete OneBUpdate and OB Leftovers](https://blog.gridinsoft.com/onebrowser-removal/), updated **4 Nov 2026**, opened 13 Nov. Exact names from “Quick answer”, “Stop OneBrowser updater services and tasks”, “Files and folders”, “Registry keys”. Third-party cleanup artefacts, not proof of live tenant deployment.
+[^r04-gdata]: G DATA, [Projextor: Abusing Electron in Trojanized Productivity Applications](https://blog.gdatasoftware.com/2026/08/38468-projextor-abusing-electron), **17 Aug 2026**, opened 13 Nov, names DocConvertWizard, Food/Meal Formula and Kitchen Canvas, but does **not** name PDF Polish or Jia Hao. Packaging (NSIS, Squirrel, Inno Setup) and numbered installer suffixes alone cannot establish family identity.
