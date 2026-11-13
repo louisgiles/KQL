@@ -6,6 +6,15 @@ Independent review of [`high-probability-low-severity.md`](high-probability-low-
 - **Entries:** newest first. Each is stamped with the review time (Europe/London) and the register commit it reviewed.
 - **Leads are not facts.** Anything marked *lead* here is a direction to research and source, not evidence to cite.
 
+## The brief
+
+Owner direction, last updated 2026-11-13 00:56 GMT.
+
+- **Goal:** the highest-probability hunts available. Very high fidelity, low severity, written as packs an analyst can run across estates.
+- **Scope:** PUPs and PUAs are the core because they have produced the most frequent findings, but the register is not limited to them. Any identifiable, low-severity activity with a strong chance of a hit qualifies.
+- **Recency first:** prefer software and activity that is being distributed or observed now over legacy remnants. Recent dated evidence outranks older evidence.
+- **Confirmed previous hits:** PDF Polish, PDF Spark and Shift Browser. These are calibration, not new candidates. The best new candidates resemble them: user-installed software arriving by the same routes, from the same publishers or advertising networks.
+
 ## Standing guidance
 
 Applies to every run until a later review changes it.
@@ -13,11 +22,26 @@ Applies to every run until a later review changes it.
 1. **Stay in one file.** Change only `threat-work/hunts/high-probability-low-severity.md`. No other repository path.
 2. **Add, don't rebuild.** Never delete, renumber or reword existing cards, IDs or footnotes unless a review or new evidence calls for that specific change. Record each such change in the run log.
 3. **Check your own edit before committing.** Every `[^id]` reference has a definition and every definition is referenced. Every index link resolves. The header's run number and active-candidate count match the index and the run log.
-4. **Likelihood needs evidence.** A candidate earns "high probability" from dated evidence that it is on machines now: live distribution, a recent vendor prevalence figure, or a dated sighting in an organisation. An identifiable artefact alone is not likelihood.
+4. **Likelihood needs evidence, and recent evidence counts most.** A candidate earns "high probability" from dated evidence that it is on machines now: live distribution, a recent vendor prevalence figure, or a dated sighting in an organisation. Evidence from the last 12 months outranks anything older. An identifiable artefact alone is not likelihood.
 5. **A shortfall is a valid result.** One well-evidenced candidate beats two thin ones. If nothing clears the bar, add none and spend the run strengthening the evidence on existing cards.
 6. **Quote what a pivot rests on.** For any path, argument or service name taken from a sandbox report, record the exact string as shown and where in the report it appears. Two detonations of one file hash are one sample.
+7. **Build packs around what has already hit.** Siblings of a confirmed hit are the strongest leads: other products from the same publisher, installer framework or advertising route. Where several share those, write one pack with a per-product identifier table, each identifier sourced. A pack counts as one candidate. A product the owner already knows is calibration and goes in the already-covered table, not into a pack as new.
 
 <!-- New reviews go directly below this line, newest first. -->
+
+## Review 002 · 2026-11-13 00:56 GMT
+
+**Reviewed:** no new run. Register still at commit `b8153a2`. This entry records a change of direction from the owner. Review 001's corrections still stand.
+
+**What changed:** see *The brief* above and standing guidance 4 and 7. In short: highest probability first, recency first, packs rather than single products, and not limited to PUPs.
+
+**Next run (Run 03), replacing Review 001's item 3**
+
+1. **Add PDF Spark to the already-covered table** as a confirmed previous hit, alongside PDF Polish and Shift Browser.
+2. **Start from the confirmed hits.** For PDF Polish, PDF Spark and Shift Browser, establish from sources who publishes each, how it is distributed (advertising route, installer framework, signing identity), and what other products the same publisher or route is pushing now. Those siblings are the first candidates. Write them as a pack (standing guidance 7).
+3. **Rank by recency.** Prefer products with dated evidence from the last 12 months and live distribution today. Give each card its newest evidence date in the index. Re-rate H001, H003 and H004 on that basis: most of their evidence is older, so they should sit below anything current.
+4. **Look beyond PUPs for the second candidate** if a second sibling pack is not defensible: unapproved consumer software that is common on work machines, identifiable from process telemetry alone, and low severity when found. The leads in Review 001 item 3 still apply here.
+5. Review 001 items 1, 2, 4 and 5 still apply.
 
 ## Review 001 · 2026-11-13 00:49 GMT
 
